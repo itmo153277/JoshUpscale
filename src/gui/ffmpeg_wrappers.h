@@ -308,8 +308,7 @@ private:
 	struct SInternalData {
 		::AVPixelFormat hwPixelFormat;
 
-		SInternalData(
-		    ::AVPixelFormat hwPixelFormat)  // NOLINT(runtime/explicit)
+		explicit SInternalData(::AVPixelFormat hwPixelFormat)
 		    : hwPixelFormat(hwPixelFormat) {
 		}
 	};

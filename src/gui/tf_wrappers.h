@@ -108,8 +108,7 @@ struct TF_Tensor<float> {
 		m_Tensor = s.m_Tensor;
 		s.m_Tensor = nullptr;
 	}
-	TF_Tensor(::TF_Tensor *tensor)  // NOLINT(runtime/explicit)
-	    : m_Tensor(tensor) {
+	explicit TF_Tensor(::TF_Tensor *tensor) : m_Tensor(tensor) {
 	}
 	~TF_Tensor() {
 		if (m_Tensor) {
