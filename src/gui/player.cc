@@ -318,6 +318,9 @@ void player::SPlayer::audioThread() {
 		}
 		if (frame->channel_layout != inLayout || frame->sample_rate != inRate ||
 		    frameFormat != inFormat) {
+			inLayout = frame->channel_layout;
+			inRate = frame->sample_rate;
+			inFormat = frameFormat;
 			ffmpeg::callOrThrow(
 			    ::swr_config_frame, swrCtx.get(), convertedFrame.get(), frame);
 		}
