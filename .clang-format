@@ -1,6 +1,5 @@
 BasedOnStyle: google
 Standard: Cpp11
-SortIncludes: false
 AccessModifierOffset: -4
 ConstructorInitializerIndentWidth: 4
 IndentWidth: 4

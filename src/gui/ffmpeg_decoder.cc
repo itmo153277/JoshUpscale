@@ -1,5 +1,9 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "ffmpeg_decoder.h"
+
 #include <thread>
+#include <utility>
 
 ffmpeg::SDecoder::SDecoder(const char *source, ffmpeg::DXVA dxva)
     : m_FormatCtx{ffmpeg::openDshowSource(source)}
@@ -36,7 +40,7 @@ void ffmpeg::SDecoder::captureLoop() {
 				::av_packet_unref(packet.get());
 			}
 		}
-	} catch (ffmpeg::AVException &e) {
+	} catch (const ffmpeg::AVException &e) {
 		if (e.averror != AVERROR_EOF) {
 			throw;
 		}
@@ -87,7 +91,7 @@ void ffmpeg::SDecoder::videoDecoderLoop(DecoderCallback cb) {
 				}
 			}
 		}
-	} catch (ffmpeg::AVException &e) {
+	} catch (const ffmpeg::AVException &e) {
 		if (e.averror != AVERROR_EOF) {
 			throw;
 		}
@@ -126,7 +130,7 @@ void ffmpeg::SDecoder::audioDecoderLoop(DecoderCallback cb) {
 				minPts = cb(frame.get());
 			}
 		}
-	} catch (ffmpeg::AVException &e) {
+	} catch (const ffmpeg::AVException &e) {
 		if (e.averror != AVERROR_EOF) {
 			throw;
 		}

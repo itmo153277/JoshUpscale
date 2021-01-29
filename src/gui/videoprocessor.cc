@@ -1,17 +1,25 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "videoprocessor.h"
-#include "sdl_wrappers.h"
-#include "ffmpeg_wrappers.h"
-#include "upscaler.h"
-#include "player.h"
-#include <windows.h>
+
+#define WIN32_LEAN_AND_MEAN
+
 #include <dshow.h>
+#include <windows.h>
+
+#include <codecvt>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
-#include <system_error>
-#include <string>
 #include <sstream>
-#include <codecvt>
+#include <string>
+#include <system_error>
+#include <utility>
+
+#include "ffmpeg_wrappers.h"
+#include "player.h"
+#include "sdl_wrappers.h"
+#include "upscaler.h"
 
 std::wstring convertString(const std::string &str) {
 	return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t>{}

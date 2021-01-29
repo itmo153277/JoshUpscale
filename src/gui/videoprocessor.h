@@ -1,7 +1,10 @@
+// Copyright 2021 Ivanov Viktor
+
 #pragma once
-#include <vector>
-#include <string>
+
 #include <functional>
+#include <string>
+#include <vector>
 
 namespace processor {
 

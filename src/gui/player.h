@@ -1,12 +1,16 @@
+// Copyright 2021 Ivanov Viktor
+
 #pragma once
-#include "ffmpeg_wrappers.h"
-#include "ffmpeg_decoder.h"
-#include "sdl_wrappers.h"
+
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <atomic>
+
+#include "ffmpeg_decoder.h"
+#include "ffmpeg_wrappers.h"
+#include "sdl_wrappers.h"
 
 namespace player {
 
@@ -42,8 +46,8 @@ private:
 	std::unique_ptr<smart::SDL_AudioDevice> m_AudioDevice = nullptr;
 	smart::AVPointer m_VideoBuffer = nullptr;
 	std::size_t m_VideoBufferStride;
-	std::atomic<ffmpeg::pts_t> m_MasterClock = 0;
-	std::atomic<ffmpeg::pts_t> m_ResetMasterClock = AV_NOPTS_VALUE;
+	std::atomic<ffmpeg::pts_t> m_MasterClock{0};
+	std::atomic<ffmpeg::pts_t> m_ResetMasterClock{AV_NOPTS_VALUE};
 	ffmpeg::pts_t m_StreamStart;
 
 	void videoThread();

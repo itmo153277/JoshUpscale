@@ -1,11 +1,14 @@
+// Copyright 2021 Ivanov Viktor
+
 #define WIN32_LEAN_AND_MEAN
 
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <algorithm>
-#include <windows.h>
 #include <avisynth.h>
+#include <windows.h>
+
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <vector>
 
 constexpr int SCALE_FACTOR = 2;
 

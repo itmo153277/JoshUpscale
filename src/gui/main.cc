@@ -1,3 +1,5 @@
+// Copyright 2021 Ivanov Viktor
+
 #include <wx/wxprec.h>
 
 #ifndef WX_PRECOMP
@@ -6,13 +8,13 @@
 
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
-
-#include "videoprocessor.h"
-#include "gui.h"
-
 #include <wx/snglinst.h>
-#include <memory>
+
 #include <exception>
+#include <memory>
+
+#include "gui.h"
+#include "videoprocessor.h"
 
 class CApp : public wxApp {
 private:
@@ -55,7 +57,7 @@ int CApp::OnExit() {
 void CApp::OnUnhandledException() {
 	try {
 		throw;
-	} catch (std::exception &e) {
+	} catch (const std::exception &e) {
 		wxLogError(e.what());
 	}
 }
@@ -63,7 +65,7 @@ void CApp::OnUnhandledException() {
 bool CApp::OnExceptionInMainLoop() {
 	try {
 		throw;
-	} catch (std::exception &e) {
+	} catch (const std::exception &e) {
 		wxLogError(e.what());
 	}
 	return false;

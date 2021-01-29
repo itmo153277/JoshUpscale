@@ -51,6 +51,7 @@
     <OutDir>$(SolutionDir)$(Configuration)\$(ProjectName)\$(Platform)\</OutDir>
     <IncludePath>$(FFPath)\include;$(SDLPath)\include;$(TFPath)\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(FFPath)\lib;$(SDLPath)\lib;$(TFPath)\lib;$(LibraryPath)</LibraryPath>
+    <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <LinkIncremental>true</LinkIncremental>
@@ -145,7 +146,6 @@
     <ClInclude Include="videoprocessor.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\.clang-format" />
     <None Include="wxForms.fbp" />
   </ItemGroup>
   <ItemGroup>

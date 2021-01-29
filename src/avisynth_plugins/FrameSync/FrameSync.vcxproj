@@ -50,6 +50,7 @@
     <OutDir>$(SolutionDir)$(Configuration)\$(ProjectName)\$(Platform)\</OutDir>
     <IncludePath>$(AviSynthPath)\include;$(IncludePath)</IncludePath>
     <LibraryPath>$(AviSynthPath)\lib;$(LibraryPath)</LibraryPath>
+    <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <LinkIncremental>true</LinkIncremental>

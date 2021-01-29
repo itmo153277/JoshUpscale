@@ -1,3 +1,5 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "ffmpeg_wrappers.h"
 
 void ffmpeg::init() {
@@ -60,8 +62,8 @@ ffmpeg::SVideoStreamInfo ffmpeg::openVideoStream(
 				    ctx->opaque);
 				for (; *fmt != AV_PIX_FMT_NONE &&
 				       *fmt != pStreamInfo->hwPixelFormat;
-				     ++fmt)
-					;
+				     ++fmt) {
+				}
 				return *fmt;
 			};
 		}

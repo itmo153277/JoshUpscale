@@ -1,3 +1,5 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "sdl_wrappers.h"
 
 void sdl::init() {

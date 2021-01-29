@@ -1,10 +1,12 @@
+// Copyright 2021 Ivanov Viktor
+
 #pragma once
-#pragma warning(disable : 26812)
-#pragma warning(disable : 26819)
 
 #include <SDL.h>
+
 #include <exception>
 #include <memory>
+#include <utility>
 
 namespace sdl {
 
@@ -100,11 +102,11 @@ struct SLockGuard {
 	SLockGuard() = delete;
 	SLockGuard(const SLockGuard &) = delete;
 	SLockGuard(SLockGuard &&) = delete;
-	SLockGuard(::SDL_mutex *mutex) : mutex(mutex) {
-		callOrThrow(::SDL_LockMutex, mutex);
+	explicit SLockGuard(::SDL_mutex *mutex) : mutex(mutex) {
+		sdl::callOrThrow(::SDL_LockMutex, mutex);
 	}
 	~SLockGuard() {
-		callOrThrow(::SDL_UnlockMutex, mutex);
+		sdl::callOrThrow(::SDL_UnlockMutex, mutex);
 	}
 
 private:
@@ -117,7 +119,7 @@ struct STextureLock {
 	STextureLock(STextureLock &&) = delete;
 	STextureLock(::SDL_Texture *texture, void **pixels, int *pitch)
 	    : texture(texture) {
-		callOrThrow(::SDL_LockTexture, texture, nullptr, pixels, pitch);
+		sdl::callOrThrow(::SDL_LockTexture, texture, nullptr, pixels, pitch);
 	}
 	~STextureLock() {
 		::SDL_UnlockTexture(texture);

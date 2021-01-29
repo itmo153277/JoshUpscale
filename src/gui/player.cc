@@ -1,10 +1,13 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "player.h"
+
 #include <exception>
-#include <sstream>
 #include <iomanip>
-#include <vector>
-#include <thread>
 #include <mutex>
+#include <sstream>
+#include <thread>
+#include <vector>
 
 constexpr ::AVSampleFormat sdlToFfmpegSampleFormat(::SDL_AudioFormat fmt) {
 	switch (fmt) {
@@ -48,7 +51,6 @@ player::SPlayer::SPlayer(std::size_t inputWidth, std::size_t inputHeight,
     , m_ProcessCallback{processCallback}
     , m_WriteCallback{writeCallback}
     , m_Decoder{source, dxva}
-    , m_MasterClock{0}
     , m_Window{sdl::allocOrThrow(::SDL_CreateWindow("JoshUpscale",
           SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
           static_cast<int>(m_OutputWidth), static_cast<int>(m_OutputHeight),
@@ -104,7 +106,7 @@ void player::SPlayer::play(PresentCallback cb) {
 
 	std::exception_ptr exception = nullptr;
 	std::vector<std::thread> threads;
-	std::atomic<std::size_t> threadsRunning = 0;
+	std::atomic<std::size_t> threadsRunning{0};
 	std::mutex threadMutex;
 	try {
 		{

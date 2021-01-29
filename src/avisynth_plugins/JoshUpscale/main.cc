@@ -1,8 +1,12 @@
+// Copyright 2021 Ivanov Viktor
+
 #define WIN32_LEAN_AND_MEAN
 
-#include <memory>
-#include <windows.h>
 #include <avisynth.h>
+#include <windows.h>
+
+#include <memory>
+
 #include "..\..\gui\upscaler.h"
 
 class JoshUpscale : public GenericVideoFilter {

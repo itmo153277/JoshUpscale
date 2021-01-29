@@ -1,4 +1,7 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "gui.h"
+
 #include <cassert>
 
 void CMainFrame::onVideoSelected(wxCommandEvent &event) {
@@ -41,7 +44,7 @@ void CMainFrame::onGoClicked(wxCommandEvent &event) {
 	}
 	Show(false);
 	processor::processAndShowVideo(
-	    videoIn, audioIn, audioOut, dxva, [this] { wxYield(); });
+	    videoIn, audioIn, audioOut, dxva, [] { wxYield(); });
 	Close();
 }
 

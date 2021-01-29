@@ -1,3 +1,5 @@
+// Copyright 2021 Ivanov Viktor
+
 #pragma once
 
 #include "generated_ui.h"

@@ -1,4 +1,7 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "tf_wrappers.h"
+
 #include <fstream>
 
 smart::TF_Graph tf::readGraph(const std::string &fileName) {

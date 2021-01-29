@@ -1,11 +1,13 @@
-#pragma once
+// Copyright 2021 Ivanov Viktor
 
-#include "tf_wrappers.h"
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
+
+#include "tf_wrappers.h"
 
 namespace upscaler {
 

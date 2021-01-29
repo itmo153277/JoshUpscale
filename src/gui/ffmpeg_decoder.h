@@ -1,9 +1,11 @@
+// Copyright 2021 Ivanov Viktor
+
 #pragma once
 
-#include "ffmpeg_wrappers.h"
-
-#include <functional>
 #include <atomic>
+#include <functional>
+
+#include "ffmpeg_wrappers.h"
 
 namespace ffmpeg {
 

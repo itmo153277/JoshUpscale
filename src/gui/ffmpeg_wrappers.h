@@ -1,24 +1,26 @@
+// Copyright 2021 Ivanov Viktor
+
 #pragma once
 #pragma warning(disable : 26812)
 
 extern "C" {
-
 #include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
 #include <libavdevice/avdevice.h>
+#include <libavformat/avformat.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/time.h>
-#include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
+#include <libswscale/swscale.h>
 }
 
 #include <cassert>
+#include <condition_variable>
 #include <cstdint>
 #include <exception>
 #include <memory>
-#include <queue>
 #include <mutex>
-#include <condition_variable>
+#include <queue>
+#include <utility>
 
 namespace ffmpeg {
 
@@ -300,13 +302,14 @@ struct SStreamInfo {
 };
 
 struct SVideoStreamInfo : SStreamInfo {
-	::AVPixelFormat hwPixelFormat;
+	::AVPixelFormat hwPixelFormat = AV_PIX_FMT_NONE;
 
 private:
 	struct SInternalData {
 		::AVPixelFormat hwPixelFormat;
 
-		SInternalData(::AVPixelFormat hwPixelFormat)
+		SInternalData(
+		    ::AVPixelFormat hwPixelFormat)  // NOLINT(runtime/explicit)
 		    : hwPixelFormat(hwPixelFormat) {
 		}
 	};

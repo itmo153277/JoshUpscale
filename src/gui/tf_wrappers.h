@@ -1,13 +1,17 @@
+// Copyright 2021 Ivanov Viktor
+
 #pragma once
 #pragma warning(disable : 4190)
 
 #include <tensorflow/c/c_api.h>
 #include <tensorflow/c/c_api_experimental.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tf {
@@ -104,7 +108,8 @@ struct TF_Tensor<float> {
 		m_Tensor = s.m_Tensor;
 		s.m_Tensor = nullptr;
 	}
-	TF_Tensor(::TF_Tensor *tensor) : m_Tensor(tensor) {
+	TF_Tensor(::TF_Tensor *tensor)  // NOLINT(runtime/explicit)
+	    : m_Tensor(tensor) {
 	}
 	~TF_Tensor() {
 		if (m_Tensor) {

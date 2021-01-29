@@ -1,4 +1,8 @@
+// Copyright 2021 Ivanov Viktor
+
 #include "upscaler.h"
+
+#include <algorithm>
 #include <cstring>
 
 static const int64_t inputFrameDim[4] = {
@@ -11,10 +15,10 @@ static const smart::TF_SessionOptionsProto sessionOptions = {
 
 upscaler::SUpscaler::SUpscaler()
     : m_Graph{tf::readGraph("model.pb")}
+    , m_OutputOp{TF_GraphOperationByName(m_Graph.get(), "output"), 0}
     , m_InputOp{{{::TF_GraphOperationByName(m_Graph.get(), "cur_frame"), 0},
           {::TF_GraphOperationByName(m_Graph.get(), "last_frame"), 0},
           {::TF_GraphOperationByName(m_Graph.get(), "pre_gen"), 0}}}
-    , m_OutputOp{TF_GraphOperationByName(m_Graph.get(), "output"), 0}
     , m_Input{inputFrameDim, 4}
     , m_LastFrame{inputFrameDim, 4}
     , m_PreGenTensor{outputFrameDim, 4}
