@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+
+<Product xmlns="http://schemas.microsoft.com/developer/2004/01/bootstrapper" ProductCode="NVIDIA.CUDA.11.0.3.x64">
+
+  <PackageFiles CopyAllPackageFiles="false">
+    <PackageFile Name="cuda_11.0.3_win10_network.exe" HomeSite="NVIDIACudaUrl" Hash="598eec64474952f4caa0283398b2e584f8a80db4699075eab65bdf93eb1904b5" />
+  </PackageFiles>
+
+  <InstallChecks>
+    <RegistryCheck Property="VersionCheck" Key="HKLM\SOFTWARE\NVIDIA Corporation\GPU Computing Toolkit\CUDA\v11.0" Value="64BitInstalled" />
+  </InstallChecks>
+
+  <Commands Reboot="None">
+    <Command PackageFile="cuda_11.0.3_win10_network.exe">
+      <InstallConditions>
+        <BypassIf Property="VersionCheck" Compare="ValueEqualTo" Value="1" />
+        <FailIf Property="AdminUser" Compare="ValueEqualTo" Value="false" String="AdminRequired" />
+      </InstallConditions>
+
+      <ExitCodes>
+        <ExitCode Value="0" Result="Success"/>
+        <DefaultExitCode Result="Fail" FormatMessageFromSystem="true" String="GeneralFailure" />
+      </ExitCodes>
+    </Command>
+  </Commands>
+
+  <Strings>
+    <String Name="NVIDIACudaUrl">http://developer.download.nvidia.com/compute/cuda/11.0.3/network_installers/cuda_11.0.3_win10_network.exe</String>
+  </Strings>
+</Product>
