@@ -1,5 +1,19 @@
 # JoshUpscale
 
+Upscales and refines video (480x272 -> 960x544) using AI model. Originally created for upscaling GTA VCS stream but may be used for other things as well.
+
+Demo:
+- large model: https://youtu.be/CYsiFPwO6P0
+- small model: https://youtu.be/aBkcG-yTNts
+
+The model is originally based on [TecoGAN project](https://github.com/thunil/TecoGAN) by Mengyu Chu, et al.
+
+This repository contains the following:
+
+- avisynth plugin for video upscaling;
+- GUI program that captures video and applies upscaling in real time;
+- scripts and tools for model training and dataset generation (WIP).
+
 ## How to Build
 
 Supported compilers: Visual Studio 2019 (16.8.4).
