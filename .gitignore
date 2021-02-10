@@ -2,3 +2,6 @@
 Release
 Debug
 *.user
+
+__pycache__
+.ipynb*
