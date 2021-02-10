@@ -1,5 +1,4 @@
-Contributing guidelines
-=======================
+# Contributing guidelines
 
 Any contributions are welcome.
 
@@ -9,12 +8,17 @@ Any contributions are welcome.
 
 - C++14
 - Follow included `clang-format` style
-- Lint with `cpplint` (https://github.com/cpplint/cpplint, https://github.com/google/styleguide/tree/gh-pages/cpplint).
+- Lint with `cpplint` ([cpplint/cpplint](https://github.com/cpplint/cpplint), [google/styleguide/cpplint](https://github.com/google/styleguide/tree/gh-pages/cpplint))
 - Lint with `clang-tidy`
 
 ### Python
 
-- TBD
+- Python 3.8
+- Follow `pep8`
+- Format with `autopep8`
+- Lint with `pylint` with default rules
+- Lint with `flake8`
+- Lint with `pydocstyle`
 
 ## Tests
 
