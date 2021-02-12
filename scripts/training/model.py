@@ -357,7 +357,6 @@ def get_frvsr(generator_model, flow_model, crop_size=32, learning_rate=0.0005):
                          name="input")
     targets = keras.Input(shape=[10, crop_size*2, crop_size*2, 3],
                           name="target")
-    batch_size = tf.shape(inputs)[0]
     input_frames = tf.reshape(inputs[:, 1:, :, :, :],
                               [-1, crop_size, crop_size, 3])
     input_frames_pre = tf.reshape(inputs[:, :-1, :, :, :],
@@ -372,7 +371,7 @@ def get_frvsr(generator_model, flow_model, crop_size=32, learning_rate=0.0005):
     flow = tf.reshape(flow, [-1, 9, crop_size*2, crop_size*2, 2])
     last_output = generator_model([
         inputs[:, 0, :, :, :],
-        tf.zeros((batch_size, crop_size*2, crop_size*2, 3))
+        tf.zeros_like(targets[:, 0, :, :, :])
     ])
     gen_outputs = [last_output]
     for frame_i in range(9):
@@ -447,7 +446,6 @@ def get_gan_model(generator_model, flow_model, discriminator_model,
     targets_rev = orig_targets[:, -2::-1, :, :, :]
     inputs = layers.Concatenate(axis=1)([orig_inputs, inputs_rev])
     targets = layers.Concatenate(axis=1)([orig_targets, targets_rev])
-    batch_size = tf.shape(inputs)[0]
     input_frames = tf.reshape(inputs[:, 1:, :, :, :],
                               [-1, crop_size, crop_size, 3])
     input_frames_pre = tf.reshape(inputs[:, :-1, :, :, :],
@@ -462,7 +460,7 @@ def get_gan_model(generator_model, flow_model, discriminator_model,
     flow = tf.reshape(flow, [-1, 18, crop_size*2, crop_size*2, 2])
     last_output = generator_model([
         inputs[:, 0, :, :, :],
-        tf.zeros((batch_size, crop_size*2, crop_size*2, 3))
+        tf.zeros_like(targets[:, 0, :, :, :])
     ])
     gen_outputs = [last_output]
     warp_outputs = []
