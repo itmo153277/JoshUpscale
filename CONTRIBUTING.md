@@ -16,6 +16,7 @@ Any contributions are welcome.
 - Python 3.8
 - Follow `pep8`
 - Format with `autopep8`
+- Double quote over single quote
 - Lint with `pylint` with default rules
 - Lint with `flake8`
 - Lint with `pydocstyle`
