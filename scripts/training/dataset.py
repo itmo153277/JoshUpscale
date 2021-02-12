@@ -28,6 +28,7 @@ def get_dataset(path, batch_size=64, num_test_set=100, crop_size=32):
     tf.Dataset
         Validation dataset
     """
+    # pylint: disable=invalid-name, unexpected-keyword-arg
     def parse_example(example):
         return tf.io.parse_single_example(example, {
             "input": tf.io.FixedLenFeature([10], tf.string),

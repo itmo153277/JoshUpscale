@@ -13,6 +13,7 @@ import tensorflow as tf
 
 def display_data(data, num_img):
     """Display some data from the dataset."""
+    # pylint: disable=invalid-name
     d = [x for x in data.take(1)][0]
     fig = plt.figure(figsize=(20, 4 * num_img))
     for ind in range(num_img):
@@ -37,6 +38,7 @@ def set_random_seed(seed):
 
 def create_gif(images, fps=3):
     """Create gif."""
+    # pylint: disable=invalid-name
     images = (np.minimum(np.maximum(images, 0), 1) * 255
               ).astype(np.uint8)
     clip = mpy.ImageSequenceClip(list(images), fps=fps)
@@ -51,6 +53,7 @@ def create_gif(images, fps=3):
 
 def encode_gif_summary(images, name, fps=3):
     """Encode TensorBoard summary for GIF images."""
+    # pylint: disable=invalid-name, no-member
     shape = images.shape
     if len(shape) == 4:
         shape = (1,) + shape

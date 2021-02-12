@@ -38,6 +38,9 @@ class Training:
         self.avg_discr_loss = None
         self.avg_content_loss = None
         self.avg_warp_loss = None
+        self.step_fn = None
+        self.test_fn = None
+        self.play_fn = None
 
     def init(self):
         """Initialise models."""
@@ -98,8 +101,11 @@ class Training:
         self.avg_warp_loss = keras.metrics.Mean("warp_loss")
 
         @tf.function
-        def get_loss(inputs, targets, gen_outputs, target_warp, fake_output,
+        def get_loss(targets, gen_outputs, target_warp, fake_output,
                      real_output, warp_outputs):
+            # pylint: disable=unexpected-keyword-arg
+            # pylint: disable=no-value-for-parameter
+            # pylint: disable=invalid-unary-operand-type
             targets_b = tf.concat([targets, targets[:, -2::-1, :, :, :]],
                                   axis=1)
             targets_t = targets_b[:, 1:, :, :, :]
@@ -194,8 +200,8 @@ class Training:
                 gen_outputs, target_warp, fake_output, real_output, \
                     warp_outputs = self.gan_model([inputs, targets])
                 gen_loss, fnet_loss, discr_loss, t_balance, content_loss, \
-                    warp_loss = get_loss(inputs, targets, gen_outputs,
-                                         target_warp, fake_output, real_output,
+                    warp_loss = get_loss(targets, gen_outputs, target_warp,
+                                         fake_output, real_output,
                                          warp_outputs)
                 cond_discr_loss = (1 - tf.math.sign(t_balance - 0.4)) / \
                     2 * discr_loss
@@ -224,10 +230,9 @@ class Training:
         def test_fn(inputs, targets):
             gen_outputs, input_warp, fake_output, real_output, warp_outputs = \
                 self.gan_model([inputs, targets], training=False)
-            gen_loss, fnet_loss, discr_loss, t_balance, content_loss, \
-                warp_loss = get_loss(
-                    inputs, targets, gen_outputs, input_warp, fake_output,
-                    real_output, warp_outputs)
+            gen_loss, fnet_loss, discr_loss, _, content_loss, \
+                warp_loss = get_loss(targets, gen_outputs, input_warp,
+                                     fake_output, real_output, warp_outputs)
             self.avg_gen_loss.update_state(gen_loss)
             self.avg_fnet_loss.update_state(fnet_loss)
             self.avg_discr_loss.update_state(discr_loss)
