@@ -272,7 +272,7 @@ def train_frvsr(
     if checkpointdir_base is not None:
         checkpointdir = os.path.join(checkpointdir_base, "frvsr")
         if tag is not None:
-            checkpointdir = os.path.join(checkpointdir_base, tag)
+            checkpointdir = os.path.join(checkpointdir, tag)
         checkpoint_format = \
             os.path.join(checkpointdir, "weights-{epoch:03d}.h5")
         if os.path.exists(checkpointdir):
