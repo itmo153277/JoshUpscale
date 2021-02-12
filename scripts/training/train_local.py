@@ -281,6 +281,7 @@ def train_frvsr(
                 if os.path.exists(filename):
                     initial_epoch = i
                     model.frvsr_model.load_weights(filename)
+                    break
         callbacks.append(keras.callbacks.ModelCheckpoint(
             checkpoint_format
         ))
