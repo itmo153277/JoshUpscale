@@ -3,6 +3,7 @@
 """Utility functions."""
 
 import os
+import random
 import tempfile
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,21 +11,28 @@ from moviepy import editor as mpy
 import tensorflow as tf
 
 
-def display_data(data):
+def display_data(data, num_img):
     """Display some data from the dataset."""
     d = [x for x in data.take(1)][0]
-    batch_size = d["input"].shape[0]
-    fig = plt.figure(figsize=(20, 4 * batch_size // 4))
-    for ind in range(batch_size // 4):
+    fig = plt.figure(figsize=(20, 4 * num_img))
+    for ind in range(num_img):
         for i in range(10):
-            sp = fig.add_subplot(2 * batch_size // 4, 10, ind * 20 + 1 + i)
+            sp = fig.add_subplot(2 * num_img, 10, ind * 20 + 1 + i)
             sp.axis("off")
             plt.imshow(d["input"][ind, i])
         for i in range(10):
-            sp = fig.add_subplot(2 * batch_size // 4, 10, ind * 20 + 11 + i)
+            sp = fig.add_subplot(2 * num_img, 10, ind * 20 + 11 + i)
             sp.axis("off")
             plt.imshow(d["target"][ind, i])
     plt.show()
+
+
+def set_random_seed(seed):
+    """Set random seed."""
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    os.environ["TF_CUDNN_DETERMINISTIC"] = "1"
 
 
 def create_gif(images, fps=3):
@@ -33,9 +41,9 @@ def create_gif(images, fps=3):
               ).astype(np.uint8)
     clip = mpy.ImageSequenceClip(list(images), fps=fps)
     with tempfile.NamedTemporaryFile() as f:
-        filename = f.name + '.gif'
+        filename = f.name + ".gif"
     clip.write_gif(filename, logger=None)
-    with open(filename, 'rb') as f:
+    with open(filename, "rb") as f:
         gif = f.read()
     os.remove(filename)
     return gif
