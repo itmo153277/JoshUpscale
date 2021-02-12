@@ -282,8 +282,16 @@ def train_frvsr(
                     initial_epoch = i
                     model.frvsr_model.load_weights(filename)
                     break
+        else:
+          os.makedirs(checkpointdir)
         callbacks.append(keras.callbacks.ModelCheckpoint(
-            checkpoint_format
+            checkpoint_format, save_weights_only=True
+        ))
+        callbacks.append(keras.callbacks.ModelCheckpoint(
+            os.path.join(checkpointdir, "weights-best.h5"),
+            monitor="val_gen_outputs_loss",
+            save_best_only=True,
+            save_weights_only=True
         ))
     model.train_frvsr(
         train_ds,
