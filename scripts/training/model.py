@@ -314,7 +314,7 @@ def get_full_model(generator_model, flow_model, name="full", dtype=None):
                              name="last_frame")
     pre_gen = keras.Input(shape=[None, None, 3], dtype=dtype,
                           name="pre_gen")
-    flow = flow_model([cur_frame, last_frame])
+    flow = flow_model([last_frame, cur_frame])
     flow = UpscaleLayer(dtype="float32")(flow)
     flow = layers.Lambda(lambda x: x * 2, dtype="float32")(flow)
     pre_warp = DenseWarpLayer(dtype="float32")([pre_gen, flow])
@@ -452,7 +452,7 @@ def get_gan_model(generator_model, flow_model, discriminator_model,
                                   [-1, crop_size, crop_size, 3])
     target_frames_pre = tf.reshape(targets[:, :-1, :, :, :],
                                    [-1, crop_size*2, crop_size*2, 3])
-    flow = flow_model([input_frames, input_frames_pre])
+    flow = flow_model([input_frames_pre, input_frames])
     flow = UpscaleLayer(dtype="float32")(flow) * 2
     target_warp = DenseWarpLayer(dtype="float32")([target_frames_pre, flow])
     target_warp = tf.reshape(target_warp,
