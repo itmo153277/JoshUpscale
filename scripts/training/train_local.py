@@ -283,7 +283,7 @@ def train_frvsr(
                     model.frvsr_model.load_weights(filename)
                     break
         else:
-          os.makedirs(checkpointdir)
+            os.makedirs(checkpointdir)
         callbacks.append(keras.callbacks.ModelCheckpoint(
             checkpoint_format, save_weights_only=True
         ))
