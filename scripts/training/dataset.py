@@ -89,16 +89,20 @@ def get_dataset(path, batch_size=64, num_test_set=100, crop_size=32):
 
     val_ds = ds.take(num_test_set)
     ds = ds.skip(num_test_set)
-    ds = ds.repeat(20)
     ds = ds.shuffle(200)
     ds = ds.repeat()
-    ds = ds.map(random_crop)
+    ds = ds.map(
+        random_crop,
+        num_parallel_calls=tf.data.experimental.AUTOTUNE
+    )
     ds = ds.map(normalize)
     ds = ds.filter(filter_flat)
     ds = ds.batch(batch_size, drop_remainder=True)
-    val_ds = val_ds.repeat(10)
+    val_ds = val_ds.shuffle(num_test_set)
+    val_ds = val_ds.repeat()
     val_ds = val_ds.map(random_crop)
     val_ds = val_ds.map(normalize)
     val_ds = val_ds.filter(filter_flat)
+    val_ds = val_ds.take(num_test_set * 10)
     val_ds = val_ds.batch(batch_size, drop_remainder=True)
     return ds, val_ds

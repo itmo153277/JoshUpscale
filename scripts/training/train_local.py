@@ -53,6 +53,13 @@ def parse_args():
                         type=int,
                         default=200,
                         required=False)
+    parser.add_argument("--play-set-size",
+                        dest="num_play_set",
+                        help=("Number of prediction examples " +
+                              "(default: %(default)d)"),
+                        type=int,
+                        default=8,
+                        required=False)
     parser.add_argument("-c", "--crop",
                         dest="crop_size",
                         help="Crop size (default: %(default)d)",
@@ -167,6 +174,7 @@ def load_datasets(
     dataset_path,
     batch_size=64,
     num_test_set=200,
+    num_play_set=8,
     crop_size=32
 ):
     """
@@ -180,6 +188,8 @@ def load_datasets(
         Batch size
     num_test_set : int
         Number of test examples
+    num_play_set : int
+        Number of play examples
     crop_size : int
         Cropping size
 
@@ -198,7 +208,12 @@ def load_datasets(
         num_test_set=num_test_set,
         crop_size=crop_size
     )
-    play_ds = val_ds.take(1).cache()
+    play_ds = val_ds.unbatch().take(num_play_set)
+    play_ds = play_ds.batch(
+        min(num_play_set, batch_size),
+        drop_remainder=True
+    )
+    play_ds = play_ds.cache()
     val_ds = val_ds.cache()
     return train_ds, val_ds, play_ds
 
@@ -309,6 +324,7 @@ def main(
     gpus=None,
     batch_size=64,
     num_test_set=200,
+    num_play_set=8,
     crop_size=32,
     model_type="large",
     config_override=None,
@@ -336,6 +352,8 @@ def main(
         Batch size
     num_test_set : int
         Number of test examples for validation
+    num_play_set : int
+        Number of test examples for visualisation
     crop_size : int
         Cropping size
     model_type : str
@@ -371,6 +389,7 @@ def main(
         dataset_path=dataset_path,
         batch_size=batch_size,
         num_test_set=num_test_set,
+        num_play_set=num_play_set,
         crop_size=crop_size
     )
     if config_override is not None and isinstance(config_override, str):
