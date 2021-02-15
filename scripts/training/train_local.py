@@ -366,7 +366,15 @@ def train_gan(
         logdir = os.path.join(logdir_base, "gan")
         if tag is not None:
             logdir = os.path.join(logdir, tag)
-        metrics_writer = tf.summary.create_file_writer(logdir)
+        train_writer = tf.summary.create_file_writer(
+            os.path.join(logdir, "train")
+        )
+        val_writer = tf.summary.create_file_writer(
+            os.path.join(logdir, "validation")
+        )
+        metrics_writer = tf.summary.create_file_writer(
+            os.path.join(logdir, "metrics")
+        )
 
         def metrics_fn(epoch, metrics):
             # pylint: disable=not-context-manager
@@ -382,13 +390,24 @@ def train_gan(
                     tensor=tf.convert_to_tensor(data[1]),
                     step=epoch
                 )
-                for key, value in metrics.items():
-                    tf.summary.scalar(
-                        name=key,
-                        data=value,
-                        step=epoch
-                    )
             metrics_writer.flush()
+            for key, value in metrics.items():
+                if key.startswith("val_"):
+                    with val_writer.as_default():
+                        tf.summary.scalar(
+                            name=key[4:],
+                            data=value,
+                            step=epoch
+                        )
+                else:
+                    with train_writer.as_default():
+                        tf.summary.scalar(
+                            name=key,
+                            data=value,
+                            step=epoch
+                        )
+            train_writer.flush()
+            val_writer.flush()
         callbacks.append(metrics_fn)
     if checkpointdir_base is not None:
         checkpointdir = os.path.join(checkpointdir_base, "gan")
@@ -415,7 +434,7 @@ def train_gan(
             if best_loss is None or best_loss > loss:
                 best_loss = loss
                 model.gan_model.save_weights(best_checkpoint)
-            model.gan_model.save_weight(checkpoint_format.format(epoch=epoch))
+            model.gan_model.save_weights(checkpoint_format.format(epoch=epoch))
         callbacks.append(checkpoint_fn)
     model.train_gan(
         train_ds,

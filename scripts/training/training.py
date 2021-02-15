@@ -397,7 +397,7 @@ class Training:
         return np.concatenate([
             [r.numpy() for r in self.play_fn(d["input"])]
             for d in data
-        ], axis=0)
+        ], axis=1)
 
 
 class DistributedTraining(Training):
