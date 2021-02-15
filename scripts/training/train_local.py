@@ -97,6 +97,12 @@ def parse_args():
                         type=int,
                         default=100,
                         required=False)
+    parser.add_argument("--skip-gan",
+                        dest="gan_skip",
+                        help="Skip GAN training",
+                        action="store_true",
+                        default=False,
+                        required=False)
     parser.add_argument("--gan-epochs",
                         help=("Number of epochs for GAN training " +
                               "(default: %(default)d)"),
@@ -319,6 +325,108 @@ def train_frvsr(
     )
 
 
+def train_gan(
+    model,
+    train_ds,
+    val_ds,
+    play_ds,
+    epochs=400,
+    steps=100,
+    tag=None,
+    logdir_base=None,
+    checkpointdir_base=None
+):
+    """
+    Train GAN.
+
+    Parameters
+    ----------
+    model : training.Training or training.DistributedTraining
+        Training model
+    train_ds : tf.Dataset
+        Train dataset
+    val_ds : tf.Dataset
+        Validation dataset
+    play_ds : tf.Dataset
+        Play dataset (for visualisation)
+    epochs : int
+        Number of epochs
+    steps : int
+        Number of steps per epoch
+    tag : str
+        Run tag
+    logdir_base : str
+        Base directory for tensorboard logs
+    checkpointdir_base : str
+        Base directory for checkpoints
+    """
+    initial_epoch = 0
+    callbacks = []
+    if logdir_base is not None:
+        logdir = os.path.join(logdir_base, "gan")
+        if tag is not None:
+            logdir = os.path.join(logdir, tag)
+        metrics_writer = tf.summary.create_file_writer(logdir)
+
+        def metrics_fn(epoch, metrics):
+            # pylint: disable=not-context-manager
+            data = model.play(play_ds)
+            with metrics_writer.as_default():
+                utils.gif_summary(
+                    name="gen_outputs",
+                    tensor=tf.convert_to_tensor(data[0]),
+                    step=epoch
+                )
+                utils.gif_summary(
+                    name="pre_warps",
+                    tensor=tf.convert_to_tensor(data[1]),
+                    step=epoch
+                )
+                for key, value in metrics.items():
+                    tf.summary.scalar(
+                        name=key,
+                        data=value,
+                        step=epoch
+                    )
+            metrics_writer.flush()
+        callbacks.append(metrics_fn)
+    if checkpointdir_base is not None:
+        checkpointdir = os.path.join(checkpointdir_base, "gan")
+        if tag is not None:
+            checkpointdir = os.path.join(checkpointdir, tag)
+        checkpoint_format = \
+            os.path.join(checkpointdir, "weights-{epoch:03d}.h5")
+        best_checkpoint = \
+            os.path.join(checkpointdir, "weights-best.h5")
+        if os.path.exists(checkpointdir):
+            for i in range(epochs, 0, -1):
+                filename = checkpoint_format.format(epoch=i)
+                if os.path.exists(filename):
+                    initial_epoch = i
+                    model.gan_model.load_weights(filename)
+                    break
+        else:
+            os.makedirs(checkpointdir)
+        best_loss = None
+
+        def checkpoint_fn(epoch, metrics):
+            nonlocal best_loss
+            loss = metrics["val_content_loss"].numpy()
+            if best_loss is None or best_loss > loss:
+                best_loss = loss
+                model.gan_model.save_weights(best_checkpoint)
+            model.gan_model.save_weight(checkpoint_format.format(epoch=epoch))
+        callbacks.append(checkpoint_fn)
+    model.train_gan(
+        train_ds,
+        epochs=epochs,
+        steps=steps,
+        validation_data=val_ds,
+        callbacks=callbacks,
+        initial_epoch=initial_epoch
+    )
+
+
 def main(
     dataset_path,
     tag=None,
@@ -332,8 +440,9 @@ def main(
     frvsr_skip=False,
     frvsr_epochs=400,
     frvsr_steps=100,
-    gan_epochs=400,  # pylint: disable=unused-argument
-    gan_steps=100,  # pylint: disable=unused-argument
+    gan_skip=False,
+    gan_epochs=400,
+    gan_steps=100,
     tensorboard_dir=None,
     checkpoint_dir=None,
     random_seed=None
@@ -367,6 +476,8 @@ def main(
         Number of epochs for FRVSR training
     frvsr_steps : int
         Number of steps per epoch for FRVSR training
+    frvsr_skip : bool
+        Skip GAN training
     gan_epochs : int
         Number of epochs for GAN training
     gan_steps : int
@@ -416,6 +527,18 @@ def main(
             play_ds=play_ds,
             epochs=frvsr_epochs,
             steps=frvsr_steps,
+            logdir_base=tensorboard_dir,
+            checkpointdir_base=checkpoint_dir,
+            tag=tag
+        )
+    if not gan_skip:
+        train_gan(
+            model=model,
+            train_ds=train_ds,
+            val_ds=val_ds,
+            play_ds=play_ds,
+            epochs=gan_epochs,
+            steps=gan_steps,
             logdir_base=tensorboard_dir,
             checkpointdir_base=checkpoint_dir,
             tag=tag

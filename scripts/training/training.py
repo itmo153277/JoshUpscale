@@ -349,11 +349,11 @@ class Training:
                         "discr_loss": discr_loss.numpy()
                     })
             metrics = {
-                "gen_loss": self.avg_gen_loss.result().numpy(),
-                "fnet_loss": self.avg_fnet_loss.result().numpy(),
-                "discr_loss": self.avg_discr_loss.result().numpy(),
-                "content_loss": self.avg_content_loss.result().numpy(),
-                "warp_loss": self.avg_warp_loss.result().numpy()
+                "gen_loss": self.avg_gen_loss.result(),
+                "fnet_loss": self.avg_fnet_loss.result(),
+                "discr_loss": self.avg_discr_loss.result(),
+                "content_loss": self.avg_content_loss.result(),
+                "warp_loss": self.avg_warp_loss.result()
             }
             if validation_data is not None:
                 self.avg_gen_loss.reset_states()
@@ -365,17 +365,17 @@ class Training:
                     self.test_fn(data["input"], data["target"])
                 metrics = {
                     **metrics,
-                    "val_gen_loss": self.avg_gen_loss.result().numpy(),
-                    "val_fnet_loss": self.avg_fnet_loss.result().numpy(),
-                    "val_discr_loss": self.avg_discr_loss.result().numpy(),
-                    "val_content_loss": self.avg_content_loss.result().numpy(),
-                    "val_warp_loss": self.avg_warp_loss.result().numpy()
+                    "val_gen_loss": self.avg_gen_loss.result(),
+                    "val_fnet_loss": self.avg_fnet_loss.result(),
+                    "val_discr_loss": self.avg_discr_loss.result(),
+                    "val_content_loss": self.avg_content_loss.result(),
+                    "val_warp_loss": self.avg_warp_loss.result()
                 }
-                print("gen_loss", metrics["val_gen_loss"],
-                      "fnet_loss", metrics["val_fnet_loss"],
-                      "discr_loss", metrics["val_discr_loss"],
-                      "content_loss", metrics["val_content_loss"],
-                      "warp_loss", metrics["val_warp_loss"])
+                print("gen_loss", metrics["val_gen_loss"].numpy(),
+                      "fnet_loss", metrics["val_fnet_loss"].numpy(),
+                      "discr_loss", metrics["val_discr_loss"].numpy(),
+                      "content_loss", metrics["val_content_loss"].numpy(),
+                      "warp_loss", metrics["val_warp_loss"].numpy())
             if callbacks:
                 for callback in callbacks:
                     callback(epoch, metrics)
