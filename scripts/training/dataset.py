@@ -23,9 +23,9 @@ def get_dataset(path, batch_size=64, num_test_set=100, crop_size=32):
 
     Returns
     -------
-    tf.Dataset
+    tf.data.Dataset
         Train dataset
-    tf.Dataset
+    tf.data.Dataset
         Validation dataset
     """
     # pylint: disable=invalid-name, unexpected-keyword-arg
@@ -76,15 +76,15 @@ def get_dataset(path, batch_size=64, num_test_set=100, crop_size=32):
     random.shuffle(records)
     ds = tf.data.TFRecordDataset(
         records,
-        num_parallel_reads=tf.data.experimental.AUTOTUNE
+        num_parallel_reads=tf.data.AUTOTUNE
     )
     ds = ds.map(
         parse_example,
-        num_parallel_calls=tf.data.experimental.AUTOTUNE
+        num_parallel_calls=tf.data.AUTOTUNE
     )
     ds = ds.map(
         parse_img,
-        num_parallel_calls=tf.data.experimental.AUTOTUNE
+        num_parallel_calls=tf.data.AUTOTUNE
     )
 
     val_ds = ds.take(num_test_set)
@@ -93,7 +93,7 @@ def get_dataset(path, batch_size=64, num_test_set=100, crop_size=32):
     ds = ds.repeat()
     ds = ds.map(
         random_crop,
-        num_parallel_calls=tf.data.experimental.AUTOTUNE
+        num_parallel_calls=tf.data.AUTOTUNE
     )
     ds = ds.map(normalize)
     ds = ds.filter(filter_flat)

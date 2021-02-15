@@ -275,7 +275,7 @@ class Training:
 
         Parameters
         ----------
-        train_data : tf.Dataset
+        train_data : tf.data.Dataset
             Train dataset
         epochs : int
             NUmber of epochs
@@ -283,7 +283,7 @@ class Training:
             Number of steps per epoch
         initial_epoch : int
             First epoch
-        validation_data : tf.Dataset
+        validation_data : tf.data.Dataset
             Validation dataset
         callbacks : array of keras.callbacks.Callback
             Callbacks
@@ -313,7 +313,7 @@ class Training:
 
         Parameters
         ----------
-        train_data : tf.Dataset
+        train_data : tf.data.Dataset
             Train dataset
         epochs : int
             NUmber of epochs
@@ -321,7 +321,7 @@ class Training:
             Number of steps per epoch
         initial_epoch : int
             First epoch
-        validation_data : tf.Dataset
+        validation_data : tf.data.Dataset
             Validation dataset
         callbacks : func
             Callbacks
@@ -386,7 +386,7 @@ class Training:
 
         Parameters
         ----------
-        data : tf.Dataset
+        data : tf.data.Dataset
             Train dataset
 
         Returns
@@ -460,7 +460,7 @@ class DistributedTraining(Training):
 
         Parameters
         ----------
-        train_data : tf.Dataset
+        train_data : tf.data.Dataset
             Train dataset
         epochs : int
             NUmber of epochs
@@ -468,7 +468,7 @@ class DistributedTraining(Training):
             Number of steps per epoch
         initial_epoch : int
             First epoch
-        validation_data : tf.Dataset
+        validation_data : tf.data.Dataset
             Validation dataset
         callbacks : func
             Callbacks
@@ -490,7 +490,7 @@ class DistributedTraining(Training):
 
         Parameters
         ----------
-        data : tf.Dataset
+        data : tf.data.Dataset
             Train dataset
 
         Returns

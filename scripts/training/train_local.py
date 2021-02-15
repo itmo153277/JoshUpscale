@@ -201,11 +201,11 @@ def load_datasets(
 
     Returns
     -------
-    tf.Dataset
+    tf.data.Dataset
         Train dataset
-    tf.Dataset
+    tf.data.Dataset
         Validation dataset
-    tf.Dataset
+    tf.data.Dataset
         PLay dataset (for visualisation)
     """
     train_ds, val_ds = dataset.get_dataset(
@@ -243,11 +243,11 @@ def train_frvsr(
     ----------
     model : training.Training or training.DistributedTraining
         Training model
-    train_ds : tf.Dataset
+    train_ds : tf.data.Dataset
         Train dataset
-    val_ds : tf.Dataset
+    val_ds : tf.data.Dataset
         Validation dataset
-    play_ds : tf.Dataset
+    play_ds : tf.data.Dataset
         Play dataset (for visualisation)
     epochs : int
         Number of epochs
@@ -343,11 +343,11 @@ def train_gan(
     ----------
     model : training.Training or training.DistributedTraining
         Training model
-    train_ds : tf.Dataset
+    train_ds : tf.data.Dataset
         Train dataset
-    val_ds : tf.Dataset
+    val_ds : tf.data.Dataset
         Validation dataset
-    play_ds : tf.Dataset
+    play_ds : tf.data.Dataset
         Play dataset (for visualisation)
     epochs : int
         Number of epochs
