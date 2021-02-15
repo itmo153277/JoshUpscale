@@ -378,7 +378,7 @@ class Training:
                       "warp_loss", metrics["val_warp_loss"].numpy())
             if callbacks:
                 for callback in callbacks:
-                    callback(epoch, metrics)
+                    callback(epoch + 1, metrics)
 
     def play(self, data):
         """
