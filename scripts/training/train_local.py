@@ -215,6 +215,7 @@ def load_datasets(
     )
     play_ds = play_ds.cache()
     val_ds = val_ds.cache()
+    train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
     return train_ds, val_ds, play_ds
 
 
