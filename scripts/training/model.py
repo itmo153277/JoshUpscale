@@ -9,7 +9,7 @@ from layers import UpscaleLayer, DenseWarpLayer
 
 
 def get_generator_model(name="generator", num_blocks=20, num_filters=32,
-                        input_dtypes=None):
+                        input_dtypes=None, output_dtype=None):
     """
     Create generator model.
 
@@ -30,6 +30,8 @@ def get_generator_model(name="generator", num_blocks=20, num_filters=32,
         Number of filters
     input_dtypes : array of str or None
         Data types for input images and warped previous images
+    output_dtype : str or None
+        Output dtype
 
     Returns
     -------
@@ -71,7 +73,7 @@ def get_generator_model(name="generator", num_blocks=20, num_filters=32,
                         padding="SAME")(net)
     net = layers.Activation(K.tanh)(net)
     upscaled = UpscaleLayer(dtype="float32")(images)
-    output = layers.Add()([upscaled, net])
+    output = layers.Add(dtype=output_dtype)([upscaled, net])
     model = keras.Model(inputs=[images, pre_warp],
                         outputs=output, name=name)
     return model
