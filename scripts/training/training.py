@@ -310,7 +310,7 @@ class Training:
         train_data : tf.data.Dataset
             Train dataset
         epochs : int
-            NUmber of epochs
+            Number of epochs
         steps : int
             Number of steps per epoch
         initial_epoch : int
@@ -348,7 +348,7 @@ class Training:
         train_data : tf.data.Dataset
             Train dataset
         epochs : int
-            NUmber of epochs
+            Number of epochs
         steps : int
             Number of steps per epoch
         initial_epoch : int
@@ -427,10 +427,10 @@ class Training:
 
         Returns
         -------
-        np.darray (2 x N x H x W x 3)
+        tf.Tensor (2 x N x H x W x 3)
             Generated frame and warped frame
         """
-        return self.multi_play_fn(data).numpy()
+        return self.multi_play_fn(data)
 
 
 class DistributedTraining(Training):

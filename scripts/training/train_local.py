@@ -279,12 +279,12 @@ def train_frvsr(
             with metrics_writer.as_default():
                 utils.gif_summary(
                     name="gen_outputs",
-                    tensor=tf.convert_to_tensor(data[0]),
+                    tensor=data[0],
                     step=epoch
                 )
                 utils.gif_summary(
                     name="pre_warps",
-                    tensor=tf.convert_to_tensor(data[1]),
+                    tensor=data[1],
                     step=epoch
                 )
             metrics_writer.flush()
