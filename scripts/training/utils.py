@@ -14,7 +14,7 @@ import tensorflow as tf
 def display_data(data, num_img):
     """Display some data from the dataset."""
     # pylint: disable=invalid-name
-    d = [x for x in data.take(1)][0]
+    d = [x for x in data.unbatch().take(num_img).batch(num_img)][0]
     fig = plt.figure(figsize=(20, 4 * num_img))
     for ind in range(num_img):
         for i in range(10):

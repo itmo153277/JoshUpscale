@@ -325,7 +325,8 @@ def get_full_model(generator_model, flow_model, name="full", dtype=None):
     return model
 
 
-def get_frvsr(generator_model, flow_model, crop_size=32, learning_rate=0.0005):
+def get_frvsr(generator_model, flow_model, crop_size=32, learning_rate=0.0005,
+              steps_per_execution=1):
     """
     Create FRVSR model.
 
@@ -347,6 +348,8 @@ def get_frvsr(generator_model, flow_model, crop_size=32, learning_rate=0.0005):
         Image crop size
     learning_rate : float
         Learning rate
+    steps_per_execution : int
+        Steps per execution
 
     Returns
     -------
@@ -391,7 +394,8 @@ def get_frvsr(generator_model, flow_model, crop_size=32, learning_rate=0.0005):
                         outputs=[gen_outputs, target_warp])
     model.compile(
         loss=["mse", "mse"],
-        optimizer=keras.optimizers.Adam(learning_rate=learning_rate)
+        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+        steps_per_execution=steps_per_execution
     )
     return model
 

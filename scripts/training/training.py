@@ -3,7 +3,6 @@
 """Training routines."""
 
 import sys
-import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 import tqdm
@@ -32,6 +31,7 @@ class Training:
         self.generator_optimizer = None
         self.flow_optimizer = None
         self.discriminator_optimizer = None
+        self.steps_per_execution = None
         self.avg_gen_loss = None
         self.avg_gen_loss = None
         self.avg_fnet_loss = None
@@ -41,6 +41,9 @@ class Training:
         self.step_fn = None
         self.test_fn = None
         self.play_fn = None
+        self.multi_step_fn = None
+        self.multi_test_fn = None
+        self.multi_play_fn = None
 
     def init(self):
         """Initialise models."""
@@ -93,6 +96,7 @@ class Training:
         self.discriminator_optimizer = keras.optimizers.Adam(
             learning_rate=gan_train_config["discriminator_learning_rate"]
         )
+        self.steps_per_execution = gan_train_config["steps_per_execution"]
 
         self.avg_gen_loss = keras.metrics.Mean("gen_loss")
         self.avg_fnet_loss = keras.metrics.Mean("fnet_loss")
@@ -264,9 +268,34 @@ class Training:
                                    [-1, 10, height*2, width*2, 3])
             return gen_outputs, pre_warps
 
+        @tf.function
+        def multi_step_fn(ds_iter):
+            for _ in tf.range(self.steps_per_execution):
+                data = next(ds_iter)
+                gen_loss, fnet_loss, discr_loss = self.step_fn(
+                    data["input"], data["target"])
+            return gen_loss, fnet_loss, discr_loss
+
+        @tf.function
+        def multi_test_fn(dataset):
+            for data in dataset:
+                self.test_fn(data["input"], data["target"])
+
+        @tf.function
+        def multi_play_fn(dataset):
+            states = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+            for data in dataset:
+                gen_outputs, pre_warps = self.play_fn(data["input"])
+                images = tf.stack([gen_outputs, pre_warps], axis=1)
+                states = states.write(states.size(), images)
+            return tf.transpose(states.concat(), [1, 0, 2, 3, 4, 5])
+
         self.step_fn = step_fn
         self.test_fn = test_fn
         self.play_fn = play_fn
+        self.multi_step_fn = multi_step_fn
+        self.multi_test_fn = multi_test_fn
+        self.multi_play_fn = multi_play_fn
 
     def train_frvsr(self, train_data, epochs, steps, initial_epoch=0,
                     validation_data=None, callbacks=None):
@@ -302,7 +331,7 @@ class Training:
             steps_per_epoch=steps,
             initial_epoch=initial_epoch,
             validation_data=validation_data.map(
-                frvsr_map) if validation_data else None,
+                frvsr_map) if validation_data is not None else None,
             callbacks=callbacks,
         )
 
@@ -337,17 +366,22 @@ class Training:
             self.avg_discr_loss.reset_states()
             self.avg_content_loss.reset_states()
             self.avg_warp_loss.reset_states()
-            with tqdm.tqdm(range(steps), unit="step", file=sys.stdout,
-                           bar_format=bar_format, ascii=".=") as step_progress:
+            with tqdm.tqdm(range(0, steps, self.steps_per_execution),
+                           unit="step", file=sys.stdout, bar_format=bar_format,
+                           ascii=".=") as step_progress:
                 for _ in step_progress:
-                    data = next(ds_iter)
-                    gen_loss, fnet_loss, discr_loss = self.step_fn(
-                        data["input"], data["target"])
+                    gen_loss, fnet_loss, discr_loss = self.multi_step_fn(
+                        ds_iter)
                     step_progress.set_postfix({
                         "gen_loss": gen_loss.numpy(),
                         "fnet_loss": fnet_loss.numpy(),
                         "discr_loss": discr_loss.numpy()
                     })
+                step_progress.set_postfix({
+                    "gen_loss": self.avg_gen_loss.result().numpy(),
+                    "fnet_loss": self.avg_fnet_loss.result().numpy(),
+                    "discr_loss": self.avg_discr_loss.result().numpy()
+                })
             metrics = {
                 "gen_loss": self.avg_gen_loss.result(),
                 "fnet_loss": self.avg_fnet_loss.result(),
@@ -361,8 +395,7 @@ class Training:
                 self.avg_discr_loss.reset_states()
                 self.avg_content_loss.reset_states()
                 self.avg_warp_loss.reset_states()
-                for data in validation_data:
-                    self.test_fn(data["input"], data["target"])
+                self.multi_test_fn(validation_data)
                 metrics = {
                     **metrics,
                     "val_gen_loss": self.avg_gen_loss.result(),
@@ -387,17 +420,14 @@ class Training:
         Parameters
         ----------
         data : tf.data.Dataset
-            Train dataset
+            Play dataset
 
         Returns
         -------
         np.darray (2 x N x H x W x 3)
             Generated frame and warped frame
         """
-        return np.concatenate([
-            [r.numpy() for r in self.play_fn(d["input"])]
-            for d in data
-        ], axis=1)
+        return self.multi_play_fn(data).numpy()
 
 
 class DistributedTraining(Training):

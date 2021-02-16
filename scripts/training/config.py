@@ -16,6 +16,7 @@ DEFAULT_CONFIG = {
         "generator_learning_rate": 0.0005,
         "flow_learning_rate": 0.0005,
         "discriminator_learning_rate": 0.0005,
+        "steps_per_execution": 1,
     },
     "batch_size": 64
 }
@@ -66,6 +67,7 @@ def get_config(
     batch_size=None,
     crop_size=None,
     learning_rate=None,
+    steps_per_execution=None,
     config_override=None
 ):
     """
@@ -81,6 +83,8 @@ def get_config(
         Crop size
     learning_rate : float or dict
         Learning rate
+    steps_per_execution : int or dict
+        Steps per execution
     config_override : dict
         Overrides
 
@@ -131,6 +135,23 @@ def get_config(
                     "flow_learning_rate": learning_rate,
                     "discriminator_learning_rate": learning_rate,
                 },
+            })
+    if steps_per_execution is not None:
+        if isinstance(steps_per_execution, dict):
+            if "frvsr" in steps_per_execution:
+                config["frvsr"]["steps_per_execution"] = \
+                    steps_per_execution["frvsr"]
+            if "gan" in steps_per_execution:
+                config["gan_train"]["steps_per_execution"] = \
+                    steps_per_execution["gan"]
+        else:
+            config = merge_configs(config, {
+                "frvsr": {
+                    "steps_per_execution": steps_per_execution
+                },
+                "gan_train": {
+                    "steps_per_execution": steps_per_execution
+                }
             })
     if config_override is not None:
         config = merge_configs(config, config_override)
