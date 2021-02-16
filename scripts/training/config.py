@@ -17,6 +17,8 @@ DEFAULT_CONFIG = {
         "flow_learning_rate": 0.0005,
         "discriminator_learning_rate": 0.0005,
         "steps_per_execution": 1,
+        "compile_test_fn": False,
+        "compile_play_fn": False,
     },
     "batch_size": 64
 }

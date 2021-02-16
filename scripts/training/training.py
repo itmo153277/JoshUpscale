@@ -276,12 +276,10 @@ class Training:
                     data["input"], data["target"])
             return gen_loss, fnet_loss, discr_loss
 
-        @tf.function
         def multi_test_fn(dataset):
             for data in dataset:
                 self.test_fn(data["input"], data["target"])
 
-        @tf.function
         def multi_play_fn(dataset):
             states = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
             for data in dataset:
@@ -296,6 +294,11 @@ class Training:
         self.multi_step_fn = multi_step_fn
         self.multi_test_fn = multi_test_fn
         self.multi_play_fn = multi_play_fn
+
+        if gan_train_config["compile_test_fn"]:
+            self.multi_test_fn = tf.function(self.multi_test_fn)
+        if gan_train_config["compile_play_fn"]:
+            self.multi_play_fn = tf.function(self.multi_play_fn)
 
     def train_frvsr(self, train_data, epochs, steps, initial_epoch=0,
                     validation_data=None, callbacks=None):
