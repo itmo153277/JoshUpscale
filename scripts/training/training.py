@@ -335,6 +335,8 @@ class Training:
             initial_epoch=initial_epoch,
             validation_data=validation_data.map(
                 frvsr_map) if validation_data is not None else None,
+            validation_steps=(len([x for x in validation_data])
+                              if validation_data is not None else None),
             callbacks=callbacks,
         )
 
@@ -370,7 +372,8 @@ class Training:
             self.avg_content_loss.reset_states()
             self.avg_warp_loss.reset_states()
             with tqdm.tqdm(range(0, steps, self.steps_per_execution),
-                           unit="step", file=sys.stdout, bar_format=bar_format,
+                           unit_scale=self.steps_per_execution, unit="step",
+                           file=sys.stdout, bar_format=bar_format,
                            ascii=".=") as step_progress:
                 for _ in step_progress:
                     gen_loss, fnet_loss, discr_loss = self.multi_step_fn(
@@ -523,14 +526,12 @@ class DistributedTraining(Training):
 
         Parameters
         ----------
-        data : tf.data.Dataset
-            Train dataset
+        data : tf.distribute.DistributedDataset
+            Play dataset
 
         Returns
         -------
         np.darray (2 x N x H x W x 3)
             Generated frame and warped frame
         """
-        return super().play(
-            data=self.strategy.experimental_distribute_dataset(data)
-        )
+        return self.multi_play_fn(data)

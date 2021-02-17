@@ -247,7 +247,7 @@ def train_frvsr(
         Train dataset
     val_ds : tf.data.Dataset
         Validation dataset
-    play_ds : tf.data.Dataset
+    play_ds : tf.data.Dataset or tf.distribute.DistributedDataset
         Play dataset (for visualisation)
     epochs : int
         Number of epochs
@@ -347,7 +347,7 @@ def train_gan(
         Train dataset
     val_ds : tf.data.Dataset
         Validation dataset
-    play_ds : tf.data.Dataset
+    play_ds : tf.data.Dataset or tf.distribute.DistributedDataset
         Play dataset (for visualisation)
     epochs : int
         Number of epochs
@@ -537,6 +537,7 @@ def main(
         model = training.Training(model_config)
     else:
         model = training.DistributedTraining(model_config, strategy)
+        play_ds = strategy.experimental_distribute_dataset(play_ds)
     model.init()
     if not frvsr_skip:
         train_frvsr(
