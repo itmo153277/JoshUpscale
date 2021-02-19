@@ -3,6 +3,7 @@
 Upscales and refines video (480x272 -> 960x544) using AI model. Originally created for upscaling GTA VCS stream but may be used for other things as well.
 
 Demo:
+
 - large model: https://youtu.be/CYsiFPwO6P0
 - small model: https://youtu.be/aBkcG-yTNts
 
@@ -73,3 +74,7 @@ Output binaries will be created in the following directories:
 - `src\%configuration%\gui\%platform%\JoshUpscale.exe` &mdash; GUI Launcher
 - `src\%configuration%\avisynth_plugin\%platform%\JoshUpscale.dll` &mdash; Avisynth plugin
 - `src\%configuration%\FrameSync\%platform%\FrameSync.dll` &mdash; Avisynth plugin for synchronising two video streams
+
+## Model Training
+
+Refer to [this](./scripts/training/README.md).
