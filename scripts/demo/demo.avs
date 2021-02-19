@@ -6,7 +6,7 @@ select_total=select_total * 2
 SelectRangeEvery(select_total, 200)
 ConvertToRGB24()
 input_clip=Last
-output_clip=input_clip.PointResize(480, 272).JoshUpscale().BicubicResize(input_clip.width, input_clip.height).Subtitle("JoshUpscale", align=9, text_color=$ffffff, size=25)
+output_clip=input_clip.PointResize(480, 272).JoshUpscale().LanczosResize(input_clip.width, input_clip.height).Subtitle("JoshUpscale", align=9, text_color=$ffffff, size=25)
 input_clip=input_clip.Subtitle("Original", align=7, text_color=$ffffff, size=25)
 
 function side_by_side(clip left, clip right, int "cur_frame", int "speed")
