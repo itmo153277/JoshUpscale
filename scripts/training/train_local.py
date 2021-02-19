@@ -206,7 +206,7 @@ def load_datasets(
     tf.data.Dataset
         Validation dataset
     tf.data.Dataset
-        PLay dataset (for visualisation)
+        Play dataset (for visualisation)
     """
     train_ds, val_ds = dataset.get_dataset(
         path=dataset_path,

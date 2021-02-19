@@ -499,7 +499,7 @@ class DistributedTraining(Training):
         train_data : tf.data.Dataset
             Train dataset
         epochs : int
-            NUmber of epochs
+            Number of epochs
         steps : int
             Number of steps per epoch
         initial_epoch : int
