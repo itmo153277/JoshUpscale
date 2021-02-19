@@ -97,7 +97,7 @@ def get_flow_model_resnet(name="flow", num_blocks=20, num_filters=32,
         Model name
     num_blocks : int
         Number of residual blocks
-    num_fileters : int
+    num_filters : int
         Number of filters
     input_dtypes : array of str or str or None
         Datatypes from input images
@@ -160,8 +160,8 @@ def get_flow_model_autoencoder(name="flow", filters=None, input_dtypes=None):
     ----------
     name : str
         Model name
-    num_blocks : array of int
-        Number of filters
+    filters : array of int
+        Filters for autoencoder
     input_dtypes : array of str or str or None
         Datatypes from input images
 
