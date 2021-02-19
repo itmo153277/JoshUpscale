@@ -78,3 +78,7 @@ Output binaries will be created in the following directories:
 ## Model Training
 
 Refer to [this](./scripts/training/README.md).
+
+## Dataset
+
+Refer to [this](./scripts/dataset/README.md).
