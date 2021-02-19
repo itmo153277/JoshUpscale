@@ -1,9 +1,9 @@
 # Demo AviSynth Scripts
 
-## dmeo.avs
+## demo.avs
 
 Creates comparison video between original video and upscaled one.
 
-## transocde.avs
+## transcode.avs
 
 Script for transcoding original video with upscaling applied.
