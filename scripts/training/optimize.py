@@ -66,10 +66,7 @@ def parse_args():
     return args
 
 
-def optimise_model(
-    model,
-    output
-):
+def optimise_model(model):
     """
     Optimise model.
 
@@ -77,8 +74,11 @@ def optimise_model(
     ----------
     model : keras.Model
         Model
-    output : str
-        Output
+
+    Returns
+    -------
+    tf.compat.v1.GraphDef
+        Optimized graph
     """
     @tf.function
     def model_inference(cur_frame, last_frame, pre_gen):
@@ -131,8 +131,7 @@ def optimise_model(
                     value.shape
                 )
             ))
-    with open(output, "wb") as out_file:
-        out_file.write(opt_gd.SerializeToString())
+    return opt_gd
 
 
 def main(
@@ -192,7 +191,9 @@ def main(
         model.frvsr_model.load_weights(frvsr_weights)
     if gan_weights is not None:
         model.gan_model.load_weights(gan_weights)
-    optimise_model(model.full_model, output)
+    opt_gd = optimise_model(model.full_model)
+    with open(output, "wb") as out_file:
+        out_file.write(opt_gd.SerializeToString())
     return 0
 
 
