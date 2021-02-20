@@ -27,7 +27,7 @@ void ffmpeg::SDecoder::terminate() {
 void ffmpeg::SDecoder::captureLoop() {
 	try {
 		smart::AVPacket packet;
-		for (; !m_Terminated;) {
+		while (!m_Terminated) {
 			std::this_thread::yield();
 			ffmpeg::callOrThrow(
 			    ::av_read_frame, m_FormatCtx.get(), packet.get());
@@ -56,7 +56,7 @@ void ffmpeg::SDecoder::videoDecoderLoop(DecoderCallback cb) {
 		smart::AVFrame swFrame;
 		::AVCodecContext *pCodecCtx = m_VideoStreamInfo.codecCtx.get();
 		::AVPixelFormat hwPixelFormat = m_VideoStreamInfo.hwPixelFormat;
-		for (; !m_Terminated;) {
+		while (!m_Terminated) {
 			std::this_thread::yield();
 			smart::AVPacket packet = m_VideoQueue.consume();
 			if (packet->pts != AV_NOPTS_VALUE && minPts != AV_NOPTS_VALUE &&
@@ -66,7 +66,7 @@ void ffmpeg::SDecoder::videoDecoderLoop(DecoderCallback cb) {
 				pCodecCtx->skip_frame = AVDISCARD_NONE;
 			}
 			ffmpeg::callOrThrow(::avcodec_send_packet, pCodecCtx, packet.get());
-			for (; !m_Terminated;) {
+			while (!m_Terminated) {
 				std::this_thread::yield();
 				int ret = ::avcodec_receive_frame(pCodecCtx, frame.get());
 				if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
@@ -103,7 +103,7 @@ void ffmpeg::SDecoder::audioDecoderLoop(DecoderCallback cb) {
 		ffmpeg::pts_t minPts = AV_NOPTS_VALUE;
 		smart::AVFrame frame;
 		::AVCodecContext *pCodecCtx = m_AudioStreamInfo.codecCtx.get();
-		for (; !m_Terminated;) {
+		while (!m_Terminated) {
 			std::this_thread::yield();
 			smart::AVPacket packet = m_AudioQueue.consume();
 			if (packet->pts != AV_NOPTS_VALUE && minPts != AV_NOPTS_VALUE &&
@@ -113,7 +113,7 @@ void ffmpeg::SDecoder::audioDecoderLoop(DecoderCallback cb) {
 				pCodecCtx->skip_frame = AVDISCARD_NONE;
 			}
 			ffmpeg::callOrThrow(::avcodec_send_packet, pCodecCtx, packet.get());
-			for (; !m_Terminated;) {
+			while (!m_Terminated) {
 				std::this_thread::yield();
 				int ret = ::avcodec_receive_frame(pCodecCtx, frame.get());
 				if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
@@ -140,7 +140,7 @@ void ffmpeg::SDecoder::audioDecoderLoop(DecoderCallback cb) {
 smart::AVFrame ffmpeg::SDecoder::audioDecodeFrameOrThrow(pts_t minPts) {
 	smart::AVFrame frame;
 	::AVCodecContext *pCodecCtx = m_AudioStreamInfo.codecCtx.get();
-	for (; !m_Terminated;) {
+	while (!m_Terminated) {
 		for (; !m_Terminated;) {
 			int ret = ::avcodec_receive_frame(pCodecCtx, frame.get());
 			if (ret == AVERROR(EAGAIN)) {
