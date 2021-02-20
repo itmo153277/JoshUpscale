@@ -13,7 +13,7 @@ This repository contains the following:
 
 - avisynth plugin for video upscaling;
 - GUI program that captures video and applies upscaling in real time;
-- scripts and tools for model training and dataset generation (WIP).
+- scripts and tools for model training and dataset generation.
 
 ## How to Build
 
