@@ -6,11 +6,15 @@
 #include <windows.h>
 
 #include <memory>
+#include <sstream>
+#include <string>
 
 #include "..\..\gui\upscaler.h"
 
 class JoshUpscale : public GenericVideoFilter {
 	upscaler::SUpscaler upscaler;
+
+	static std::string getModelPath();
 
 public:
 	JoshUpscale(PClip _child, IScriptEnvironment *env);
@@ -18,8 +22,32 @@ public:
 	PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
 };
 
+std::string JoshUpscale::getModelPath() {
+	static const char defaultPath[] = "model.pb";
+
+	HMODULE joshUpscaleModule = GetModuleHandle(L"JoshUpscale");
+	if (joshUpscaleModule == NULL) {
+		return defaultPath;
+	}
+	char path[MAX_PATH + 1];
+	DWORD size = GetModuleFileNameA(joshUpscaleModule, path, MAX_PATH);
+	while (size != 0) {
+		size--;
+		if (path[size] == '\\') {
+			break;
+		}
+	}
+	if (size == 0) {
+		return defaultPath;
+	}
+	path[size] = 0;
+	std::stringstream ss;
+	ss << path << "\\model.pb";
+	return ss.str();
+}
+
 JoshUpscale::JoshUpscale(PClip _child, IScriptEnvironment *env)
-    : GenericVideoFilter(_child) {
+    : GenericVideoFilter(_child), upscaler{getModelPath().c_str()} {
 	if (!vi.IsRGB24()) {
 		env->ThrowError("JoshUpscale: only RGB24 format is supported");
 	}

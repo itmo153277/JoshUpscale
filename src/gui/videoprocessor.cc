@@ -181,7 +181,7 @@ void processor::init() {
 void processor::processAndShowVideo(const char *videoIn, const char *audioIn,
     const char *audioOut, DXVA dxva, PresentCallback cb) {
 	auto source = getSourceString(videoIn, audioIn);
-	upscaler::SUpscaler upscaler;
+	upscaler::SUpscaler upscaler{"model.pb"};
 	player::SPlayer player{upscaler::INPUT_WIDTH, upscaler::INPUT_HEIGHT,
 	    upscaler::OUTPUT_WIDTH, upscaler::OUTPUT_HEIGHT, source.c_str(),
 	    static_cast<ffmpeg::DXVA>(dxva), audioOut,

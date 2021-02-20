@@ -18,7 +18,8 @@ constexpr std::size_t OUTPUT_WIDTH = INPUT_WIDTH * SCALE_FACTOR;
 constexpr std::size_t OUTPUT_HEIGHT = INPUT_HEIGHT * SCALE_FACTOR;
 
 struct SUpscaler {
-	SUpscaler();
+	SUpscaler() = delete;
+	explicit SUpscaler(const char *modelPath);
 	SUpscaler(const SUpscaler &) = delete;
 	SUpscaler(SUpscaler &&) = delete;
 

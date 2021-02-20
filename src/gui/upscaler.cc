@@ -13,8 +13,8 @@ static const unsigned char config[] = {50, 2, 32, 1};
 static const smart::TF_SessionOptionsProto sessionOptions = {
     config, sizeof(config) / sizeof(*config)};
 
-upscaler::SUpscaler::SUpscaler()
-    : m_Graph{tf::readGraph("model.pb")}
+upscaler::SUpscaler::SUpscaler(const char *modelPath)
+    : m_Graph{tf::readGraph(modelPath)}
     , m_OutputOp{TF_GraphOperationByName(m_Graph.get(), "output"), 0}
     , m_InputOp{{{::TF_GraphOperationByName(m_Graph.get(), "cur_frame"), 0},
           {::TF_GraphOperationByName(m_Graph.get(), "last_frame"), 0},
