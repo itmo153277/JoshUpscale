@@ -16,6 +16,7 @@ Put all external files to `files/external`.
 
 External files should include:
 
+- License
 - Model (`model.pb`) created by `/scripts/training/optimize.py`
 - FFmpeg libraries
 - TensorFlow libraries
