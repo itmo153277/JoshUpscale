@@ -67,7 +67,7 @@ Ways to provide the paths:
 
 ### 2. Build Solution
 
-Open `src/JoshUpscale.sln` and build the solution.
+Open `src/JoshUpscale.sln` (you can ignore `setup.vdproj`) and build the solution.
 
 Output binaries will be created in the following directories:
 
@@ -77,8 +77,12 @@ Output binaries will be created in the following directories:
 
 ## Model Training
 
-Refer to [this](./scripts/training/README.md).
+Refer to [this](./scripts/training/).
 
 ## Dataset
 
-Refer to [this](./scripts/dataset/README.md).
+Refer to [this](./scripts/dataset/).
+
+## Setup Package
+
+Refer to [this](./src/setup/).
