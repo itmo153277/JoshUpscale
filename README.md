@@ -17,13 +17,13 @@ This repository contains the following:
 
 ## How to Build
 
-Supported compilers: Visual Studio 2019 (16.8.4).
+Supported compilers: Visual Studio 2019 (16.8.5).
 
 ### 1. Install Dependencies
 
 Before building you need to install the following dependencies:
 
-1. TensorFlow 2.3.1
+1. TensorFlow 2.4.1
     - `%TFPath%\include` &mdash; for headers
     - `%TFPath%\lib` &mdash; for library files
 2. SDL 2.0.14
