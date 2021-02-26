@@ -5,8 +5,9 @@
 #include <thread>
 #include <utility>
 
-ffmpeg::SDecoder::SDecoder(const char *source, ffmpeg::DXVA dxva)
-    : m_FormatCtx{ffmpeg::openDshowSource(source)}
+ffmpeg::SDecoder::SDecoder(
+    const char *source, const char *sourceType, ffmpeg::DXVA dxva)
+    : m_FormatCtx{ffmpeg::openSource(source, sourceType)}
     , m_VideoStreamInfo{ffmpeg::openVideoStream(m_FormatCtx.get(), dxva)}
     , m_AudioStreamInfo{ffmpeg::openAudioStream(m_FormatCtx.get())}
     , m_VideoQueue{ffmpeg::MAX_VIDEO_QUEUE}

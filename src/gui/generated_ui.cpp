@@ -42,7 +42,7 @@ MainFrame::MainFrame( wxWindow* parent, wxWindowID id, const wxString& title, co
 	m_staticText1->Wrap( -1 );
 	fgSizer1->Add( m_staticText1, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 
-	wxString m_VideoInChoiceChoices[] = { wxT("<--- Select Videe Device -->") };
+	wxString m_VideoInChoiceChoices[] = { wxT("<--- Select Videe Device -->"), wxT("Open file...") };
 	int m_VideoInChoiceNChoices = sizeof( m_VideoInChoiceChoices ) / sizeof( wxString );
 	m_VideoInChoice = new wxChoice( sbSizer1->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, m_VideoInChoiceNChoices, m_VideoInChoiceChoices, 0 );
 	m_VideoInChoice->SetSelection( 0 );
@@ -57,6 +57,8 @@ MainFrame::MainFrame( wxWindow* parent, wxWindowID id, const wxString& title, co
 	int m_AudioInChoiceNChoices = sizeof( m_AudioInChoiceChoices ) / sizeof( wxString );
 	m_AudioInChoice = new wxChoice( sbSizer1->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, m_AudioInChoiceNChoices, m_AudioInChoiceChoices, 0 );
 	m_AudioInChoice->SetSelection( 0 );
+	m_AudioInChoice->Enable( false );
+
 	fgSizer1->Add( m_AudioInChoice, 1, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
 
 	wxStaticText* m_staticText4;

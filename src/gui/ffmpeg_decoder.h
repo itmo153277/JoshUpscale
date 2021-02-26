@@ -16,7 +16,7 @@ using DecoderCallback = std::function<pts_t(::AVFrame *frame)>;
 
 struct SDecoder {
 	SDecoder() = delete;
-	explicit SDecoder(const char *source, ffmpeg::DXVA dxva);
+	SDecoder(const char *source, const char *sourceType, ffmpeg::DXVA dxva);
 	SDecoder(const SDecoder &) = delete;
 	SDecoder(SDecoder &&) = delete;
 	~SDecoder();

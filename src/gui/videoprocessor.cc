@@ -7,6 +7,7 @@
 #include <dshow.h>
 #include <windows.h>
 
+#include <cassert>
 #include <codecvt>
 #include <cstddef>
 #include <cstdint>
@@ -178,12 +179,15 @@ void processor::init() {
 	sdl::init();
 }
 
-void processor::processAndShowVideo(const char *videoIn, const char *audioIn,
-    const char *audioOut, DXVA dxva, PresentCallback cb) {
-	auto source = getSourceString(videoIn, audioIn);
+void processor::processAndShowVideo(const char *filename, const char *videoIn,
+    const char *audioIn, const char *audioOut, DXVA dxva, PresentCallback cb) {
+	assert(filename != nullptr || videoIn != nullptr);
+	std::string source =
+	    filename != nullptr ? filename : getSourceString(videoIn, audioIn);
 	upscaler::SUpscaler upscaler{"model.pb"};
 	player::SPlayer player{upscaler::INPUT_WIDTH, upscaler::INPUT_HEIGHT,
 	    upscaler::OUTPUT_WIDTH, upscaler::OUTPUT_HEIGHT, source.c_str(),
+	    filename == nullptr ? "dshow" : nullptr,
 	    static_cast<ffmpeg::DXVA>(dxva), audioOut,
 	    [&upscaler](void *buf, std::size_t stride) {
 		    upscaler.upscaleFrame(

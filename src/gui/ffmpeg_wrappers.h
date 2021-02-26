@@ -318,7 +318,7 @@ private:
 	friend SVideoStreamInfo openVideoStream(::AVFormatContext *, DXVA);
 };
 
-smart::AVFormatContext openDshowSource(const char *source);
+smart::AVFormatContext openSource(const char *source, const char *sourceType);
 SVideoStreamInfo openVideoStream(::AVFormatContext *pFormatCtx, DXVA dxva);
 SStreamInfo openAudioStream(::AVFormatContext *pFormatCtx);
 

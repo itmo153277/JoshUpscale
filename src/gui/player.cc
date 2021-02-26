@@ -42,15 +42,15 @@ constexpr ::SDL_AudioFormat ffmpegToSdlSampleFormat(
 
 player::SPlayer::SPlayer(std::size_t inputWidth, std::size_t inputHeight,
     std::size_t outputWidth, std::size_t outputHeight, const char *source,
-    ffmpeg::DXVA dxva, const char *audioOut, ProcessCallback processCallback,
-    ProcessCallback writeCallback)
+    const char *sourceType, ffmpeg::DXVA dxva, const char *audioOut,
+    ProcessCallback processCallback, ProcessCallback writeCallback)
     : m_InputWidth{inputWidth}
     , m_InputHeight{inputHeight}
     , m_OutputWidth{outputWidth}
     , m_OutputHeight{outputHeight}
     , m_ProcessCallback{processCallback}
     , m_WriteCallback{writeCallback}
-    , m_Decoder{source, dxva}
+    , m_Decoder{source, sourceType, dxva}
     , m_Window{sdl::allocOrThrow(::SDL_CreateWindow("JoshUpscale",
           SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
           static_cast<int>(m_OutputWidth), static_cast<int>(m_OutputHeight),

@@ -6,15 +6,15 @@ void ffmpeg::init() {
 	::avdevice_register_all();
 }
 
-smart::AVFormatContext ffmpeg::openDshowSource(const char *source) {
+smart::AVFormatContext ffmpeg::openSource(
+    const char *source, const char *sourceType) {
 	smart::AVFormatContext formatCtx;
-	::AVInputFormat *pInputFormat = ::av_find_input_format("dshow");
-
-	smart::AVDictionary opts;
+	::AVInputFormat *format = nullptr;
+	if (sourceType != nullptr) {
+		format = ::av_find_input_format(sourceType);
+	}
 	ffmpeg::callOrThrow(
-	    ::av_dict_set_int, &opts.get(), "audio_buffer_size", 10, 0);
-	ffmpeg::callOrThrow(::avformat_open_input, &formatCtx.get(), source,
-	    pInputFormat, &opts.get());
+	    ::avformat_open_input, &formatCtx.get(), source, format, nullptr);
 	ffmpeg::callOrThrow(::avformat_find_stream_info, formatCtx.get(), nullptr);
 	return formatCtx;
 }
