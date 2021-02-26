@@ -104,8 +104,6 @@ MainFrame::MainFrame( wxWindow* parent, wxWindowID id, const wxString& title, co
 
 	m_DebugEnable = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, wxT("Enable"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_DebugEnable->SetValue(true);
-	m_DebugEnable->Enable( false );
-
 	fgSizer1->Add( m_DebugEnable, 1, wxALL|wxEXPAND|wxALIGN_CENTER_VERTICAL, 5 );
 
 

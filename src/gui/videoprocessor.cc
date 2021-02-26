@@ -180,7 +180,8 @@ void processor::init() {
 }
 
 void processor::processAndShowVideo(const char *filename, const char *videoIn,
-    const char *audioIn, const char *audioOut, DXVA dxva, PresentCallback cb) {
+    const char *audioIn, const char *audioOut, DXVA dxva, bool showDebugInfo,
+    PresentCallback cb) {
 	assert(filename != nullptr || videoIn != nullptr);
 	std::string source =
 	    filename != nullptr ? filename : getSourceString(videoIn, audioIn);
@@ -188,7 +189,7 @@ void processor::processAndShowVideo(const char *filename, const char *videoIn,
 	player::SPlayer player{upscaler::INPUT_WIDTH, upscaler::INPUT_HEIGHT,
 	    upscaler::OUTPUT_WIDTH, upscaler::OUTPUT_HEIGHT, source.c_str(),
 	    filename == nullptr ? "dshow" : nullptr,
-	    static_cast<ffmpeg::DXVA>(dxva), audioOut,
+	    static_cast<ffmpeg::DXVA>(dxva), audioOut, showDebugInfo,
 	    [&upscaler](void *buf, std::size_t stride) {
 		    upscaler.upscaleFrame(
 		        reinterpret_cast<uint8_t *>(buf), static_cast<int>(stride));

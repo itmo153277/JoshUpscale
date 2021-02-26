@@ -2,11 +2,14 @@
 
 #include "player.h"
 
+#include <algorithm>
+#include <deque>
 #include <exception>
 #include <iomanip>
 #include <mutex>
 #include <sstream>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 constexpr ::AVSampleFormat sdlToFfmpegSampleFormat(::SDL_AudioFormat fmt) {
@@ -43,11 +46,13 @@ constexpr ::SDL_AudioFormat ffmpegToSdlSampleFormat(
 player::SPlayer::SPlayer(std::size_t inputWidth, std::size_t inputHeight,
     std::size_t outputWidth, std::size_t outputHeight, const char *source,
     const char *sourceType, ffmpeg::DXVA dxva, const char *audioOut,
-    ProcessCallback processCallback, ProcessCallback writeCallback)
+    bool showDebugInfo, ProcessCallback processCallback,
+    ProcessCallback writeCallback)
     : m_InputWidth{inputWidth}
     , m_InputHeight{inputHeight}
     , m_OutputWidth{outputWidth}
     , m_OutputHeight{outputHeight}
+    , m_ShowDebugInfo{showDebugInfo}
     , m_ProcessCallback{processCallback}
     , m_WriteCallback{writeCallback}
     , m_Decoder{source, sourceType, dxva}
@@ -154,36 +159,93 @@ void player::SPlayer::play(PresentCallback cb) {
 			}
 			threadsRunning = threads.size();
 		}
+		std::deque<std::tuple<Uint32, Uint32>> points;
+		Uint32 frameStartTicks = ::SDL_GetTicks();
 		while (::SDL_WaitEvent(&e)) {
 			if (e.type == SDL_QUIT) {
 				m_Decoder.terminate();
 				break;
 			}
 			if (e.type == m_PresentEvent) {
+				Uint32 renderTicks;
 				{
 					sdl::SLockGuard lock(m_Mutex.get());
 					sdl::callOrThrow(::SDL_UpdateTexture, m_Texture.get(),
 					    nullptr, m_VideoBuffer.get(),
 					    static_cast<int>(m_VideoBufferStride));
+					renderTicks = m_RenderTicks;
 				}
 				sdl::callOrThrow(::SDL_RenderClear, m_Renderer.get());
 				sdl::callOrThrow(::SDL_RenderCopy, m_Renderer.get(),
 				    m_Texture.get(), nullptr, nullptr);
-				::SDL_RenderPresent(m_Renderer.get());
-				frameCount++;
 				auto curTime = ::SDL_GetTicks();
-				std::size_t curPeriod =
-				    static_cast<std::size_t>(curTime - startTime);
-				if (curPeriod >= 1000) {
-					double fps = 1000.0 * frameCount / (curPeriod + lastPeriod);
-					lastPeriod = curPeriod;
-					frameCount -= framesToDelete;
-					framesToDelete = frameCount;
-					startTime = curTime;
-					std::stringstream ss;
-					ss << "JoshUpscale (FPS: " << std::setprecision(3) << fps
-					   << ')';
-					::SDL_SetWindowTitle(m_Window.get(), ss.str().c_str());
+				if (m_ShowDebugInfo) {
+					auto frameTicks = curTime - frameStartTicks;
+					frameStartTicks = curTime;
+					if (points.size() > m_OutputWidth / 5) {
+						points.pop_front();
+					}
+					points.emplace_back(frameTicks, renderTicks);
+					::SDL_SetRenderDrawColor(
+					    m_Renderer.get(), 128, 128, 128, 128);
+					std::vector<::SDL_Point> frameTickPoints{points.size()};
+					std::vector<::SDL_Point> renderTickPoints{points.size()};
+					Uint32 maxValue = 0;
+					for (std::size_t i = 0; i < points.size(); ++i) {
+						auto frameTicks = std::get<0>(points[i]);
+						auto renderTicks = std::get<1>(points[i]);
+						frameTickPoints[i].x = static_cast<int>(i) * 5;
+						renderTickPoints[i].x = static_cast<int>(i) * 5;
+						frameTickPoints[i].y =
+						    static_cast<int>(m_OutputHeight) -
+						    2 * static_cast<int>(frameTicks);
+						renderTickPoints[i].y =
+						    static_cast<int>(m_OutputHeight) -
+						    2 * static_cast<int>(renderTicks);
+						if (maxValue < frameTicks) {
+							maxValue = frameTicks;
+						}
+						if (maxValue < renderTicks) {
+							maxValue = renderTicks;
+						}
+					}
+					for (int i = 1;
+					     i < std::min(static_cast<int>(maxValue) / 10 + 1,
+					             static_cast<int>(m_OutputHeight) / 20);
+					     ++i) {
+						::SDL_RenderDrawLine(m_Renderer.get(), 0,
+						    static_cast<int>(m_OutputHeight) - i * 20,
+						    static_cast<int>(m_OutputWidth),
+						    static_cast<int>(m_OutputHeight) - i * 20);
+					}
+					::SDL_SetRenderDrawColor(
+					    m_Renderer.get(), 255, 0, 0, SDL_ALPHA_OPAQUE);
+					::SDL_RenderDrawLines(m_Renderer.get(),
+					    frameTickPoints.data(),
+					    static_cast<int>(frameTickPoints.size()));
+					::SDL_SetRenderDrawColor(
+					    m_Renderer.get(), 0, 0, 255, SDL_ALPHA_OPAQUE);
+					::SDL_RenderDrawLines(m_Renderer.get(),
+					    renderTickPoints.data(),
+					    static_cast<int>(renderTickPoints.size()));
+				}
+				::SDL_RenderPresent(m_Renderer.get());
+				if (m_ShowDebugInfo) {
+					frameCount++;
+					std::size_t curPeriod =
+					    static_cast<std::size_t>(curTime - startTime);
+					if (curPeriod >= 1000) {
+						double fps =
+						    1000.0 * frameCount / (curPeriod + lastPeriod);
+						lastPeriod = curPeriod;
+						frameCount -= framesToDelete;
+						framesToDelete = frameCount;
+						startTime = curTime;
+						std::stringstream ss;
+						ss << "JoshUpscale (FPS: " << std::setprecision(3)
+						   << fps << ')';
+						::SDL_SetWindowTitle(m_Window.get(), ss.str().c_str());
+					}
 				}
 				cb();
 			}
@@ -232,6 +294,7 @@ void player::SPlayer::videoThread() {
 	        ->streams[m_Decoder.getVideoStreamInfo()->streamIndex];
 	ffmpeg::pts_t frameStart = m_StreamStart;
 	double jitter = 0;
+	Uint32 renderStartTicks = ::SDL_GetTicks();
 	m_Decoder.videoDecoderLoop([&](::AVFrame *frame) {
 		::AVPixelFormat frameFormat =
 		    static_cast<::AVPixelFormat>(frame->format);
@@ -250,6 +313,7 @@ void player::SPlayer::videoThread() {
 		{
 			sdl::SLockGuard lock(m_Mutex.get());
 			m_WriteCallback(m_VideoBuffer.get(), m_VideoBufferStride);
+			m_RenderTicks = ::SDL_GetTicks() - renderStartTicks;
 		}
 		ffmpeg::pts_t curClock = ::av_gettime_relative();
 		ffmpeg::pts_t minClock =
@@ -283,6 +347,7 @@ void player::SPlayer::videoThread() {
 		}
 		frameStart = curClock;
 		sdl::callOrThrow(::SDL_PushEvent, &presentEvent);
+		renderStartTicks = ::SDL_GetTicks();
 		return ::av_rescale(minClock, videoStream->time_base.den,
 		           static_cast<std::int64_t>(videoStream->time_base.num) *
 		               1000000) +

@@ -60,8 +60,8 @@ void CMainFrame::onGoClicked(wxCommandEvent &event) {
 		               .deviceId.c_str();
 	}
 	Show(false);
-	processor::processAndShowVideo(
-	    videoFilePtr, videoIn, audioIn, audioOut, dxva, [] { wxYield(); });
+	processor::processAndShowVideo(videoFilePtr, videoIn, audioIn, audioOut,
+	    dxva, m_DebugEnable->IsChecked(), [] { wxYield(); });
 	Close();
 }
 

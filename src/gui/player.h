@@ -22,7 +22,8 @@ struct SPlayer {
 	SPlayer(std::size_t inputWidth, std::size_t inputHeight,
 	    std::size_t outputWidth, std::size_t outputHeight, const char *source,
 	    const char *sourceType, ffmpeg::DXVA dxva, const char *audioOut,
-	    ProcessCallback processCallback, ProcessCallback writeCallback);
+	    bool showDebugInfo, ProcessCallback processCallback,
+	    ProcessCallback writeCallback);
 	SPlayer(const SPlayer &s) = delete;
 	SPlayer(SPlayer &&) = delete;
 	~SPlayer();
@@ -35,6 +36,7 @@ private:
 	std::size_t m_InputHeight;
 	std::size_t m_OutputWidth;
 	std::size_t m_OutputHeight;
+	bool m_ShowDebugInfo;
 	ProcessCallback m_ProcessCallback;
 	ProcessCallback m_WriteCallback;
 	ffmpeg::SDecoder m_Decoder;
@@ -49,6 +51,7 @@ private:
 	std::atomic<ffmpeg::pts_t> m_MasterClock{0};
 	std::atomic<ffmpeg::pts_t> m_ResetMasterClock{AV_NOPTS_VALUE};
 	ffmpeg::pts_t m_StreamStart;
+	Uint32 m_RenderTicks = 0;
 
 	void videoThread();
 	void audioThread();

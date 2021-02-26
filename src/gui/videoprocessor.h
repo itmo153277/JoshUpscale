@@ -22,7 +22,8 @@ using PresentCallback = std::function<void()>;
 void init();
 
 void processAndShowVideo(const char *filename, const char *videoIn,
-    const char *audioIn, const char *audioOut, DXVA dxva, PresentCallback cb);
+    const char *audioIn, const char *audioOut, DXVA dxva, bool showDebugInfo,
+    PresentCallback cb);
 DeviceList getVideoInDevices();
 DeviceList getAudioInDevices();
 DeviceList getAudioOutDevices();
