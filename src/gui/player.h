@@ -52,6 +52,8 @@ private:
 	std::atomic<ffmpeg::pts_t> m_ResetMasterClock{AV_NOPTS_VALUE};
 	ffmpeg::pts_t m_StreamStart;
 	Uint32 m_RenderTicks = 0;
+	std::atomic<ffmpeg::pts_t> m_VideoTimestamp{0};
+	std::atomic<ffmpeg::pts_t> m_AudioTimestamp{0};
 
 	void videoThread();
 	void audioThread();

@@ -161,6 +161,14 @@ void player::SPlayer::play(PresentCallback cb) {
 		}
 		std::deque<std::tuple<Uint32, Uint32>> points;
 		Uint32 frameStartTicks = ::SDL_GetTicks();
+		std::size_t sampleSize = 0;
+		if (m_AudioDevice) {
+			sampleSize = ffmpeg::callOrThrow(::av_samples_get_buffer_size,
+			    nullptr, m_AudioDevice->getAudioSpec()->channels, 1,
+			    static_cast<::AVSampleFormat>(sdlToFfmpegSampleFormat(
+			        m_AudioDevice->getAudioSpec()->format)),
+			    1);
+		}
 		while (::SDL_WaitEvent(&e)) {
 			if (e.type == SDL_QUIT) {
 				m_Decoder.terminate();
@@ -217,6 +225,11 @@ void player::SPlayer::play(PresentCallback cb) {
 						    static_cast<int>(m_OutputHeight) - i * 20,
 						    static_cast<int>(m_OutputWidth),
 						    static_cast<int>(m_OutputHeight) - i * 20);
+						std::stringstream ss;
+						ss << i * 10 << " ms";
+						::stringRGBA(m_Renderer.get(), 0,
+						    static_cast<int>(m_OutputHeight) - i * 20,
+						    ss.str().c_str(), 128, 128, 128, 128);
 					}
 					::SDL_SetRenderDrawColor(
 					    m_Renderer.get(), 255, 0, 0, SDL_ALPHA_OPAQUE);
@@ -228,6 +241,33 @@ void player::SPlayer::play(PresentCallback cb) {
 					::SDL_RenderDrawLines(m_Renderer.get(),
 					    renderTickPoints.data(),
 					    static_cast<int>(renderTickPoints.size()));
+					std::stringstream ss;
+					auto currentTimestamp =
+					    ::av_gettime_relative() - m_StreamStart;
+					auto videoLag = m_VideoTimestamp - currentTimestamp;
+					ss << "Video lag: " << std::setprecision(3) << std::fixed
+					   << videoLag / 1000.0 << " ms";
+					::stringRGBA(m_Renderer.get(), 2, 2, ss.str().c_str(), 255,
+					    255, 255, SDL_ALPHA_OPAQUE);
+					if (m_AudioDevice) {
+						ss.str("");
+						auto audioLag = m_AudioTimestamp - currentTimestamp;
+						auto audioQueueBytes = ::SDL_GetQueuedAudioSize(
+						    m_AudioDevice->getDeviceId());
+						auto audioQueueTime = ::av_rescale(audioQueueBytes,
+						    1000000,
+						    m_AudioDevice->getAudioSpec()->freq * sampleSize);
+						ss << "Audio lag: " << std::setprecision(3)
+						   << std::fixed << audioLag / 1000.0 << " ms";
+						::stringRGBA(m_Renderer.get(), 2, 10, ss.str().c_str(),
+						    255, 255, 255, SDL_ALPHA_OPAQUE);
+						ss.str("");
+						ss << "Audio queue: " << audioQueueBytes << " bytes / "
+						   << std::setprecision(3) << std::fixed
+						   << audioQueueTime / 1000.0 << " ms";
+						::stringRGBA(m_Renderer.get(), 2, 18, ss.str().c_str(),
+						    255, 255, 255, SDL_ALPHA_OPAQUE);
+					}
 				}
 				::SDL_RenderPresent(m_Renderer.get());
 				if (m_ShowDebugInfo) {
@@ -292,8 +332,6 @@ void player::SPlayer::videoThread() {
 	::AVStream *videoStream =
 	    m_Decoder.getFormatContext()
 	        ->streams[m_Decoder.getVideoStreamInfo()->streamIndex];
-	ffmpeg::pts_t frameStart = m_StreamStart;
-	double jitter = 0;
 	Uint32 renderStartTicks = ::SDL_GetTicks();
 	m_Decoder.videoDecoderLoop([&](::AVFrame *frame) {
 		::AVPixelFormat frameFormat =
@@ -315,43 +353,17 @@ void player::SPlayer::videoThread() {
 			m_WriteCallback(m_VideoBuffer.get(), m_VideoBufferStride);
 			m_RenderTicks = ::SDL_GetTicks() - renderStartTicks;
 		}
-		ffmpeg::pts_t curClock = ::av_gettime_relative();
-		ffmpeg::pts_t minClock =
-		    curClock - m_StreamStart - 500000;  // 500ms behind real time
 		ffmpeg::pts_t currentTimeStamp = frame->best_effort_timestamp;
 		if (currentTimeStamp != AV_NOPTS_VALUE) {
 			currentTimeStamp = ::av_rescale(
 			    currentTimeStamp - videoStream->start_time,
 			    static_cast<std::int64_t>(videoStream->time_base.num) * 1000000,
 			    videoStream->time_base.den);
-			if (m_MasterClock == AV_NOPTS_VALUE) {
-				m_MasterClock = currentTimeStamp;
-			}
-			ffmpeg::pts_t masterClock = m_MasterClock;
-			if (masterClock < minClock) {
-				masterClock = minClock;
-			}
-			ffmpeg::pts_t frameTime =
-			    currentTimeStamp - masterClock + static_cast<int>(jitter);
-			ffmpeg::pts_t currentDuration = curClock - frameStart;
-			if (currentDuration < frameTime) {
-				::av_usleep(
-				    static_cast<unsigned int>(frameTime - currentDuration));
-				curClock = ::av_gettime_relative();
-				currentDuration = curClock - frameStart;
-				jitter += (frameTime - currentDuration - jitter) / 2;
-			} else {
-				jitter = 0;
-			}
-			m_MasterClock = currentTimeStamp;
+			m_VideoTimestamp = currentTimeStamp;
 		}
-		frameStart = curClock;
 		sdl::callOrThrow(::SDL_PushEvent, &presentEvent);
 		renderStartTicks = ::SDL_GetTicks();
-		return ::av_rescale(minClock, videoStream->time_base.den,
-		           static_cast<std::int64_t>(videoStream->time_base.num) *
-		               1000000) +
-		       videoStream->start_time;
+		return AV_NOPTS_VALUE;
 	});
 }
 
@@ -364,9 +376,6 @@ void player::SPlayer::audioThread() {
 	convertedFrame->sample_rate = m_AudioDevice->getAudioSpec()->freq;
 	convertedFrame->format = static_cast<int>(
 	    sdlToFfmpegSampleFormat(m_AudioDevice->getAudioSpec()->format));
-	std::size_t sampleSize = ffmpeg::callOrThrow(::av_samples_get_buffer_size,
-	    nullptr, convertedFrame->channels, 1,
-	    static_cast<::AVSampleFormat>(convertedFrame->format), 1);
 	smart::SwrContext swrCtx;
 	::AVStream *audioStream =
 	    m_Decoder.getFormatContext()
@@ -394,33 +403,16 @@ void player::SPlayer::audioThread() {
 		std::size_t len = ffmpeg::callOrThrow(::av_samples_get_buffer_size,
 		    nullptr, convertedFrame->channels, convertedFrame->nb_samples,
 		    static_cast<::AVSampleFormat>(convertedFrame->format), 1);
-		ffmpeg::pts_t curClock = ::av_gettime_relative();
-		ffmpeg::pts_t minClock =
-		    curClock - m_StreamStart - 600000;  // 600ms behind real time
 		ffmpeg::pts_t currentTimeStamp = frame->best_effort_timestamp;
 		if (currentTimeStamp != AV_NOPTS_VALUE) {
-			currentTimeStamp =
-			    ::av_rescale(currentTimeStamp - audioStream->start_time,
-			        static_cast<std::int64_t>(audioStream->time_base.num) *
-			            1000000,
-			        audioStream->time_base.den) -
-			    ::av_rescale(
-			        ::SDL_GetQueuedAudioSize(m_AudioDevice->getDeviceId()),
-			        1000000, convertedFrame->sample_rate * sampleSize);
-			auto masterClock = m_MasterClock.load();
-			if (currentTimeStamp - masterClock > 50000) {  // 50ms ahead video
-				::av_usleep(
-				    static_cast<unsigned int>(currentTimeStamp - masterClock));
-			} else if (masterClock - currentTimeStamp > 50000 &&
-			           currentTimeStamp > minClock) {  // 50ms behind video
-				m_MasterClock = currentTimeStamp;
-			}
+			currentTimeStamp = ::av_rescale(
+			    currentTimeStamp - audioStream->start_time,
+			    static_cast<std::int64_t>(audioStream->time_base.num) * 1000000,
+			    audioStream->time_base.den);
+			m_AudioTimestamp = currentTimeStamp;
 		}
 		sdl::callOrThrow(::SDL_QueueAudio, m_AudioDevice->getDeviceId(),
 		    convertedFrame->data[0], static_cast<Uint32>(len));
-		return ::av_rescale(minClock, audioStream->time_base.den,
-		           static_cast<std::int64_t>(audioStream->time_base.num) *
-		               1000000) +
-		       audioStream->start_time;
+		return AV_NOPTS_VALUE;
 	});
 }
