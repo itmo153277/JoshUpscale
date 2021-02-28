@@ -8,6 +8,7 @@ extern "C" {
 #include <libavdevice/avdevice.h>
 #include <libavformat/avformat.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/imgutils.h>
 #include <libavutil/time.h>
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
@@ -117,6 +118,22 @@ struct AVPacket {
 
 private:
 	::AVPacket *m_pPacket;
+};
+
+struct AVImage {
+	std::uint8_t *data[AV_NUM_DATA_POINTERS];
+	int linesize[AV_NUM_DATA_POINTERS];
+
+	AVImage(int width, int height, AVPixelFormat format) {
+		ffmpeg::callOrThrow(
+		    ::av_image_alloc, data, linesize, width, height, format, 16);
+		m_Ptr.reset(data[0]);
+	}
+	AVImage(const AVImage &) = delete;
+	AVImage(AVImage &&s) noexcept = default;
+
+private:
+	AVPointer m_Ptr;
 };
 
 struct AVFrame {

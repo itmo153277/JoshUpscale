@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <shared_mutex>
+#include <string>
 
 #include "ffmpeg_decoder.h"
 #include "ffmpeg_wrappers.h"
@@ -46,17 +48,30 @@ private:
 	smart::SDL_mutex m_Mutex;
 	::Uint32 m_PresentEvent;
 	std::unique_ptr<smart::SDL_AudioDevice> m_AudioDevice = nullptr;
-	smart::AVPointer m_VideoBuffer = nullptr;
-	std::size_t m_VideoBufferStride;
+	smart::AVImage m_VideoBuffer;
 	std::atomic<ffmpeg::pts_t> m_MasterClock{0};
-	std::atomic<ffmpeg::pts_t> m_ResetMasterClock{AV_NOPTS_VALUE};
 	ffmpeg::pts_t m_StreamStart;
 	Uint32 m_RenderTicks = 0;
-	std::atomic<ffmpeg::pts_t> m_VideoTimestamp{0};
-	std::atomic<ffmpeg::pts_t> m_AudioTimestamp{0};
+	std::shared_mutex m_VideoSyncMutex;
+	ffmpeg::pts_t m_VideoTimestamp = AV_NOPTS_VALUE;
+	ffmpeg::pts_t m_VideoPts = AV_NOPTS_VALUE;
+	ffmpeg::pts_t m_VideoStartPts = AV_NOPTS_VALUE;
+	double m_VideoJitter = 0;
+	::AVRational m_VideoPtsConv{};
+	std::shared_mutex m_AudioSyncMutex;
+	ffmpeg::pts_t m_AudioTimestamp = AV_NOPTS_VALUE;
+	ffmpeg::pts_t m_AudioPts = AV_NOPTS_VALUE;
+	ffmpeg::pts_t m_AudioStartPts = AV_NOPTS_VALUE;
+	::AVRational m_AudioPtsConv{};
+	::AVRational m_AudioQueueConv{};
 
 	void videoThread();
 	void audioThread();
+	void printText(const std::string &s, int x, int y);
+	ffmpeg::pts_t getVideoClock();
+	void syncVideo(::AVFrame *frame);
+	ffmpeg::pts_t getAudioClock();
+	void syncAudio(::AVFrame *frame);
 };
 
 }  // namespace player
