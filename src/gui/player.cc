@@ -257,24 +257,29 @@ void player::SPlayer::play(PresentCallback cb) {
 					    ::av_gettime_relative() - m_StreamStart;
 					auto videoLag = currentTimestamp - getVideoClock();
 					ss << "Video lag: " << std::setprecision(3) << std::fixed
-					   << videoLag / 1000.0 << " ms";
-					printText(ss.str(), 2, 2);
-					ss.str("");
-					ss << "Jitter: " << std::setprecision(3) << std::fixed
-					   << m_VideoJitter / 1000.0 << " ms";
-					printText(ss.str(), 2, 10);
+					   << videoLag / 1000.0 << " ms" << std::endl;
+					ss << "Video jitter: " << std::setprecision(3) << std::fixed
+					   << m_VideoJitter / 1000.0 << " ms" << std::endl;
 					if (m_AudioDevice) {
-						ss.str("");
 						auto audioLag = currentTimestamp - getAudioClock();
 						auto audioQueueBytes = ::SDL_GetQueuedAudioSize(
 						    m_AudioDevice->getDeviceId());
+						auto queueTime = ::av_rescale(audioQueueBytes,
+						    m_AudioQueueConv.num, m_AudioQueueConv.den);
 						ss << "Audio lag: " << std::setprecision(3)
-						   << std::fixed << audioLag / 1000.0 << " ms";
-						printText(ss.str(), 2, 18);
-						ss.str("");
-						ss << "Audio queue: " << audioQueueBytes << " bytes";
-						printText(ss.str(), 2, 26);
+						   << std::fixed << audioLag / 1000.0 << " ms"
+						   << std::endl;
+						ss << "Audio jitter: " << std::setprecision(3)
+						   << std::fixed << m_AudioJitter / 1000.0 << " ms"
+						   << std::endl;
+						ss << "Audio queue: " << audioQueueBytes << " bytes / "
+						   << std::setprecision(3) << std::fixed
+						   << queueTime / 1000.0 << " ma" << std::endl;
+						ss << "A-V lag: " << std::setprecision(3) << std::fixed
+						   << (audioLag - videoLag) / 1000.0 << " ms"
+						   << std::endl;
 					}
+					printText(ss.str(), 2, 2);
 				}
 				::SDL_RenderPresent(m_Renderer.get());
 				if (m_ShowDebugInfo) {
@@ -396,6 +401,18 @@ void player::SPlayer::audioThread() {
 }
 
 void player::SPlayer::printText(const std::string &s, int x, int y) {
+	std::stringstream ss;
+	std::string line;
+	ss.str(s);
+	while (std::getline(ss, line)) {
+		if (!s.empty()) {
+			printLine(line, x, y);
+		}
+		y += 8;
+	}
+}
+
+void player::SPlayer::printLine(const std::string &s, int x, int y) {
 	int height = 8;
 	int width = 8 * static_cast<int>(s.size());
 	::boxRGBA(
@@ -435,12 +452,18 @@ void player::SPlayer::syncVideo(::AVFrame *frame) {
 	if (delay < 0 || delay > 500000) {  // Delay range: [0, 500] ms
 		delay = 0;
 	}
+	ffmpeg::pts_t avDiff = currentPts - getAudioClock();
+	if (avDiff >= 50000) {  // Audio lags more than 50 ms behind
+		delay += avDiff;
+	} else {
+		avDiff = 0;
+	}
 	if (delay > 0) {
 		::av_usleep(static_cast<unsigned int>(delay));
 		currentTimestamp = ::av_gettime_relative();
-		m_VideoJitter +=
-		    ((currentTimestamp - m_VideoTimestamp) - (newPts - m_VideoPts)) /
-		    2.0;
+		m_VideoJitter += ((currentTimestamp - m_VideoTimestamp) -
+		                     (newPts - m_VideoPts) - avDiff) /
+		                 2.0;
 	} else {
 		m_VideoJitter = 0;
 	}
@@ -462,7 +485,6 @@ ffmpeg::pts_t player::SPlayer::getAudioClock() {
 
 void player::SPlayer::syncAudio(::AVFrame *frame) {
 	assert(m_AudioDevice);
-	std::unique_lock<std::shared_mutex> lock{m_AudioSyncMutex};
 	ffmpeg::pts_t pts = frame->best_effort_timestamp;
 	if (pts == AV_NOPTS_VALUE) {
 		return;
@@ -470,10 +492,36 @@ void player::SPlayer::syncAudio(::AVFrame *frame) {
 	if (m_AudioStartPts == AV_NOPTS_VALUE) {
 		m_AudioStartPts = pts;
 	}
-	m_AudioPts =
-	    ::av_rescale(
-	        pts - m_AudioStartPts, m_AudioPtsConv.num, m_AudioPtsConv.den) -
+	pts = ::av_rescale(
+	          pts - m_AudioStartPts, m_AudioPtsConv.num, m_AudioPtsConv.den) -
+	      ::av_rescale(::SDL_GetQueuedAudioSize(m_AudioDevice->getDeviceId()),
+	          m_AudioQueueConv.num, m_AudioQueueConv.den);
+	ffmpeg::pts_t currentClock = getAudioClock();
+	ffmpeg::pts_t queueTime =
 	    ::av_rescale(::SDL_GetQueuedAudioSize(m_AudioDevice->getDeviceId()),
 	        m_AudioQueueConv.num, m_AudioQueueConv.den);
-	m_AudioTimestamp = ::av_gettime_relative();
+	ffmpeg::pts_t delay = pts - currentClock;
+	if (queueTime > 50000 && delay < queueTime) {  // Target queue is 50ms
+		delay = (queueTime - 50000) / 2;
+	}
+	delay += static_cast<int>(m_AudioJitter);
+	if (delay < 0) {
+		delay = 0;
+	}
+	ffmpeg::pts_t avDiff = currentClock - getVideoClock();
+	if (avDiff >= 50000) {  // Video lags more than 50ms behind
+		delay += avDiff;
+	}
+	if (delay > 0) {
+		::av_usleep(static_cast<unsigned int>(delay));
+		ffmpeg::pts_t actualDelay = getAudioClock() - currentClock;
+		m_AudioJitter += (delay - actualDelay - m_AudioJitter) / 2;
+	} else {
+		m_AudioJitter = 0;
+	}
+	{
+		std::unique_lock<std::shared_mutex> lock{m_AudioSyncMutex};
+		m_AudioPts = pts;
+		m_AudioTimestamp = ::av_gettime_relative();
+	}
 }

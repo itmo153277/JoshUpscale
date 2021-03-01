@@ -62,12 +62,14 @@ private:
 	ffmpeg::pts_t m_AudioTimestamp = AV_NOPTS_VALUE;
 	ffmpeg::pts_t m_AudioPts = AV_NOPTS_VALUE;
 	ffmpeg::pts_t m_AudioStartPts = AV_NOPTS_VALUE;
+	double m_AudioJitter = 0;
 	::AVRational m_AudioPtsConv{};
 	::AVRational m_AudioQueueConv{};
 
 	void videoThread();
 	void audioThread();
 	void printText(const std::string &s, int x, int y);
+	void printLine(const std::string &s, int x, int y);
 	ffmpeg::pts_t getVideoClock();
 	void syncVideo(::AVFrame *frame);
 	ffmpeg::pts_t getAudioClock();
