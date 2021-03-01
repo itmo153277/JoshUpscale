@@ -452,7 +452,10 @@ void player::SPlayer::syncVideo(::AVFrame *frame) {
 	if (delay < 0 || delay > 500000) {  // Delay range: [0, 500] ms
 		delay = 0;
 	}
-	ffmpeg::pts_t avDiff = currentPts - getAudioClock();
+	ffmpeg::pts_t avDiff = 0;
+	if (m_AudioDevice) {
+		avDiff = currentPts - getAudioClock();
+	}
 	if (avDiff >= 50000) {  // Audio lags more than 50 ms behind
 		delay += avDiff;
 	} else {
