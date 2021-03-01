@@ -61,6 +61,7 @@ private:
 	std::shared_mutex m_AudioSyncMutex;
 	ffmpeg::pts_t m_AudioTimestamp = AV_NOPTS_VALUE;
 	ffmpeg::pts_t m_AudioPts = AV_NOPTS_VALUE;
+	ffmpeg::pts_t m_AudioPtsCorr = AV_NOPTS_VALUE;
 	ffmpeg::pts_t m_AudioStartPts = AV_NOPTS_VALUE;
 	double m_AudioJitter = 0;
 	::AVRational m_AudioPtsConv{};
