@@ -107,6 +107,7 @@ player::SPlayer::SPlayer(std::size_t inputWidth, std::size_t inputHeight,
 		        sdlToFfmpegSampleFormat(m_AudioDevice->getAudioSpec()->format),
 		        1);
 		m_AudioPts = 0;
+		m_AudioPtsCorr = 0;
 		m_AudioTimestamp = m_StreamStart;
 	}
 	::av_dump_format(m_Decoder.getFormatContext(), 0, source, 0);
@@ -448,8 +449,8 @@ void player::SPlayer::syncVideo(::AVFrame *frame) {
 	if (newPts == AV_NOPTS_VALUE) {
 		newPts = currentPts;
 	}
-	ffmpeg::pts_t delay = newPts - currentPts - static_cast<int>(m_VideoJitter);
-	if (delay < 0 || delay > 500000) {  // Delay range: [0, 500] ms
+	ffmpeg::pts_t delay = newPts - currentPts + static_cast<int>(m_VideoJitter);
+	if (delay < 0 || delay > 500000) {  // Invalid delay
 		delay = 0;
 	}
 	ffmpeg::pts_t avDiff = 0;
@@ -458,15 +459,16 @@ void player::SPlayer::syncVideo(::AVFrame *frame) {
 	}
 	if (avDiff >= 50000) {  // Audio lags more than 50 ms behind
 		delay += avDiff;
-	} else {
-		avDiff = 0;
+	}
+	if (delay > 500000) {  // Limit delay
+		delay = 500000;
 	}
 	if (delay > 0) {
 		::av_usleep(static_cast<unsigned int>(delay));
-		currentTimestamp = ::av_gettime_relative();
-		m_VideoJitter += ((currentTimestamp - m_VideoTimestamp) -
-		                     (newPts - m_VideoPts) - avDiff) /
-		                 2.0;
+		ffmpeg::pts_t newTimestamp = ::av_gettime_relative();
+		ffmpeg::pts_t actualDelay = newTimestamp - currentTimestamp;
+		currentTimestamp = newTimestamp;
+		m_VideoJitter += (delay - actualDelay - m_VideoJitter) / 2;
 	} else {
 		m_VideoJitter = 0;
 	}
@@ -508,17 +510,20 @@ void player::SPlayer::syncAudio(::AVFrame *frame) {
 	        m_AudioQueueConv.num, m_AudioQueueConv.den);
 	ffmpeg::pts_t delay = pts - currentPts + static_cast<int>(m_AudioJitter);
 	if (queueTime > 50000 && delay < queueTime) {  // Target queue is 50ms
-		delay = (queueTime - 50000) / 2;
+		delay = queueTime - 50000;
 	}
 	if (queueTime < 50000 && delay < (queueTime + 50000)) {
 		delay = 0;
 	}
-	if (delay < 0) {
+	if (delay < 0 || delay > queueTime + 500000) {  // Invalid delay
 		delay = 0;
 	}
 	ffmpeg::pts_t avDiff = currentClock - getVideoClock();
 	if (avDiff >= 50000) {  // Video lags more than 50ms behind
 		delay += avDiff;
+	}
+	if (delay > queueTime + 500000) {  // Limit delay
+		delay = queueTime + 500000;
 	}
 	if (delay > 0) {
 		::av_usleep(static_cast<unsigned int>(delay));
