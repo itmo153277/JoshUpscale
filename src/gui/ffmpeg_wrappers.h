@@ -6,6 +6,9 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavdevice/avdevice.h>
+#include <libavfilter/avfilter.h>
+#include <libavfilter/buffersink.h>
+#include <libavfilter/buffersrc.h>
 #include <libavformat/avformat.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/imgutils.h>
@@ -229,6 +232,60 @@ private:
 	::AVFormatContext *m_pFormatCtx = nullptr;
 };
 
+struct AVFilterGraph {
+	AVFilterGraph() {
+		m_pGraph = ::avfilter_graph_alloc();
+		if (!m_pGraph) {
+			throw std::bad_alloc();
+		}
+	}
+	AVFilterGraph(const AVFilterGraph &) = delete;
+	AVFilterGraph(AVFilterGraph &&s) noexcept {
+		m_pGraph = s.m_pGraph;
+		s.m_pGraph = nullptr;
+	}
+	~AVFilterGraph() {
+		::avfilter_graph_free(&m_pGraph);
+	}
+
+	::AVFilterGraph *operator->() {
+		return m_pGraph;
+	}
+	::AVFilterGraph *get() {
+		return m_pGraph;
+	}
+
+private:
+	::AVFilterGraph *m_pGraph = nullptr;
+};
+
+struct AVFilterInOut {
+	AVFilterInOut() {
+		m_InOut = ::avfilter_inout_alloc();
+		if (!m_InOut) {
+			throw std::bad_alloc();
+		}
+	}
+	AVFilterInOut(const AVFilterInOut &) = delete;
+	AVFilterInOut(AVFilterInOut &s) noexcept {
+		m_InOut = s.m_InOut;
+		s.m_InOut = nullptr;
+	}
+	~AVFilterInOut() {
+		::avfilter_inout_free(&m_InOut);
+	}
+
+	::AVFilterInOut *operator->() {
+		return m_InOut;
+	}
+	::AVFilterInOut *&get() {
+		return m_InOut;
+	}
+
+private:
+	::AVFilterInOut *m_InOut = nullptr;
+};
+
 struct SwsContext {
 	SwsContext() = default;
 	SwsContext(const SwsContext &) = delete;
@@ -335,8 +392,17 @@ private:
 	friend SVideoStreamInfo openVideoStream(::AVFormatContext *, DXVA);
 };
 
+struct SGraphInfo {
+	smart::AVFilterGraph graph;
+	::AVFilterContext *srcCtx;
+	::AVFilterContext *sinkCtx;
+};
+
 smart::AVFormatContext openSource(const char *source, const char *sourceType);
 SVideoStreamInfo openVideoStream(::AVFormatContext *pFormatCtx, DXVA dxva);
 SStreamInfo openAudioStream(::AVFormatContext *pFormatCtx);
+SGraphInfo createVideoGraph(const SVideoStreamInfo *streamInfo,
+    ::AVFormatContext *pFormatCtx, ::AVFrame *frame, ::AVPixelFormat outFormat,
+    const char *filterStr);
 
 }  // namespace ffmpeg

@@ -92,6 +92,56 @@ ffmpeg::SStreamInfo ffmpeg::openAudioStream(::AVFormatContext *pFormatCtx) {
 	return streamInfo;
 }
 
+ffmpeg::SGraphInfo ffmpeg::createVideoGraph(const SVideoStreamInfo *streamInfo,
+    ::AVFormatContext *pFormatCtx, ::AVFrame *frame, ::AVPixelFormat outFormat,
+    const char *filterStr) {
+	::AVStream *stream = pFormatCtx->streams[streamInfo->streamIndex];
+	smart::AVFilterGraph graph;
+	const AVFilter *buffersrc = ::avfilter_get_by_name("buffer");
+	const AVFilter *buffersink = ::avfilter_get_by_name("buffersink");
+
+	::AVFilterContext *srcCtx =
+	    ::avfilter_graph_alloc_filter(graph.get(), buffersrc, "in");
+	smart::AVPointer srcParamPtr;
+	::AVBufferSrcParameters *srcParam = ::av_buffersrc_parameters_alloc();
+	if (!srcParam) {
+		throw std::bad_alloc();
+	}
+	srcParamPtr.reset(srcParam);
+	srcParam->format = frame->format;
+	srcParam->time_base = stream->time_base;
+	srcParam->width = frame->width;
+	srcParam->height = frame->height;
+	srcParam->sample_aspect_ratio = streamInfo->codecCtx->sample_aspect_ratio;
+	srcParam->frame_rate = ::av_guess_frame_rate(pFormatCtx, stream, frame);
+	srcParam->hw_frames_ctx = streamInfo->codecCtx->hw_frames_ctx;
+	ffmpeg::callOrThrow(::av_buffersrc_parameters_set, srcCtx, srcParam);
+	ffmpeg::callOrThrow(::avfilter_init_str, srcCtx, nullptr);
+	::AVFilterContext *sinkCtx = nullptr;
+	ffmpeg::callOrThrow(::avfilter_graph_create_filter, &sinkCtx, buffersink,
+	    "out", nullptr, nullptr, graph.get());
+	::AVPixelFormat pixFmts[2] = {outFormat, AV_PIX_FMT_NONE};
+	ffmpeg::AVError ret = av_opt_set_int_list(
+	    sinkCtx, "pix_fmts", pixFmts, AV_PIX_FMT_NONE, AV_OPT_SEARCH_CHILDREN);
+	if (ret < 0) {
+		throw ffmpeg::AVException(ret);
+	}
+	smart::AVFilterInOut inputs;
+	smart::AVFilterInOut outputs;
+	outputs->name = ::av_strdup("in");
+	outputs->filter_ctx = srcCtx;
+	outputs->pad_idx = 0;
+	outputs->next = nullptr;
+	inputs->name = ::av_strdup("out");
+	inputs->filter_ctx = sinkCtx;
+	inputs->pad_idx = 0;
+	inputs->next = nullptr;
+	ffmpeg::callOrThrow(::avfilter_graph_parse_ptr, graph.get(), filterStr,
+	    &inputs.get(), &outputs.get(), nullptr);
+	ffmpeg::callOrThrow(::avfilter_graph_config, graph.get(), nullptr);
+	return {std::move(graph), srcCtx, sinkCtx};
+}
+
 ffmpeg::SPacketQueue::~SPacketQueue() {
 	terminate();
 }

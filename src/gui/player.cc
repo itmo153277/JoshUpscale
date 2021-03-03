@@ -127,6 +127,7 @@ void player::SPlayer::play(PresentCallback cb) {
 	}
 	::SDL_ShowWindow(m_Window.get());
 	sdl::callOrThrow(::SDL_RenderClear, m_Renderer.get());
+	printText("Loading...", 2, 2);
 	::SDL_RenderPresent(m_Renderer.get());
 
 	std::exception_ptr exception = nullptr;
@@ -187,6 +188,7 @@ void player::SPlayer::play(PresentCallback cb) {
 				break;
 			}
 			if (e.type == m_PresentEvent) {
+				::SDL_FlushEvent(m_PresentEvent);
 				Uint32 renderTicks;
 				{
 					sdl::SLockGuard lock(m_Mutex.get());
@@ -326,12 +328,13 @@ void player::SPlayer::stop() {
 }
 
 void player::SPlayer::videoThread() {
-	smart::SwsContext swsCtx;
+	std::unique_ptr<ffmpeg::SGraphInfo> graphInfo;
+	std::stringstream ss;
+	ss << "sws_flags=neighbor;fps=30,setsar=1:1,scale=" << m_InputWidth << ":"
+	   << m_InputHeight;
 	int inWidth = -1;
 	int inHeight = -1;
 	::AVPixelFormat inFormat = AV_PIX_FMT_NONE;
-	smart::AVImage bufIn{static_cast<int>(m_InputWidth),
-	    static_cast<int>(m_InputHeight), AV_PIX_FMT_BGR24};
 	::SDL_Event presentEvent = {m_PresentEvent};
 	Uint32 renderStartTicks = ::SDL_GetTicks();
 	m_Decoder.videoDecoderLoop([&](::AVFrame *frame) {
@@ -342,21 +345,30 @@ void player::SPlayer::videoThread() {
 			inWidth = frame->width;
 			inHeight = frame->height;
 			inFormat = frameFormat;
-			swsCtx.reinit(inWidth, inHeight, frameFormat,
-			    static_cast<int>(m_InputWidth), static_cast<int>(m_InputHeight),
-			    AV_PIX_FMT_BGR24, SWS_POINT);
+			graphInfo = std::make_unique<ffmpeg::SGraphInfo>(
+			    ffmpeg::createVideoGraph(m_Decoder.getVideoStreamInfo(),
+			        m_Decoder.getFormatContext(), frame, AV_PIX_FMT_BGR24,
+			        ss.str().c_str()));
 		}
-		::sws_scale(swsCtx.get(), frame->data, frame->linesize, 0,
-		    frame->height, bufIn.data, bufIn.linesize);
-		m_ProcessCallback(bufIn.data[0], bufIn.linesize[0]);
-		{
-			sdl::SLockGuard lock(m_Mutex.get());
-			m_WriteCallback(m_VideoBuffer.data[0], m_VideoBuffer.linesize[0]);
-			m_RenderTicks = ::SDL_GetTicks() - renderStartTicks;
+		ffmpeg::callOrThrow(::av_buffersrc_add_frame, graphInfo->srcCtx, frame);
+		for (;;) {
+			smart::AVFrame convFrame;
+			ffmpeg::AVError ret =
+			    ::av_buffersink_get_frame(graphInfo->sinkCtx, convFrame.get());
+			if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+				break;
+			}
+			m_ProcessCallback(convFrame->data[0], convFrame->linesize[0]);
+			{
+				sdl::SLockGuard lock(m_Mutex.get());
+				m_WriteCallback(
+				    m_VideoBuffer.data[0], m_VideoBuffer.linesize[0]);
+				m_RenderTicks = ::SDL_GetTicks() - renderStartTicks;
+			}
+			syncVideo(convFrame.get());
+			sdl::callOrThrow(::SDL_PushEvent, &presentEvent);
+			renderStartTicks = ::SDL_GetTicks();
 		}
-		syncVideo(frame);
-		sdl::callOrThrow(::SDL_PushEvent, &presentEvent);
-		renderStartTicks = ::SDL_GetTicks();
 		return AV_NOPTS_VALUE;
 	});
 }
