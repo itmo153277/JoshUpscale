@@ -358,6 +358,9 @@ void player::SPlayer::videoThread() {
 			if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
 				break;
 			}
+			if (ret < 0) {
+				throw ffmpeg::AVException(ret);
+			}
 			m_ProcessCallback(convFrame->data[0], convFrame->linesize[0]);
 			{
 				sdl::SLockGuard lock(m_Mutex.get());
