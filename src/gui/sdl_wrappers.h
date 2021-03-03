@@ -17,7 +17,7 @@ struct SDLException : std::exception {
 };
 
 template <typename F, typename... Params>
-void callOrThrow(F f, Params &&... params) {
+void callOrThrow(F f, Params &&...params) {
 	if (f(std::forward<Params>(params)...) < 0) {
 		throw SDLException();
 	}

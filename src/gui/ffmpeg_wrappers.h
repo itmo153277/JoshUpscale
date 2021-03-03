@@ -54,7 +54,7 @@ private:
 };
 
 template <typename F, typename... Params>
-AVError callOrThrow(F f, Params &&... params) {
+AVError callOrThrow(F f, Params &&...params) {
 	AVError ret = f(std::forward<Params>(params)...);
 	if (ret < 0) {
 		throw AVException(ret);
