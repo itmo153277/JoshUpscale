@@ -336,10 +336,18 @@ void player::SPlayer::videoThread() {
 	int inHeight = -1;
 	::AVPixelFormat inFormat = AV_PIX_FMT_NONE;
 	::SDL_Event presentEvent = {m_PresentEvent};
+	::AVStream *videoStream =
+	    m_Decoder.getFormatContext()
+	        ->streams[m_Decoder.getVideoStreamInfo()->streamIndex];
+	ffmpeg::pts_t videoStartPts = videoStream->start_time;
+	::AVRational sinkTimeBase{};
 	Uint32 renderStartTicks = ::SDL_GetTicks();
 	m_Decoder.videoDecoderLoop([&](::AVFrame *frame) {
 		::AVPixelFormat frameFormat =
 		    static_cast<::AVPixelFormat>(frame->format);
+		if (videoStartPts == AV_NOPTS_VALUE) {
+			videoStartPts = frame->best_effort_timestamp;
+		}
 		if (frame->width != inWidth || frame->height != inHeight ||
 		    frameFormat != inFormat) {
 			inWidth = frame->width;
@@ -349,6 +357,14 @@ void player::SPlayer::videoThread() {
 			    ffmpeg::createVideoGraph(m_Decoder.getVideoStreamInfo(),
 			        m_Decoder.getFormatContext(), frame, AV_PIX_FMT_BGR24,
 			        ss.str().c_str()));
+			sinkTimeBase = ::av_buffersink_get_time_base(graphInfo->sinkCtx);
+			{
+				std::unique_lock<std::shared_mutex> lock(m_VideoSyncMutex);
+				m_VideoStartPts = ::av_rescale_q(
+				    videoStartPts, videoStream->time_base, sinkTimeBase);
+				m_VideoPtsConv.num = sinkTimeBase.num * 1000000;
+				m_VideoPtsConv.den = sinkTimeBase.den;
+			}
 		}
 		ffmpeg::callOrThrow(::av_buffersrc_add_frame, graphInfo->srcCtx, frame);
 		for (;;) {
@@ -361,6 +377,7 @@ void player::SPlayer::videoThread() {
 			if (ret < 0) {
 				throw ffmpeg::AVException(ret);
 			}
+			convFrame->best_effort_timestamp = convFrame->pts;
 			m_ProcessCallback(convFrame->data[0], convFrame->linesize[0]);
 			{
 				sdl::SLockGuard lock(m_Mutex.get());
