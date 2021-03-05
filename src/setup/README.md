@@ -19,8 +19,10 @@ External files should include:
 - License
 - Model (`model.pb`) created by `/scripts/training/optimize.py`
 - FFmpeg libraries
-- TensorFlow libraries
+- TensorFlow library
 - wxWidget libraries
+- SDL2 library
+- SDL2_gfx library
 - NVIDIA cuDNN libraries (they are not included in NVIDIA CUDA Toolkit)
 
 ## Patch

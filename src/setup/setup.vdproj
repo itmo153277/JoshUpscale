@@ -39,7 +39,19 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_445162B27D0D4133903C145B7C038E50"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_481EB7D2E6864A0A8E4DB4AD724FC468"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_5B370BC0A9A7494C977F113C0FAEBD4A"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -75,6 +87,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_A192610485CA4E1099E2F2C80830D702"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_ABE232B06DC747279F8E31A63BFD5219"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -94,6 +112,12 @@
         "Entry"
         {
         "MsmKey" = "8:_B541B931C76047A989AE937168EA1894"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_BF2F077C08004A70A319ED0AB782B26D"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -317,10 +341,50 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_445162B27D0D4133903C145B7C038E50"
+            {
+            "SourcePath" = "8:..\\..\\scripts\\demo\\README.md"
+            "TargetName" = "8:README.md"
+            "Tag" = "8:"
+            "Folder" = "8:_54E8E3176B4C4A549554AA4FF487B642"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_481EB7D2E6864A0A8E4DB4AD724FC468"
             {
             "SourcePath" = "8:files\\external\\avfilter-7.dll"
             "TargetName" = "8:avfilter-7.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_85E4728F6CE341FDB3E077105AB5F4DC"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_5B370BC0A9A7494C977F113C0FAEBD4A"
+            {
+            "SourcePath" = "8:files\\external\\SDL2_gfx.dll"
+            "TargetName" = "8:SDL2_gfx.dll"
             "Tag" = "8:"
             "Folder" = "8:_85E4728F6CE341FDB3E077105AB5F4DC"
             "Condition" = "8:"
@@ -437,6 +501,26 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A192610485CA4E1099E2F2C80830D702"
+            {
+            "SourcePath" = "8:..\\..\\scripts\\demo\\transcode.avs"
+            "TargetName" = "8:transcode.avs"
+            "Tag" = "8:"
+            "Folder" = "8:_54E8E3176B4C4A549554AA4FF487B642"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_ABE232B06DC747279F8E31A63BFD5219"
             {
             "SourcePath" = "8:files\\external\\avformat-58.dll"
@@ -483,6 +567,26 @@
             "TargetName" = "8:wxmsw314u_core_vc14x_x64.dll"
             "Tag" = "8:"
             "Folder" = "8:_85E4728F6CE341FDB3E077105AB5F4DC"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_BF2F077C08004A70A319ED0AB782B26D"
+            {
+            "SourcePath" = "8:..\\..\\scripts\\demo\\demo.avs"
+            "TargetName" = "8:demo.avs"
+            "Tag" = "8:"
+            "Folder" = "8:_54E8E3176B4C4A549554AA4FF487B642"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -664,6 +768,17 @@
             "Property" = "8:TARGETDIR"
                 "Folders"
                 {
+                    "{9EF0B969-E518-4E46-987F-47570745A589}:_54E8E3176B4C4A549554AA4FF487B642"
+                    {
+                    "Name" = "8:demo"
+                    "AlwaysCreate" = "11:FALSE"
+                    "Condition" = "8:"
+                    "Transitive" = "11:FALSE"
+                    "Property" = "8:_D41D08E88EDD486B8C434895692D31A3"
+                        "Folders"
+                        {
+                        }
+                    }
                 }
             }
             "{1525181F-901A-416C-8A58-119130FE478E}:_EA7232345A134BD8BA76398E6499AAE0"
@@ -704,15 +819,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:JoshUpscale"
-        "ProductCode" = "8:{D8B1C64F-B646-459E-82C7-1B3C2215A11F}"
-        "PackageCode" = "8:{C52FD601-2144-4473-A071-B195C354E7B2}"
+        "ProductCode" = "8:{B518DE6C-A52C-4E56-B9EF-20835597EA71}"
+        "PackageCode" = "8:{B4638050-41D0-4A98-96D6-688FC4A829BE}"
         "UpgradeCode" = "8:{6E520E38-452D-4F78-9453-CD7FDFACA1E3}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"
-        "RemovePreviousVersions" = "11:FALSE"
+        "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
-        "ProductVersion" = "8:0.1.0"
+        "ProductVersion" = "8:0.1.001"
         "Manufacturer" = "8:viktprog@gmail.com"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
@@ -737,68 +852,12 @@
             {
                 "Keys"
                 {
-                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_EF3D948F2123470ABF4D6F37079D5BED"
-                    {
-                    "Name" = "8:Software"
-                    "Condition" = "8:"
-                    "AlwaysCreate" = "11:FALSE"
-                    "DeleteAtUninstall" = "11:FALSE"
-                    "Transitive" = "11:FALSE"
-                        "Keys"
-                        {
-                            "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_773E0B878D264E7D96579511EDE1DC47"
-                            {
-                            "Name" = "8:[Manufacturer]"
-                            "Condition" = "8:"
-                            "AlwaysCreate" = "11:FALSE"
-                            "DeleteAtUninstall" = "11:FALSE"
-                            "Transitive" = "11:FALSE"
-                                "Keys"
-                                {
-                                }
-                                "Values"
-                                {
-                                }
-                            }
-                        }
-                        "Values"
-                        {
-                        }
-                    }
                 }
             }
             "HKCU"
             {
                 "Keys"
                 {
-                    "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_FAAC63A059194609864419A2DEE410CC"
-                    {
-                    "Name" = "8:Software"
-                    "Condition" = "8:"
-                    "AlwaysCreate" = "11:FALSE"
-                    "DeleteAtUninstall" = "11:FALSE"
-                    "Transitive" = "11:FALSE"
-                        "Keys"
-                        {
-                            "{60EA8692-D2D5-43EB-80DC-7906BF13D6EF}:_CA6745D4DF20401189FE8180006BD3A9"
-                            {
-                            "Name" = "8:[Manufacturer]"
-                            "Condition" = "8:"
-                            "AlwaysCreate" = "11:FALSE"
-                            "DeleteAtUninstall" = "11:FALSE"
-                            "Transitive" = "11:FALSE"
-                                "Keys"
-                                {
-                                }
-                                "Values"
-                                {
-                                }
-                            }
-                        }
-                        "Values"
-                        {
-                        }
-                    }
                 }
             }
             "HKCR"
