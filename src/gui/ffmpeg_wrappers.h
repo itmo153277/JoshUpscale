@@ -398,7 +398,8 @@ struct SGraphInfo {
 	::AVFilterContext *sinkCtx;
 };
 
-smart::AVFormatContext openSource(const char *source, const char *sourceType);
+smart::AVFormatContext openSource(
+    const char *source, const char *sourceType, const char *option);
 SVideoStreamInfo openVideoStream(::AVFormatContext *pFormatCtx, DXVA dxva);
 SStreamInfo openAudioStream(::AVFormatContext *pFormatCtx);
 SGraphInfo createVideoGraph(const SVideoStreamInfo *streamInfo,

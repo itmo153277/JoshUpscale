@@ -23,9 +23,9 @@ struct SPlayer {
 	SPlayer() = delete;
 	SPlayer(std::size_t inputWidth, std::size_t inputHeight,
 	    std::size_t outputWidth, std::size_t outputHeight, const char *source,
-	    const char *sourceType, ffmpeg::DXVA dxva, const char *audioOut,
-	    bool showDebugInfo, ProcessCallback processCallback,
-	    ProcessCallback writeCallback);
+	    const char *sourceType, const char *sourceOptions, ffmpeg::DXVA dxva,
+	    const char *audioOut, bool showDebugInfo,
+	    ProcessCallback processCallback, ProcessCallback writeCallback);
 	SPlayer(const SPlayer &s) = delete;
 	SPlayer(SPlayer &&) = delete;
 	~SPlayer();

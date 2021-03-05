@@ -9,6 +9,7 @@
 void CMainFrame::onVideoSelected(wxCommandEvent &event) {
 	m_GoBtn->Enable(m_VideoInChoice->GetSelection() > 0);
 	m_AudioInChoice->Enable(m_VideoInChoice->GetSelection() > 1);
+	m_SourceOptions->Enable(m_VideoInChoice->GetSelection() > 1);
 }
 
 void CMainFrame::onGoClicked(wxCommandEvent &event) {
@@ -50,6 +51,13 @@ void CMainFrame::onGoClicked(wxCommandEvent &event) {
 		                              1]
 		              .deviceId.c_str();
 	}
+	wxString sourceOptions;
+	const char *sourceOptionsPtr = nullptr;
+	if (m_VideoInChoice->GetSelection() > 1 &&
+	    !m_SourceOptions->GetValue().IsEmpty()) {
+		sourceOptions = m_SourceOptions->GetValue();
+		sourceOptionsPtr = sourceOptions.c_str();
+	}
 	const char *audioOut = nullptr;
 	if (m_AudioOutChoice->GetSelection() > 0) {
 		assert(m_AudioOutChoice->GetSelection() > 0 &&
@@ -60,8 +68,9 @@ void CMainFrame::onGoClicked(wxCommandEvent &event) {
 		               .deviceId.c_str();
 	}
 	Show(false);
-	processor::processAndShowVideo(videoFilePtr, videoIn, audioIn, audioOut,
-	    dxva, m_DebugEnable->IsChecked(), [] { wxYield(); });
+	processor::processAndShowVideo(videoFilePtr, videoIn, audioIn,
+	    sourceOptionsPtr, audioOut, dxva, m_DebugEnable->IsChecked(),
+	    [] { wxYield(); });
 	Close();
 }
 

@@ -61,6 +61,16 @@ MainFrame::MainFrame( wxWindow* parent, wxWindowID id, const wxString& title, co
 
 	fgSizer1->Add( m_AudioInChoice, 1, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
 
+	wxStaticText* m_staticText7;
+	m_staticText7 = new wxStaticText( sbSizer1->GetStaticBox(), wxID_ANY, wxT("Source Options"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText7->Wrap( -1 );
+	fgSizer1->Add( m_staticText7, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
+
+	m_SourceOptions = new wxTextCtrl( sbSizer1->GetStaticBox(), wxID_ANY, wxT("framerate=30 audio_buffer_size=40 rtbufsize=20M"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_SourceOptions->Enable( false );
+
+	fgSizer1->Add( m_SourceOptions, 1, wxALL|wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+
 	wxStaticText* m_staticText4;
 	m_staticText4 = new wxStaticText( sbSizer1->GetStaticBox(), wxID_ANY, wxT("Audio Output Device"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText4->Wrap( -1 );

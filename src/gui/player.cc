@@ -45,8 +45,8 @@ constexpr ::SDL_AudioFormat ffmpegToSdlSampleFormat(
 
 player::SPlayer::SPlayer(std::size_t inputWidth, std::size_t inputHeight,
     std::size_t outputWidth, std::size_t outputHeight, const char *source,
-    const char *sourceType, ffmpeg::DXVA dxva, const char *audioOut,
-    bool showDebugInfo, ProcessCallback processCallback,
+    const char *sourceType, const char *sourceOptions, ffmpeg::DXVA dxva,
+    const char *audioOut, bool showDebugInfo, ProcessCallback processCallback,
     ProcessCallback writeCallback)
     : m_InputWidth{inputWidth}
     , m_InputHeight{inputHeight}
@@ -55,7 +55,7 @@ player::SPlayer::SPlayer(std::size_t inputWidth, std::size_t inputHeight,
     , m_ShowDebugInfo{showDebugInfo}
     , m_ProcessCallback{processCallback}
     , m_WriteCallback{writeCallback}
-    , m_Decoder{source, sourceType, dxva}
+    , m_Decoder{source, sourceType, sourceOptions, dxva}
     , m_Window{sdl::allocOrThrow(::SDL_CreateWindow("JoshUpscale",
           SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
           static_cast<int>(m_OutputWidth), static_cast<int>(m_OutputHeight),

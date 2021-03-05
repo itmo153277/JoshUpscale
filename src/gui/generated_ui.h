@@ -16,6 +16,7 @@
 #include <wx/colour.h>
 #include <wx/settings.h>
 #include <wx/choice.h>
+#include <wx/textctrl.h>
 #include <wx/checkbox.h>
 #include <wx/sizer.h>
 #include <wx/statbox.h>
@@ -48,6 +49,7 @@ namespace generated
 		protected:
 			wxChoice* m_VideoInChoice;
 			wxChoice* m_AudioInChoice;
+			wxTextCtrl* m_SourceOptions;
 			wxChoice* m_AudioOutChoice;
 			wxChoice* m_DxvaChoice;
 			wxCheckBox* m_DebugEnable;
@@ -60,7 +62,7 @@ namespace generated
 
 		public:
 
-			MainFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("JoshUpscale"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 520,310 ), long style = wxCAPTION|wxCLOSE_BOX|wxMINIMIZE_BOX|wxSYSTEM_MENU|wxTAB_TRAVERSAL );
+			MainFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("JoshUpscale"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 520,340 ), long style = wxCAPTION|wxCLOSE_BOX|wxMINIMIZE_BOX|wxSYSTEM_MENU|wxTAB_TRAVERSAL );
 
 			~MainFrame();
 

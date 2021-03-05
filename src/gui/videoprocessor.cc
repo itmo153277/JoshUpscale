@@ -37,7 +37,7 @@ void throwSystemError(HRESULT hr) {
 }
 
 template <typename F, typename... Params>
-void callOrThrow(F f, Params &&... params) {
+void callOrThrow(F f, Params &&...params) {
 	HRESULT hr = f(std::forward<Params>(params)...);
 	if (FAILED(hr)) {
 		throwSystemError(hr);
@@ -180,15 +180,15 @@ void processor::init() {
 }
 
 void processor::processAndShowVideo(const char *filename, const char *videoIn,
-    const char *audioIn, const char *audioOut, DXVA dxva, bool showDebugInfo,
-    PresentCallback cb) {
+    const char *audioIn, const char *sourceOptions, const char *audioOut,
+    DXVA dxva, bool showDebugInfo, PresentCallback cb) {
 	assert(filename != nullptr || videoIn != nullptr);
 	std::string source =
 	    filename != nullptr ? filename : getSourceString(videoIn, audioIn);
 	upscaler::SUpscaler upscaler{"model.pb"};
 	player::SPlayer player{upscaler::INPUT_WIDTH, upscaler::INPUT_HEIGHT,
 	    upscaler::OUTPUT_WIDTH, upscaler::OUTPUT_HEIGHT, source.c_str(),
-	    filename == nullptr ? "dshow" : nullptr,
+	    filename == nullptr ? "dshow" : nullptr, sourceOptions,
 	    static_cast<ffmpeg::DXVA>(dxva), audioOut, showDebugInfo,
 	    [&upscaler](void *buf, std::size_t stride) {
 		    upscaler.upscaleFrame(

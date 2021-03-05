@@ -7,14 +7,19 @@ void ffmpeg::init() {
 }
 
 smart::AVFormatContext ffmpeg::openSource(
-    const char *source, const char *sourceType) {
+    const char *source, const char *sourceType, const char *options) {
 	smart::AVFormatContext formatCtx;
+	smart::AVDictionary optionDict;
 	::AVInputFormat *format = nullptr;
 	if (sourceType != nullptr) {
 		format = ::av_find_input_format(sourceType);
 	}
-	ffmpeg::callOrThrow(
-	    ::avformat_open_input, &formatCtx.get(), source, format, nullptr);
+	if (options != nullptr) {
+		ffmpeg::callOrThrow(
+		    ::av_dict_parse_string, &optionDict.get(), options, "=", " ", 0);
+	}
+	ffmpeg::callOrThrow(::avformat_open_input, &formatCtx.get(), source, format,
+	    &optionDict.get());
 	ffmpeg::callOrThrow(::avformat_find_stream_info, formatCtx.get(), nullptr);
 	return formatCtx;
 }
