@@ -3,6 +3,7 @@
   <PropertyGroup Label="UserMacros">
     <wxPath Condition="'$(wxPath)' == ''"></wxPath>
     <SDLPath Condition="'$(SDLPath)' == ''"></SDLPath>
+    <SDLGfxPath Condition="'$(SDLGfxPath)' == ''"></SDLGfxPath>
     <FFPath Condition="'$(FFPath)' == ''"></FFPath>
     <TFPath Condition="'$(TFPath)' == ''"></TFPath>
     <AviSynthPath Condition="'$(AviSynthPath)' == ''"></AviSynthPath>

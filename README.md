@@ -29,12 +29,15 @@ Before building you need to install the following dependencies:
 2. SDL 2.0.14
     - `%SDLPath%\include` &mdash; for headers
     - `%SDLPath%\lib` &mdash; for library files
-3. FFmpeg 4.3
+3. SDL2_gfx 1.04
+    - `%SDLGfxPath%\include` &mdash; for headers
+    - `%SDLGfxPath%\lib` &mdash; for library files
+4. FFmpeg 4.3
     - `%FFPath%\include` &mdash; for headers
     - `%FFPath%\lib` &mdash; for library files
-4. wxWidgets 3.1.4
+5. wxWidgets 3.1.4
     - `%wxPath%\wxwidgets.props` &mdash; for wxWidgets build configuration properties
-5. AviSynth+ FilterSDK 3.6.1
+6. AviSynth+ FilterSDK 3.6.1
     - `%AviSynthPath%\include` &mdash; for headers
     - `%AviSynthPath%\lib` &mdash; for library files
 
@@ -42,9 +45,9 @@ Ways to provide the paths:
 
 1. Using global properties (recommended):
 
-    Edit your `Microsoft.Cpp.$(Platform).user.props` and add user macros for `TFPath`, `SDLPath`, `FFPath`, `wxPath` and `AviSynthPath`
+    Edit your `Microsoft.Cpp.$(Platform).user.props` and add user macros for `TFPath`, `SDLPath`, `SDLGfxPath`, `FFPath`, `wxPath` and `AviSynthPath`
 
-2. Using environment variables `TFPath`, `SDLPath`, `FFPath`, `wxPath` and `AviSynthPath`
+2. Using environment variables `TFPath`, `SDLPath`, `SDLGfxPath`, `FFPath`, `wxPath` and `AviSynthPath`
 
 3. Using project-local variables:
 
@@ -56,6 +59,7 @@ Ways to provide the paths:
     <PropertyGroup Label="UserMacros">
         <wxPath></wxPath>
         <SDLPath></SDLPath>
+        <SDLGfxPath></SDLGfxPath>
         <FFPath></FFPath>
         <TFPath></TFPath>
         <AviSynthPath></AviSynthPath>

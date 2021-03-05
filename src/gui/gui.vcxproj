@@ -49,8 +49,8 @@
     <IntDir>$(ProjectDir)$(Configuration)\$(Platform)\</IntDir>
     <TargetName>JoshUpscale</TargetName>
     <OutDir>$(SolutionDir)$(Configuration)\$(ProjectName)\$(Platform)\</OutDir>
-    <IncludePath>$(FFPath)\include;$(SDLPath)\include;$(TFPath)\include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(FFPath)\lib;$(SDLPath)\lib;$(TFPath)\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(FFPath)\include;$(SDLPath)\include;$(SDLGfxPath)\include;$(TFPath)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(FFPath)\lib;$(SDLPath)\lib;$(SDLGfxPath)\lib;$(TFPath)\lib;$(LibraryPath)</LibraryPath>
     <EnableClangTidyCodeAnalysis>true</EnableClangTidyCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
