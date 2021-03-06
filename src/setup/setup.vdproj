@@ -819,7 +819,7 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:JoshUpscale"
-        "ProductCode" = "8:{B518DE6C-A52C-4E56-B9EF-20835597EA71}"
+        "ProductCode" = "8:{D8B1C64F-B646-459E-82C7-1B3C2215A11F}"
         "PackageCode" = "8:{B4638050-41D0-4A98-96D6-688FC4A829BE}"
         "UpgradeCode" = "8:{6E520E38-452D-4F78-9453-CD7FDFACA1E3}"
         "AspNetVersion" = "8:2.0.50727.0"
@@ -827,7 +827,7 @@
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
-        "ProductVersion" = "8:0.1.001"
+        "ProductVersion" = "8:0.1.0"
         "Manufacturer" = "8:viktprog@gmail.com"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
