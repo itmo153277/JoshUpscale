@@ -31,4 +31,4 @@ For x64 builds you main need to patch ClickOnce bootstrapper.
 
 ClickOnce bootstrapper uses x86 executable even for x64 builds. This will prevent it to correctly check whether NVIDIA CUDA Toolkit is installed because it will fail to read x64 registry (by default for x86 programs it will be redirected to syswow6432).
 
-The patch included in the repository can be used for the bootstrapper with this SHA-256 hash: `6A306F8FC3C184BC03C4C20643E147E855DA48F89BAACFEE7C87628154E66A39`.
+The patch included in the repository can be used for the bootstrapper with this SHA-256 hash: `5B781C38030AEA023DE1BB4143498A15ED3BFA41B60EAF7C855D7CAB4DCC75FD`.
