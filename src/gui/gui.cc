@@ -75,6 +75,9 @@ void CMainFrame::onGoClicked(wxCommandEvent &event) {
 }
 
 CMainFrame::CMainFrame() : generated::MainFrame(nullptr) {
+	int width = FromDIP(GetSize().GetWidth());
+	SetSize(width, GetBestHeight(width));
+	CenterOnScreen();
 	SetIcon(wxICON(MainIcon));
 
 	m_VideoInDeviceList = processor::getVideoInDevices();
