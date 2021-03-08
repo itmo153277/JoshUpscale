@@ -277,7 +277,7 @@ void player::SPlayer::play(PresentCallback cb) {
 						   << std::endl;
 						ss << "Audio queue: " << audioQueueBytes << " bytes / "
 						   << std::setprecision(3) << std::fixed
-						   << queueTime / 1000.0 << " ma" << std::endl;
+						   << queueTime / 1000.0 << " ms" << std::endl;
 						ss << "A-V lag: " << std::setprecision(3) << std::fixed
 						   << (audioLag - videoLag) / 1000.0 << " ms"
 						   << std::endl;
@@ -449,7 +449,7 @@ void player::SPlayer::printLine(const std::string &s, int x, int y) {
 	int height = 8;
 	int width = 8 * static_cast<int>(s.size());
 	::boxRGBA(
-	    m_Renderer.get(), x, y, x + width, y + height, 128, 128, 128, 128);
+	    m_Renderer.get(), x, y, x + width - 1, y + height - 1, 128, 128, 128, 128);
 	::stringRGBA(
 	    m_Renderer.get(), x, y, s.c_str(), 255, 255, 255, SDL_ALPHA_OPAQUE);
 }
