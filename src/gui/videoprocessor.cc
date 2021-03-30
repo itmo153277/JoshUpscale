@@ -69,6 +69,13 @@ struct AutoRelease {
 	T *&get() {
 		return value;
 	}
+	T *&releaseAndGet() {
+		if (value != nullptr) {
+			value->Release();
+			value = nullptr;
+		}
+		return value;
+	}
 };
 
 struct AutoVariant : VARIANT {
@@ -107,11 +114,18 @@ struct AutoFree {
 	T &get() {
 		return value;
 	}
+	T &freeAndGet() {
+		if (value) {
+			CoTaskMemFree(value);
+			value = nullptr;
+		}
+		return value;
+	}
 };
 
 HRESULT EnumerateDevices(REFGUID category, IEnumMoniker **ppEnum) {
 	ICreateDevEnum *pDevEnum;
-	HRESULT hr = CoCreateInstance(CLSID_SystemDeviceEnum, NULL,
+	HRESULT hr = CoCreateInstance(CLSID_SystemDeviceEnum, nullptr,
 	    CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDevEnum));
 
 	if (SUCCEEDED(hr)) {
@@ -123,18 +137,54 @@ HRESULT EnumerateDevices(REFGUID category, IEnumMoniker **ppEnum) {
 	}
 	return hr;
 }
-
-processor::DeviceList getDShowDeviceList(REFGUID category) {
+void getDShowDeviceList(
+    processor::DeviceList *list, REFGUID category, REFGUID media) {
 	AutoRelease<IEnumMoniker> pEnum;
 	AutoRelease<IMoniker> pMoniker;
-	processor::DeviceList list;
 
 	callOrThrow(EnumerateDevices, category, &pEnum.get());
-	while (pEnum->Next(1, &pMoniker.get(), NULL) == S_OK) {
+	while (pEnum->Next(1, &pMoniker.releaseAndGet(), nullptr) == S_OK) {
+		AutoRelease<IBaseFilter> pFilter;
+		HRESULT hr = pMoniker->BindToObject(nullptr, nullptr, IID_IBaseFilter,
+		    reinterpret_cast<void **>(&pFilter.get()));
+		if (FAILED(hr)) {
+			continue;
+		}
+		AutoRelease<IEnumPins> pEnumPins;
+		hr = pFilter->EnumPins(&pEnumPins.get());
+		if (FAILED(hr)) {
+			continue;
+		}
+		AutoRelease<IPin> pPin;
+		bool found = false;
+		while (!found &&
+		       pEnumPins->Next(1, &pPin.releaseAndGet(), nullptr) == S_OK) {
+			PIN_DIRECTION pinDirection;
+			hr = pPin->QueryDirection(&pinDirection);
+			if (FAILED(hr) || pinDirection != PINDIR_OUTPUT) {
+				continue;
+			}
+			AutoFree<AM_MEDIA_TYPE *> pMediaType;
+			AutoRelease<IEnumMediaTypes> pEnumMediaTypes;
+			hr = pPin->EnumMediaTypes(&pEnumMediaTypes.get());
+			if (FAILED(hr)) {
+				continue;
+			}
+			while (pEnumMediaTypes->Next(
+			           1, &pMediaType.freeAndGet(), nullptr) == S_OK) {
+				if (pMediaType->majortype == media) {
+					found = true;
+					break;
+				}
+			}
+		}
+		if (!found) {
+			continue;
+		}
+
 		processor::SDevListItem device;
 		AutoRelease<IPropertyBag> pPropBag;
-		HRESULT hr =
-		    pMoniker->BindToStorage(0, 0, IID_PPV_ARGS(&pPropBag.get()));
+		hr = pMoniker->BindToStorage(0, 0, IID_PPV_ARGS(&pPropBag.get()));
 		if (FAILED(hr)) {
 			continue;
 		}
@@ -144,7 +194,6 @@ processor::DeviceList getDShowDeviceList(REFGUID category) {
 			continue;
 		}
 		device.deviceName = var.bstrVal;
-
 		AutoFree<LPOLESTR> oleStr;
 		AutoRelease<IBindCtx> pBindCtx;
 		callOrThrow(CreateBindCtx, 0, &pBindCtx.get());
@@ -159,9 +208,8 @@ processor::DeviceList getDShowDeviceList(REFGUID category) {
 			}
 		}
 		device.deviceId = displayName;
-		list.push_back(device);
+		list->push_back(device);
 	}
-	return list;
 }
 
 std::string getSourceString(const char *videoIn, const char *audioIn) {
@@ -204,11 +252,16 @@ void processor::processAndShowVideo(const char *filename, const char *videoIn,
 }
 
 processor::DeviceList processor::getVideoInDevices() {
-	return getDShowDeviceList(CLSID_VideoInputDeviceCategory);
+	processor::DeviceList list;
+	getDShowDeviceList(&list, CLSID_VideoInputDeviceCategory, MEDIATYPE_Video);
+	return list;
 }
 
 processor::DeviceList processor::getAudioInDevices() {
-	return getDShowDeviceList(CLSID_AudioInputDeviceCategory);
+	processor::DeviceList list;
+	getDShowDeviceList(&list, CLSID_AudioInputDeviceCategory, MEDIATYPE_Audio);
+	getDShowDeviceList(&list, CLSID_VideoInputDeviceCategory, MEDIATYPE_Audio);
+	return list;
 }
 
 processor::DeviceList processor::getAudioOutDevices() {
