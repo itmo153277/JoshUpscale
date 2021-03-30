@@ -183,9 +183,11 @@ void processor::processAndShowVideo(const char *filename, const char *videoIn,
     const char *audioIn, const char *sourceOptions, const char *audioOut,
     DXVA dxva, bool showDebugInfo, PresentCallback cb) {
 	assert(filename != nullptr || videoIn != nullptr);
+	static const uint8_t emptyBuffer[upscaler::INPUT_WIDTH * 3] = {};
 	std::string source =
 	    filename != nullptr ? filename : getSourceString(videoIn, audioIn);
 	upscaler::SUpscaler upscaler{"model.pb"};
+	upscaler.upscaleFrame(emptyBuffer, 0);
 	player::SPlayer player{upscaler::INPUT_WIDTH, upscaler::INPUT_HEIGHT,
 	    upscaler::OUTPUT_WIDTH, upscaler::OUTPUT_HEIGHT, source.c_str(),
 	    filename == nullptr ? "dshow" : nullptr, sourceOptions,
