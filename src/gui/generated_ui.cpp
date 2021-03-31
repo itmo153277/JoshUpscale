@@ -42,7 +42,7 @@ MainFrame::MainFrame( wxWindow* parent, wxWindowID id, const wxString& title, co
 	m_staticText1->Wrap( -1 );
 	fgSizer1->Add( m_staticText1, 0, wxALL|wxALIGN_CENTER_VERTICAL, 5 );
 
-	wxString m_VideoInChoiceChoices[] = { wxT("<--- Select Videe Device -->"), wxT("Open file...") };
+	wxString m_VideoInChoiceChoices[] = { wxT("<--- Select Video Device -->"), wxT("Open file...") };
 	int m_VideoInChoiceNChoices = sizeof( m_VideoInChoiceChoices ) / sizeof( wxString );
 	m_VideoInChoice = new wxChoice( sbSizer1->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, m_VideoInChoiceNChoices, m_VideoInChoiceChoices, 0 );
 	m_VideoInChoice->SetSelection( 0 );
