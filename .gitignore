@@ -1,7 +1,8 @@
-.vs
-Release
-Debug
-*.user
+/build
+/.vscode
+/.vs
+/.cache
 
+/venv
 __pycache__
 .ipynb*
