@@ -1,4 +1,0 @@
-tensorflow==2.4.1
-tensorflow-addons==0.12.1
-moviepy==1.0.3
-matplotlib

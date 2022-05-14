@@ -1,7 +1,0 @@
-LoadPlugin("ffms2.dll")
-LoadPlugin("JoshUpscale.dll")
-FFmpegSource2("original.mp4", fpsnum=30, fpsden=1, threads=1, atrack=-1).AssumeFPS(30, 1)
-ConvertToRGB24()
-PointResize(480, 272)
-JoshUpscale()
-LanczosResize(1920, 1080)
