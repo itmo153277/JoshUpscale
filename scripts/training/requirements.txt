@@ -1,0 +1,12 @@
+tensorflow==2.8.0
+tensorflow-addons==0.16.1
+
+onnx==1.11.0
+onnxruntime==1.11.1
+onnx-simplifier==0.3.9
+tf2onnx==1.10.1
+
+moviepy==1.0.3
+opencv-python-headless
+matplotlib
+numpy
