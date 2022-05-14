@@ -22,7 +22,7 @@ class UpscaleLayer(layers.Layer):
             Scale
         resize_type: str
             "bilinear" - bilinear resize
-            "nearest" - nearest neightbour
+            "nearest" - nearest neighbour
         **kwargs
             keras.layers.Layer args
         """
@@ -282,7 +282,7 @@ class ClipLayer(layers.Layer):
 
 
 CUSTOM_LAYERS = {
-    "UpscaleLayers": UpscaleLayer,
+    "UpscaleLayer": UpscaleLayer,
     "DenseWarpLayer": DenseWarpLayer,
     "SpaceToDepth": SpaceToDepth,
     "DepthToSpace": DepthToSpace,
