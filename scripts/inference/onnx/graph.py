@@ -2,7 +2,7 @@
 
 """Graph functions."""
 
-from typing import Any, List, Union
+from typing import Any, Dict, List, Union
 import numpy as np
 import onnx
 from onnx import helper, numpy_helper, checker
@@ -14,10 +14,10 @@ class Graph:
     def __init__(self, model: onnx.ModelProto) -> None:
         """Create Graph."""
         model_copy = onnx.ModelProto()
-        model.CopyFrom(model_copy)
+        model_copy.CopyFrom(model)
         model = model_copy
         graph = model.graph
-        self.init_dict = {
+        self._init_dict = {
             x.name: x
             for x in graph.initializer
         }
@@ -37,7 +37,27 @@ class Graph:
             "producer_version": model.producer_version,
         }
 
-    def get_node_by_name(self, name: str) -> onnx.NodeProto:
+    @property
+    def inputs(self) -> List[onnx.ValueInfoProto]:
+        """Get list of inputs."""
+        return self._inputs
+
+    @property
+    def outputs(self) -> List[onnx.ValueInfoProto]:
+        """Get list of outputs."""
+        return self._outputs
+
+    @property
+    def init_dict(self) -> Dict[str, onnx.ValueInfoProto]:
+        """Get dictionary of initializers."""
+        return self._init_dict
+
+    @property
+    def nodes(self) -> List[onnx.NodeProto]:
+        """Get list of nodes."""
+        return self._nodes
+
+    def find_node_by_name(self, name: str) -> onnx.NodeProto:
         """Find node by name."""
         for node in self._nodes:
             if node.name == name:
@@ -46,7 +66,7 @@ class Graph:
 
     def insert_node(self, node: onnx.NodeProto) -> None:
         """Insert new node into graph."""
-        if self.get_node_by_name(node.name) is not None:
+        if self.find_node_by_name(node.name) is not None:
             raise ValueError(f"Node {node.name} already exists")
         self._nodes.append(node)
         for output in node.output:
@@ -56,10 +76,11 @@ class Graph:
         """Remove node from graph."""
         self._nodes.remove(node)
         for output in node.output:
-            del self._node_dict[output]
+            if self._node_dict[output] is node:
+                del self._node_dict[output]
 
     def create_node(self, name: str, op_type: str, inputs: List[str] = None,
-                    **kwargs) -> onnx.NodeProto:
+                    outputs: List[str] = None, **kwargs) -> onnx.NodeProto:
         """Create new node."""
         if "domain" in kwargs:
             domain = kwargs["domain"]
@@ -73,7 +94,7 @@ class Graph:
         node = helper.make_node(
             op_type,
             inputs=inputs or [],
-            outputs=[name],
+            outputs=outputs or [name],
             name=name,
             **kwargs
         )
@@ -83,7 +104,7 @@ class Graph:
     def create_or_replace_node(self, name: str, *args,
                                **kwargs) -> onnx.NodeProto:
         """Create or replace node."""
-        old_node = self.get_node_by_name(name)
+        old_node = self.find_node_by_name(name)
         if old_node is not None:
             self.remove_node(old_node)
         return self.create_node(name, *args, **kwargs)
@@ -115,11 +136,11 @@ class Graph:
         visited_inits = set()
 
         def traverse(output):
-            if output in self.init_dict:
+            if output in self._init_dict:
                 if output in visited_inits:
                     return
                 visited_inits.add(output)
-                inits.append(self.init_dict[output])
+                inits.append(self._init_dict[output])
                 return
             if output not in self._node_dict:
                 return
