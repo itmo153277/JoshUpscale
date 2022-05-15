@@ -60,23 +60,24 @@ class Session:
             Path to model
         """
         self.sess = rt.InferenceSession(model)
-        self.inp_name = self.sess.get_inputs()[0].name
+        inputs = self.sess.get_inputs()
+        self.inp_name = inputs[0].name
         self.states = {x.name: np.zeros(
             shape=x.shape,
             dtype=Session.ORT_TYPES[x.type]
-        ) for x in self.sess.get_inputs()[1:]}
+        ) for x in inputs[1:]}
 
-    def run(self, image: np.array) -> np.array:
+    def run(self, image: np.ndarray) -> np.ndarray:
         """Run inference.
 
         Parameters
         ----------
-        images: np.array
+        images: np.ndarray
             Input image
 
         Returns
         -------
-        np.array
+        np.ndarray
             Output image
         """
         if len(image.shape) == 3:

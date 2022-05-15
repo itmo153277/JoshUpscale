@@ -10,12 +10,12 @@ from moviepy import editor as mpy
 from matplotlib import pyplot as plt
 
 
-def create_gif(images: np.array, fps: int = 15) -> bytes:
+def create_gif(images: np.ndarray, fps: int = 15) -> bytes:
     """Create gif clip.
 
     Parameters
     ----------
-    images: np.array
+    images: np.ndarray
         Images (N, H, W, C) in BGR format
     fps: int
         FPS
@@ -38,13 +38,13 @@ def create_gif(images: np.array, fps: int = 15) -> bytes:
         return f.read()
 
 
-def encode_gif_summary(images: np.array, name: str,
+def encode_gif_summary(images: np.ndarray, name: str,
                        fps: int = 15) -> tf.compat.v1.Summary:
     """Encode images into GIF summary.
 
     Parameters
     ----------
-    images: np.array
+    images: np.ndarray
         Images (B, N, H, W, 3) or (N, H, W, 3) in BGR format
     name: str
         Name
