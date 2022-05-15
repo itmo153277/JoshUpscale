@@ -63,5 +63,5 @@ class JoshUpscaleModel(keras.Model):
             pre_warps.append(outputs["pre_warp"])
             last_frames = outputs["last_frames"]
         gen_outputs = tf.stack(gen_outputs, axis=1)
-        pre_warps = tf.stack(pre_warps, axis=1)
+        pre_warps = tf.stack(pre_warps[1:], axis=1)
         return {"gen_output": gen_outputs, "pre_warp": pre_warps}

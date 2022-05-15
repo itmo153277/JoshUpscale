@@ -49,7 +49,20 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_model(config_path: str, weights_path: str) -> keras.Model:
-    """Load serialized model."""
+    """Load serialized model.
+
+    Parameters
+    ----------
+    config_path: str
+        Path to model definition
+    weights_path: str
+        Path to model weights
+
+    Returns
+    -------
+    keras.Model
+        Deserialised model
+    """
     # pylint: disable=invalid-name
     with open(config_path, "rt", encoding="utf-8") as f:
         config = f.read()
@@ -58,8 +71,21 @@ def load_model(config_path: str, weights_path: str) -> keras.Model:
     return model
 
 
-def wrap_model(model: keras.Model, name="final") -> keras.Model:
-    """Wrap model for export."""
+def wrap_model(model: keras.Model, name: str = "final") -> keras.Model:
+    """Wrap model for export.
+
+    Parameters
+    ----------
+    model: keras.Model
+        Input model
+    name: str
+        Wrapped model name
+
+    Returns
+    -------
+    keras.Model
+        Wrapped model
+    """
     inputs = [
         keras.Input(
             shape=np.array(x.shape)[[3, 1, 2]] if idx != 0 else x.shape[1:],
@@ -96,7 +122,22 @@ def wrap_model(model: keras.Model, name="final") -> keras.Model:
 
 def create_onnx_model(model: keras.Model, opset: int = 12,
                       num_checks: int = 3) -> onnx.ModelProto:
-    """Create onnx model from keras model."""
+    """Create ONNX model from keras model.
+
+    Parameters
+    ----------
+    model: keras.Model
+        Input model
+    opset: int
+        Opset version
+    num_checks: int
+        Number of checks for ONNX simplification
+
+    Returns
+    -------
+    onnx.ModelProto
+        Created ONNX model
+    """
     model_proto, _ = tf2onnx.convert.from_keras(
         model=model,
         opset=opset,

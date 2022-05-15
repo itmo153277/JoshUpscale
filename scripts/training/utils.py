@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Utility function."""
+"""Utility functions."""
 
 from typing import Union
 import tempfile
