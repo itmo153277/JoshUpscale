@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
                         default=12,
                         required=False)
     parser.add_argument("--num-checks",
-                        help="NUmber of simplifier checks",
+                        help="Number of simplifier checks",
                         type=int,
                         default=3,
                         required=False)
@@ -171,7 +171,7 @@ def main(
     opset: int
         ONNX opset version
     num_checks: int
-        NUmber of simplifier checks
+        Number of simplifier checks
 
     Returns
     -------

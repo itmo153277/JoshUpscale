@@ -105,7 +105,7 @@ def display_data(dataset: tf.data.Dataset, num_img: int) -> None:
     dataset: tf.data.Dataset
         Dataset
     num_img: int
-        NUmber of images
+        Number of images
     """
     # pylint: disable=invalid-name
     data = [x for x in dataset.unbatch().take(num_img).batch(num_img)][0]

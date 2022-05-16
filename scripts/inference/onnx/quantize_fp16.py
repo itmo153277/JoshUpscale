@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
                         help="Output path",
                         type=str)
     parser.add_argument("--num-checks",
-                        help="NUmber of simplifier checks",
+                        help="Number of simplifier checks",
                         type=int,
                         default=3)
     return parser.parse_args()
@@ -50,7 +50,7 @@ def main(
     output_path: str
         Output path
     num_checks: int
-        NUmber of simplifier checks
+        Number of simplifier checks
 
     Returns
     -------

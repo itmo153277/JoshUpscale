@@ -147,7 +147,11 @@ def main(
 
 if __name__ == "__main__":
     try:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(
+            level=logging.INFO,
+            format="[%(levelname)s] %(name)s: %(message)s",
+            stream=sys.stderr,
+        )
         sys.exit(main(**vars(parse_args())))
     except KeyboardInterrupt:
         sys.exit(-1)
