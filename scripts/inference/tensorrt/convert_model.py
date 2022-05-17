@@ -75,8 +75,7 @@ class GraphSerializer:
         }
         output_name = layer.get_output(0).name
         if output_name in self.calibration:
-            params["min_val"], params["max_val"] = \
-                self.calibration[output_name]
+            params["range"] = self.calibration[output_name]
         else:
             LOG.warning("No calibration data for %s", layer.name)
         return params
