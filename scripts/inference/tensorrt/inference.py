@@ -11,7 +11,6 @@ from glob import glob
 import argparse
 import cv2
 import numpy as np
-import onnxruntime as rt
 
 LOG = logging.getLogger("inference")
 
@@ -46,11 +45,6 @@ def parse_args() -> argparse.Namespace:
 class Session:
     """Inference session."""
 
-    ORT_TYPES = {
-        "tensor(float)": np.float32,
-        "tensor(float16)": np.float16,
-    }
-
     def __init__(self, model: str) -> None:
         """Create Session.
 
@@ -59,13 +53,7 @@ class Session:
         model: str
             Path to model
         """
-        self.sess = rt.InferenceSession(model)
-        inputs = self.sess.get_inputs()
-        self.inp_name = inputs[0].name
-        self.states = {x.name: np.zeros(
-            shape=x.shape,
-            dtype=Session.ORT_TYPES[x.type]
-        ) for x in inputs[1:]}
+        self.model = model
 
     def run(self, image: np.ndarray) -> np.ndarray:
         """Run inference.
@@ -80,16 +68,7 @@ class Session:
         np.ndarray
             Output image
         """
-        if len(image.shape) == 3:
-            image = np.expand_dims(image, axis=0)
-        inp_dict = {
-            self.inp_name: image,
-            **self.states
-        }
-        out = self.sess.run(None, inp_dict)
-        for val, name in zip(out[1:], self.states.keys()):
-            self.states[name] = val
-        return np.squeeze(out[0], axis=0)
+        raise NotImplementedError()
 
 
 def list_images(image_paths: List[str]) -> Iterator[str]:

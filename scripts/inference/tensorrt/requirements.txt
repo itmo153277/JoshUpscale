@@ -1,0 +1,5 @@
+nvidia-tensorrt==8.4.0.6
+pycuda
+pyyaml
+numpy
+opencv-python-headless
