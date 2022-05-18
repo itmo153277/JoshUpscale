@@ -9,6 +9,7 @@ import logging
 import argparse
 import json
 import struct
+from copy import deepcopy
 import gzip
 from typing import Any, Dict, List, Sequence, Tuple, Union
 import yaml
@@ -36,8 +37,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("model",
                         help="Model",
                         type=str)
-    parser.add_argument("output_prefix",
-                        help="Model",
+    parser.add_argument("output_path",
+                        help="Output path",
                         type=str)
     return parser.parse_args()
 
@@ -69,15 +70,10 @@ class GraphSerializer:
     def _get_activation_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IActivationLayer
         params = {
-            "activationType": layer.type.name,
+            "activation_type": layer.type.name,
             "alpha": layer.alpha,
             "beta": layer.beta,
         }
-        output_name = layer.get_output(0).name
-        if output_name in self.calibration:
-            params["range"] = self.calibration[output_name]
-        else:
-            LOG.warning("No calibration data for %s", layer.name)
         return params
 
     def _get_concat_params(self, layer: trt.ILayer) -> Dict[str, Any]:
@@ -88,8 +84,18 @@ class GraphSerializer:
 
     def _get_constant_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IConstantLayer
+        weights = layer.weights
+        if isinstance(weights, trt.Weights):
+            weights = weights.numpy()
+        output_name = layer.get_output(0).name
+        output_dtype = layer.get_output(0).dtype
+        if (output_name not in self.calibration and
+                output_dtype == trt.DataType.FLOAT):
+            min_val = float(weights.min())
+            max_val = float(weights.max())
+            self.calibration[output_name] = [min_val, max_val]
         return {
-            "weights": self._append_weights(layer.weights),
+            "weights": self._append_weights(weights),
             "shape": convert_to_list(layer.shape),
         }
 
@@ -134,6 +140,16 @@ class GraphSerializer:
             "mode": layer.mode.name,
         }
 
+    def _get_identity_params(self, layer: trt.ILayer) -> Dict[str, Any]:
+        input_name = layer.get_input(0).name
+        output_name = layer.get_output(0).name
+        output_dtype = layer.get_output(0).dtype
+        if (input_name in self.calibration and
+                output_name not in self.calibration and
+                output_dtype == trt.DataType.FLOAT):
+            self.calibration[output_name] = self.calibration[input_name]
+        return {}
+
     def _get_resize_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IResizeLayer
         params = {
@@ -150,7 +166,7 @@ class GraphSerializer:
     def _get_scale_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IScaleLayer
         return {
-            "mode": layer.mode.value,
+            "mode": layer.mode.name,
             "shift": self._append_weights(layer.shift),
             "scale": self._append_weights(layer.scale),
             "power": self._append_weights(layer.power),
@@ -159,6 +175,13 @@ class GraphSerializer:
 
     def _get_shuffle_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IShuffleLayer
+        input_name = layer.get_input(0).name
+        output_name = layer.get_output(0).name
+        output_dtype = layer.get_output(0).dtype
+        if (input_name in self.calibration and
+                output_name not in self.calibration and
+                output_dtype == trt.DataType.FLOAT):
+            self.calibration[output_name] = self.calibration[input_name]
         return {
             "first_transpose": convert_to_list(layer.first_transpose),
             "second_transpose": convert_to_list(layer.second_transpose),
@@ -178,7 +201,7 @@ class GraphSerializer:
     def _get_unary_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IUnaryLayer
         return {
-            "op": layer.op.value,
+            "op": layer.op.name,
         }
 
     def _get_layer_params(self, layer: trt.ILayer) -> Dict[str, Any]:
@@ -190,7 +213,7 @@ class GraphSerializer:
             trt.LayerType.DECONVOLUTION: self._get_deconvolution_params,
             trt.LayerType.ELEMENTWISE: self._get_elementwise_params,
             trt.LayerType.GATHER: self._get_gather_params,
-            trt.LayerType.IDENTITY: lambda x: {},
+            trt.LayerType.IDENTITY: self._get_identity_params,
             trt.LayerType.RESIZE: self._get_resize_params,
             trt.LayerType.SCALE: self._get_scale_params,
             trt.LayerType.SHUFFLE: self._get_shuffle_params,
@@ -202,6 +225,7 @@ class GraphSerializer:
         return {
             "type": layer.type.name,
             "name": layer.name,
+            **layer_serializers[layer.type](layer),
             "inputs": [
                 layer.get_input(i).name
                 for i in range(layer.num_inputs)
@@ -214,7 +238,10 @@ class GraphSerializer:
                 layer.get_output(i).dtype.name
                 for i in range(layer.num_outputs)
             ],
-            **layer_serializers[layer.type](layer)
+            "output_ranges": [
+                self.calibration.get(layer.get_output(i).name, None)
+                for i in range(layer.num_outputs)
+            ],
         }
 
     def serialize(
@@ -229,14 +256,14 @@ class GraphSerializer:
             inputs.append({
                 "name": inp.name,
                 "shape": list(inp.shape),
-                "dtype": inp.dtype.name
+                "dtype": inp.dtype.name,
             })
         outputs = [
             network.get_output(i).name
             for i in range(network.num_outputs)
         ]
         self.weights = []
-        self.calibration = calibration or {}
+        self.calibration = deepcopy(calibration or {})
         layers = [
             self._get_layer_params(layer)
             for layer in network
@@ -249,7 +276,7 @@ class GraphSerializer:
 
 
 def save_binary_weights(weights: List[np.ndarray], path: str) -> None:
-    """Save weeights to binary file."""
+    """Save weights to binary file."""
     with gzip.open(path, "wb") as f:
         for weight in weights:
             if weight.dtype == np.int32:
@@ -262,32 +289,30 @@ def save_binary_weights(weights: List[np.ndarray], path: str) -> None:
             f.write(weight.tobytes())
 
 
-class CustomYYAMLFormatter(yaml.Dumper):
+class CustomYAMLFormatter(yaml.Dumper):
     """Custom YAML Formatter."""
 
+    def ignore_aliases(self, _data: Any) -> bool:
+        """Ignore aliases."""
+        return True
 
-def _represent_list(dumper: CustomYYAMLFormatter, data: List[Any]):
-    for val in data:
-        if not (isinstance(val, int) or isinstance(val, float)):
-            return dumper.represent_list(data)
-    return dumper.represent_sequence("tag:yaml.org,2002:seq", data,
-                                     flow_style=True)
+    def custom_represent_list(self, data: List[Any]) -> Any:
+        """Represent list."""
+        for val in data:
+            if not (isinstance(val, int) or isinstance(val, float)):
+                return super().represent_list(data)
+        return self.represent_sequence("tag:yaml.org,2002:seq", data,
+                                       flow_style=True)
 
 
-def _represent_none(dumper: CustomYYAMLFormatter, _):
-    return dumper.represent_scalar("tag:yaml.org,2002:null", "")
-
-
-CustomYYAMLFormatter.add_representer(list, _represent_list)
-CustomYYAMLFormatter.add_representer(type(None), _represent_none)
+CustomYAMLFormatter.add_representer(
+    list, CustomYAMLFormatter.custom_represent_list)
 
 
 def main(
     model: str,
-    output_prefix: str,
+    output_path: str,
     calibration: Union[str, None] = None,
-
-
 ) -> int:
     """
     Run CLI.
@@ -296,8 +321,8 @@ def main(
     ----------
     model: str
         Model
-    output_prefix: str
-        Output prefix
+    output_path: str
+        Output path
     calibration: Union[str, None]
         Calibration data
 
@@ -323,10 +348,13 @@ def main(
     else:
         calibration_data = None
     graph, weights = GraphSerializer().serialize(network, calibration_data)
-    graph["weights"] = f"{os.path.basename(output_prefix)}-weights.bin"
-    with open(f"{output_prefix}.yaml", "wt", encoding="utf-8") as f:
-        yaml.dump(graph, f, Dumper=CustomYYAMLFormatter, sort_keys=False)
-    save_binary_weights(weights, f"{output_prefix}-weights.bin")
+    output_name = os.path.splitext(os.path.basename(output_path))[0]
+    weights_name = f"{output_name}-weights.bin"
+    weights_path = os.path.join(os.path.dirname(output_path), weights_name)
+    graph["weights"] = weights_name
+    with open(output_path, "wt", encoding="utf-8") as f:
+        yaml.dump(graph, f, Dumper=CustomYAMLFormatter, sort_keys=False)
+    save_binary_weights(weights, weights_path)
 
     return 0
 
