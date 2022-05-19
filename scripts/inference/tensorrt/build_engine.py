@@ -104,6 +104,7 @@ class GraphDeserializer:
             dtype=enum_from_string(trt.DataType, config["dtype"]),
             shape=config["shape"]
         )
+        tensor.allowed_formats = 1 << int(trt.TensorFormat.LINEAR)
         self._tensors[name] = tensor
         self._set_dynamic_range(name, config.get("range", None))
 
@@ -317,6 +318,8 @@ class GraphDeserializer:
             self._add_layer(layer)
         for out in model["outputs"]:
             self._network.mark_output(self._tensors[out])
+            self._tensors[out].allowed_formats = 1 << int(
+                trt.TensorFormat.LINEAR)
         return self._network
 
 
@@ -365,6 +368,7 @@ def main(
         config.set_flag(trt.BuilderFlag.INT8)
     config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
     config.set_flag(trt.BuilderFlag.REJECT_EMPTY_ALGORITHMS)
+    config.set_flag(trt.BuilderFlag.DIRECT_IO)
     if builder.num_DLA_cores > 0:
         config.default_device_type = trt.DeviceType.DLA
         config.set_flag(trt.BuilderFlag.GPU_FALLBACK)
