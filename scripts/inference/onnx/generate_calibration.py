@@ -9,11 +9,33 @@ import logging
 import argparse
 import json
 import tempfile
+import enum
 from typing import Dict, List, Union
 import cv2
 import numpy as np
 import onnx
 from onnxruntime import quantization
+
+
+class CalibrationMethod(enum.Enum):
+    """Calibration method."""
+
+    ENTROPY = quantization.CalibrationMethod.Entropy
+    MIN_MAX = quantization.CalibrationMethod.MinMax
+    PERCENTILE = quantization.CalibrationMethod.Percentile
+
+    def __str__(self) -> str:
+        """Convert to str."""
+        return self.name
+
+    @staticmethod
+    def argparse_value(val: str) -> "CalibrationMethod":
+        """Create from string."""
+        try:
+            return CalibrationMethod[val.upper()]
+        except KeyError as exc:
+            raise argparse.ArgumentTypeError(f"Invalid value: {val}") from exc
+
 
 LOG = logging.getLogger("generate_calibration")
 
@@ -51,6 +73,12 @@ def parse_args() -> argparse.Namespace:
                         dest="max_steps",
                         type=int,
                         default=None)
+    parser.add_argument("-m", "--method",
+                        help="Calibration method (default: %(default)s)",
+                        dest="calibration_method",
+                        type=CalibrationMethod.argparse_value,
+                        choices=list(CalibrationMethod),
+                        default=CalibrationMethod.ENTROPY)
     args = parser.parse_args()
     if args.max_steps is not None and args.max_steps < 1:
         parser.error(f"Invalid steps argument: {args.max_steps}")
@@ -151,6 +179,7 @@ def main(
     output_path: str,
     process_whole: bool = False,
     max_steps: Union[None, int] = None,
+    calibration_method: CalibrationMethod = CalibrationMethod.ENTROPY,
 ) -> int:
     """
     Run CLI.
@@ -169,6 +198,8 @@ def main(
         Process whole data in one ste
     max_steps: int
         Max number of steps
+    calibration_method: CalibrationMethod
+        Calibration method
 
     Returns
     -------
@@ -186,10 +217,13 @@ def main(
         num_images -= num_inputs - 2
     if max_steps is not None:
         num_images = min(num_images, max_steps)
+    if process_whole:
+        lr_data = lr_data[:num_images + num_inputs - 2]
+        hr_data = hr_data[:num_images + num_inputs - 2]
     with tempfile.NamedTemporaryFile() as tmp:
         calibrator = quantization.create_calibrator(
             model,
-            calibrate_method=quantization.CalibrationMethod.Entropy,
+            calibrate_method=calibration_method.value,
             augmented_model_path=tmp.name,
         )
         if process_whole:

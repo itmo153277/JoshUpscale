@@ -278,15 +278,16 @@ class GraphSerializer:
 def save_binary_weights(weights: List[np.ndarray], path: str) -> None:
     """Save weights to binary file."""
     with gzip.open(path, "wb") as f:
-        for weight in weights:
-            if weight.dtype == np.int32:
-                f.write(struct.pack("I", 0))
-            elif weight.dtype == np.float32:
-                f.write(struct.pack("I", 1))
+        for cur_weights in weights:
+            if cur_weights.dtype == np.int32:
+                dtype = 0
+            elif cur_weights.dtype == np.float32:
+                dtype = 1
             else:
-                raise ValueError(f"Unsupported dtype: {weight.dtype.str}")
-            f.write(struct.pack("I", weight.size))
-            f.write(weight.tobytes())
+                raise ValueError(f"Unsupported dtype: {cur_weights.dtype.str}")
+            f.write(struct.pack("=I", dtype))
+            f.write(struct.pack("=I", cur_weights.size))
+            f.write(cur_weights.tobytes())
 
 
 class CustomYAMLFormatter(yaml.Dumper):

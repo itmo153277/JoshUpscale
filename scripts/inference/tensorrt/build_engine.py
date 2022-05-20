@@ -17,6 +17,57 @@ import tensorrt as trt
 LOG = logging.getLogger("convert_model")
 
 
+class HumanReadableSize:
+    """Human readable size."""
+
+    UNIT_MAP = {
+        "KB": 1 << 10,
+        "MB": 1 << 20,
+        "GB": 1 << 30,
+        "TB": 1 << 40,
+    }
+
+    def __init__(self, val: Union[int, str]) -> None:
+        """Create object."""
+        if isinstance(val, int):
+            self.val = val
+        elif isinstance(val, str):
+            self.val = HumanReadableSize._convert_value(val)
+        else:
+            raise ValueError("Unsupported type")
+
+    def __repr__(self) -> str:
+        """Convert to str."""
+        val = self.val
+        for cur_pf, mul in reversed(HumanReadableSize.UNIT_MAP.items()):
+            if val >= mul:
+                postfix = cur_pf
+                val //= mul
+                break
+        else:
+            postfix = "B"
+        return f"{val}{postfix}"
+
+    def __int__(self) -> int:
+        """Convert to int."""
+        return self.val
+
+    @staticmethod
+    def _convert_value(val: str) -> int:
+        """Convert value."""
+        val = val.upper().strip()
+        for postfix, mul in HumanReadableSize.UNIT_MAP.items():
+            if val.endswith(postfix):
+                multiplier = mul
+                val = val[:-2].strip()
+                break
+        else:
+            if val.endswith("B"):
+                val = val[:-1].strip()
+            multiplier = 1
+        return multiplier * int(val)
+
+
 def parse_args() -> argparse.Namespace:
     """
     Parse CLI arguments.
@@ -35,17 +86,22 @@ def parse_args() -> argparse.Namespace:
                         help="Output path",
                         type=str)
     parser.add_argument("--int8",
-                        help="Int8 quantization",
+                        help="Enable int8 quantization",
                         dest="quant_int8",
                         required=False,
                         default=False,
                         action="store_true")
     parser.add_argument("--fp16",
-                        help="fp16 quantization",
+                        help="Enable fp16 quantization",
                         dest="quant_fp16",
                         required=False,
                         default=False,
                         action="store_true")
+    parser.add_argument("-w", "--workspace-size",
+                        help="Workspace size limit (default: %(default)s)",
+                        type=HumanReadableSize,
+                        required=False,
+                        default=HumanReadableSize("2GB"))
     return parser.parse_args()
 
 
@@ -58,9 +114,9 @@ def load_weights(weights_path: str) -> List[np.ndarray]:
     weights = []
     with gzip.open(weights_path, "rb") as f:
         while f.peek(1):
-            dtype = struct.unpack("I", f.read(4))[0]
-            assert dtype in [0, 1]
-            size = struct.unpack("I", f.read(4))[0]
+            dtype = struct.unpack("=I", f.read(4))[0]
+            assert dtype in dtype_dict
+            size = struct.unpack("=I", f.read(4))[0]
             if size == 0:
                 weights.append(None)
             else:
@@ -328,6 +384,7 @@ def main(
     output_path: str,
     quant_int8: bool = False,
     quant_fp16: bool = False,
+    workspace_size: Union[None, HumanReadableSize] = None,
 ) -> int:
     """
     Run CLI.
@@ -342,6 +399,8 @@ def main(
         Int8 quantization
     quant_fp16: bool
         FP16 quantization
+    workspace_size: Union[None, HumanReadableSize]
+        Workspace size limit
 
     Returns
     -------
@@ -356,7 +415,8 @@ def main(
     builder = trt.Builder(trt_logger)
     network = GraphDeserializer().deserialize(builder, model, weights)
     config = builder.create_builder_config()
-    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 2 << 30)
+    config.set_memory_pool_limit(
+        trt.MemoryPoolType.WORKSPACE, int(workspace_size or 2 << 30))
     config.set_flag(trt.BuilderFlag.SPARSE_WEIGHTS)
     if quant_fp16 or quant_int8:
         if not builder.platform_has_fast_fp16:
