@@ -1,9 +1,16 @@
+find_package(CUDAToolkit 11 REQUIRED)
+
 include(GenerateExportHeader)
 
-file(GLOB_RECURSE SRC src/*.cc)
+file(GLOB_RECURSE SRC src/*.cc src/*.cu)
 file(GLOB_RECURSE HEADERS include/*.h public/*.h)
 add_library(JoshUpscale SHARED ${SRC} ${HEADERS})
-set_target_properties(JoshUpscale PROPERTIES CXX_VISIBILITY_PRESET hidden)
+set_target_properties(JoshUpscale PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  CUDA_ARCHITECTURES "50"
+  CUDA_STANDARD 17
+  CUDA_RUNTIME_LIBRARY Shared
+)
 generate_export_header(JoshUpscale
   EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/generated/include/JoshUpscale/core/export.h
 )
@@ -11,6 +18,9 @@ target_include_directories(JoshUpscale PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inclu
 target_include_directories(JoshUpscale PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/public
   ${CMAKE_CURRENT_BINARY_DIR}/generated/include
+)
+target_link_libraries(JoshUpscale PRIVATE
+  CUDA::cudart
 )
 
 if (ENABLE_LINT)
