@@ -7,8 +7,6 @@ file(GLOB_RECURSE HEADERS include/*.h public/*.h)
 add_library(JoshUpscale SHARED ${SRC} ${HEADERS})
 set_target_properties(JoshUpscale PROPERTIES
   CXX_VISIBILITY_PRESET hidden
-  CUDA_ARCHITECTURES "50"
-  CUDA_STANDARD 17
   CUDA_RUNTIME_LIBRARY Shared
 )
 generate_export_header(JoshUpscale

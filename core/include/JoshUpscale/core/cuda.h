@@ -4,8 +4,8 @@
 
 #include <cuda_runtime_api.h>
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <memory>
 #include <utility>
@@ -17,6 +17,9 @@ namespace JoshUpscale {
 namespace core {
 
 namespace cuda {
+
+constexpr int WARP_SIZE = 32;
+constexpr int ALIGN_SIZE = WARP_SIZE * 4;
 
 struct CudaException : std::exception {
 	CudaException() : CudaException("CUDA general failure") {
@@ -32,6 +35,11 @@ inline void cudaCheck(::cudaError_t error) {
 	if (error != ::cudaSuccess) {
 		throw CudaException(error);
 	}
+}
+
+inline std::size_t getPaddedSize(
+    std::size_t size, std::size_t align = ALIGN_SIZE) {
+	return ((size + align - 1) / align) * align;
 }
 
 template <typename T>
@@ -53,6 +61,9 @@ struct CudaBuffer : std::unique_ptr<T, decltype(&::cudaFree)> {
 
 	std::size_t getSize() const {
 		return m_Size;
+	}
+	std::size_t getByteSize() const {
+		return m_Size * sizeof(T);
 	}
 
 private:
@@ -108,10 +119,21 @@ template <typename From, typename To>
 void cudaCast(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
     const CudaStream &stream);
 
-void cudaCopy(const Tensor &from, const CudaBuffer<std::uint8_t> &to,
-    const CudaStream &stream);
-void cudaCopy(const CudaBuffer<std::uint8_t> &from, const Tensor &to,
-    const CudaStream &stream);
+template <typename From, typename To>
+void cudaCopy(const From &from, const To &to, const CudaStream &stream);
+
+struct DeviceContext {
+	explicit DeviceContext(int device) {
+		cudaCheck(::cudaGetDevice(&m_Device));
+		::cudaSetDevice(device);
+	}
+	~DeviceContext() {
+		::cudaSetDevice(m_Device);
+	}
+
+private:
+	int m_Device;
+};
 
 }  // namespace cuda
 
