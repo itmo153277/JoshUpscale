@@ -40,15 +40,15 @@ if(AviSynth_INCLUDE_DIR AND
   )
 endif()
 
-mark_as_advanced(
-  AviSynth_INCLUDE_DIR
-)
-
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
   AviSynth
   REQUIRED_VARS AviSynth_INCLUDE_DIR
   VERSION_VAR AviSynth_VERSION
+)
+
+mark_as_advanced(
+  AviSynth_INCLUDE_DIR
 )
 
 if(AviSynth_FOUND)
