@@ -15,16 +15,16 @@
 # targets:
 # - AviSynth
 
-find_path(AviSynth_INCLUDE_DIR avisynth/avisynth.h
-  PATH_SUFFIXES include)
+find_path(AviSynth_INCLUDE_DIR avisynth.h
+  PATH_SUFFIXES avisynth)
 
 if(AviSynth_INCLUDE_DIR AND
-  EXISTS "${AviSynth_INCLUDE_DIR}/avisynth/avs/version.h")
-  file(STRINGS "${AviSynth_INCLUDE_DIR}/avisynth//avs/version.h"
+  EXISTS "${AviSynth_INCLUDE_DIR}/avs/version.h")
+  file(STRINGS "${AviSynth_INCLUDE_DIR}/avs/version.h"
     AviSynth_VERSION_MAJOR REGEX "^#define +AVS_MAJOR_VER +[0-9]+.*$")
-  file(STRINGS "${AviSynth_INCLUDE_DIR}/avisynth//avs/version.h"
+  file(STRINGS "${AviSynth_INCLUDE_DIR}/avs/version.h"
     AviSynth_VERSION_MINOR REGEX "^#define +AVS_MINOR_VER +[0-9]+.*$")
-  file(STRINGS "${AviSynth_INCLUDE_DIR}/avisynth//avs/version.h"
+  file(STRINGS "${AviSynth_INCLUDE_DIR}/avs/version.h"
     AviSynth_VERSION_PATCH REGEX "^#define +AVS_BUGFIX_VER +[0-9]+.*$")
 
   string(REGEX REPLACE "^#define +AVS_MAJOR_VER +([0-9]+).*$" "\\1"
@@ -39,6 +39,10 @@ if(AviSynth_INCLUDE_DIR AND
     ".${AviSynth_VERSION_PATCH}"
   )
 endif()
+
+mark_as_advanced(
+  AviSynth_INCLUDE_DIR
+)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
