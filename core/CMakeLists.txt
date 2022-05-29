@@ -1,4 +1,5 @@
 find_package(CUDAToolkit 11 REQUIRED)
+find_package(TensorRT 8.4 REQUIRED COMPONENTS nvinfer)
 
 include(GenerateExportHeader)
 
@@ -19,6 +20,7 @@ target_include_directories(JoshUpscale PUBLIC
 )
 target_link_libraries(JoshUpscale PRIVATE
   CUDA::cudart
+  TensorRT::nvinfer
 )
 
 if (ENABLE_LINT)
