@@ -42,6 +42,12 @@ inline std::size_t getPaddedSize(
 	return ((size + align - 1) / align) * align;
 }
 
+inline int getDevice() {
+	int device;
+	cudaCheck(::cudaGetDevice(&device));
+	return device;
+}
+
 template <typename T>
 struct CudaBuffer : std::unique_ptr<T, decltype(&::cudaFree)> {
 	using unique_ptr = std::unique_ptr<T, decltype(&::cudaFree)>;
@@ -111,6 +117,10 @@ public:
 		return m_Stream;
 	}
 
+	void synchronize() const {
+		cudaCheck(::cudaStreamSynchronize(m_Stream));
+	}
+
 private:
 	::cudaStream_t m_Stream = nullptr;
 };
@@ -121,6 +131,10 @@ void cudaCast(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
 
 template <typename From, typename To>
 void cudaCopy(const From &from, const To &to, const CudaStream &stream);
+
+template <typename From, typename To>
+void cudaCopy(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
+    const CudaStream &stream, std::size_t size);
 
 struct DeviceContext {
 	explicit DeviceContext(int device) {

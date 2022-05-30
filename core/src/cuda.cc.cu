@@ -1,5 +1,6 @@
 // Copyright 2022 Ivanov Viktor
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 
@@ -26,23 +27,6 @@ __global__ void castKernel(From *from, To *to, unsigned int numElements) {
 	*dstPtr = static_cast<To>(*srcPtr);
 }
 
-template <typename T>
-__global__ void castKernel<std::byte, T>(
-    std::byte *from, T *to, unsigned int numElements) {
-	auto srcIdx = blockIdx.x * kBlockSize + threadIdx.x;
-	auto dstIdx = srcIdx * 4;
-	if (dstIdx >= numElements) {
-		return;
-	}
-	// Assume no UB
-	auto *srcPtr = reinterpret_cast<uchar4 *>(from) + srcIdx;
-	auto *dstPtr = to + dstIdx;
-	dstPtr[0] = static_cast<T>(srcPtr->w);
-	dstPtr[1] = static_cast<T>(srcPtr->x);
-	dstPtr[2] = static_cast<T>(srcPtr->y);
-	dstPtr[3] = static_cast<T>(srcPtr->z);
-}
-
 #define DECLARE_SPEC(From, To)                     \
 	template __global__ void castKernel<From, To>( \
 	    From * from, To * to, unsigned int numElements)
@@ -54,73 +38,109 @@ DECLARE_SPEC(float, std::byte);
 
 }  // namespace
 
-template <typename T>
-void cudaCast(const CudaBuffer<std::byte> &from, const CudaBuffer<T> &to,
-    const CudaStream &stream) {
-	constexpr unsigned int kDataPerBlock = kBlockSize * 4;
-	assert(from.getSize() == to.getSize());
-	assert(from.getSize() % ALIGN_SIZE == 0);
-	auto numElements = static_cast<unsigned int>(from.getSize());
-	auto numBlocks = static_cast<unsigned int>(
-	    (numElements + kDataPerBlock - 1) / kDataPerBlock);
-	castKernel<std::byte, T><<<numBlocks, kBlockSize, 0, stream>>>(
-	    from.get(), to.get(), numElements);
-	cudaCheck(::cudaGetLastError());
-}
-
-template <typename T>
-void cudaCast(const CudaBuffer<T> &from, const CudaBuffer<std::byte> &to,
+template <typename From, typename To>
+void cudaCast(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
     const CudaStream &stream) {
 	assert(from.getSize() == to.getSize());
 	assert(from.getSize() % ALIGN_SIZE == 0);
 	auto numElements = static_cast<unsigned int>(to.getSize());
 	auto numBlocks =
 	    static_cast<unsigned int>((numElements + kBlockSize - 1) / kBlockSize);
-	castKernel<T, std::byte><<<numBlocks, kBlockSize, 0, stream>>>(
+	castKernel<From, To><<<numBlocks, kBlockSize, 0, stream>>>(
 	    from.get(), to.get(), numElements);
 	cudaCheck(::cudaGetLastError());
 }
 
+#define DECLARE_SPEC(From, To)                                     \
+	template void cudaCast<From, To>(const CudaBuffer<From> &from, \
+	    const CudaBuffer<To> &to, const CudaStream &stream);
+
+DECLARE_SPEC(std::byte, float);
+DECLARE_SPEC(float, std::byte);
+
+#undef DECLARE_SPEC
+
+namespace detail {
+
+namespace {
+
 template <typename T>
 void cudaCopy(
     const Tensor &from, const CudaBuffer<T> &to, const CudaStream &stream) {
-	assert(from.getSize() <= to.getByteSize());
+	std::size_t size = from.getSize();
+	assert(from.getSize() >= size && to.getByteSize() >= size);
 	if (from.isPlain()) {
-		cudaCheck(::cudaMemcpyAsync(to.get(), from.data(), from.getSize(),
+		cudaCheck(::cudaMemcpyAsync(to.get(), from.data(), size,
 		    ::cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
-		return;
+	} else {
+		std::size_t lineLength = from.getWidth() * 3 * sizeof(std::byte);
+		cudaCheck(::cudaMemcpy2DAsync(to.get(), lineLength, from.data(),
+		    static_cast<std::size_t>(from.getStride()), lineLength,
+		    from.getHeight(), ::cudaMemcpyKind::cudaMemcpyHostToDevice,
+		    stream));
 	}
-	std::size_t lineLength = from.getWidth() * 3 * sizeof(std::byte);
-	cudaCheck(::cudaMemcpy2DAsync(to.get(), lineLength, from.data(),
-	    static_cast<std::size_t>(from.getStride()) * sizeof(std::byte),
-	    lineLength, from.getHeight(), ::cudaMemcpyKind::cudaMemcpyHostToDevice,
-	    stream));
 }
 
 template <typename T>
 void cudaCopy(
     const CudaBuffer<T> &from, const Tensor &to, const CudaStream &stream) {
-	assert(from.getByteSize() >= to.getSize());
+	std::size_t size = to.getSize();
+	assert(from.getByteSize() >= size && to.getSize() >= size);
 	if (to.isPlain()) {
-		cudaCheck(::cudaMemcpyAsync(to.data(), from.get(), to.getSize(),
-		    ::cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
-		return;
+		cudaCheck(::cudaMemcpyAsync(to.data(), from.get(), size,
+		    ::cudaMemcpyKind::cudaMemcpyDeviceToHost, stream));
+	} else {
+		std::size_t lineLength = to.getWidth() * 3 * sizeof(std::byte);
+		cudaCheck(::cudaMemcpy2DAsync(to.data(),
+		    static_cast<std::size_t>(to.getStride()), from.get(), lineLength,
+		    lineLength, to.getHeight(),
+		    ::cudaMemcpyKind::cudaMemcpyDeviceToHost, stream));
 	}
-	std::size_t lineLength = to.getWidth() * 3 * sizeof(std::byte);
-	cudaCheck(::cudaMemcpy2DAsync(to.data(),
-	    static_cast<std::size_t>(to.getStride()) * sizeof(std::byte),
-	    from.get(), lineLength, lineLength, to.getHeight(),
-	    ::cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
 }
 
 template <typename From, typename To>
 void cudaCopy(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
     const CudaStream &stream) {
-	assert(from.getByteSize() == to.getByteSize());
-	cudaCheck(::cudaMemcpyAsync(to.data(), from.data(), to.getByteSize(),
-	    ::cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
-	return;
+	cudaCopy(from, to, stream, std::min(from.getByteSize(), to.getByteSize()));
 }
+
+}  // namespace
+
+}  // namespace detail
+
+template <typename From, typename To>
+void cudaCopy(const From &from, const To &to, const CudaStream &stream) {
+	detail::cudaCopy(from, to, stream);
+}
+
+#define DECLARE_SPEC(From, To)        \
+	template void cudaCopy<From, To>( \
+	    const From &from, const To &to, const CudaStream &stream);
+
+DECLARE_SPEC(Tensor, CudaBuffer<std::byte>);
+DECLARE_SPEC(CudaBuffer<std::byte>, Tensor);
+DECLARE_SPEC(CudaBuffer<std::byte>, CudaBuffer<std::byte>);
+DECLARE_SPEC(CudaBuffer<float>, CudaBuffer<float>);
+
+#undef DECLARE_SPEC
+
+template <typename From, typename To>
+void cudaCopy<From, To>(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
+    const CudaStream &stream, std::size_t size) {
+	assert(from.getByteSize() >= size && to.getByteSize() >= size);
+	cudaCheck(::cudaMemcpyAsync(to.get(), from.get(), size,
+	    ::cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
+}
+
+#define DECLARE_SPEC(From, To)                                     \
+	template void cudaCopy<From, To>(const CudaBuffer<From> &from, \
+	    const CudaBuffer<From> &to, const CudaStream &stream,      \
+	    std::size_t size);
+
+DECLARE_SPEC(std::byte, std::byte);
+DECLARE_SPEC(float, float);
+
+#undef DECLARE_SPEC
 
 }  // namespace cuda
 

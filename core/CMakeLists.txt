@@ -1,5 +1,6 @@
 find_package(CUDAToolkit 11 REQUIRED)
 find_package(TensorRT 8.4 REQUIRED COMPONENTS nvinfer)
+find_package(yaml-cpp REQUIRED)
 
 include(GenerateExportHeader)
 
@@ -19,6 +20,7 @@ target_include_directories(JoshUpscale PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/generated/include
 )
 target_link_libraries(JoshUpscale PRIVATE
+  yaml-cpp
   CUDA::cudart
   TensorRT::nvinfer
 )

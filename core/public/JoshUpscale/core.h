@@ -17,6 +17,17 @@ struct Image {
 	std::size_t height;
 };
 
+struct Runtime {
+	virtual ~Runtime() {
+	}
+
+	virtual void processImage(
+	    const Image &inputImage, const Image &outputImage) = 0;
+};
+
+JOSHUPSCALE_EXPORT Runtime *createRuntime(
+    int deviceId, const char *modelPath, const char *enginePath);
+
 }  // namespace core
 
 }  // namespace JoshUpscale
