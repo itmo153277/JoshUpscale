@@ -75,7 +75,7 @@ class MapOp(DatasetOp):
     def __call__(self, data: Any) -> Any:
         """Call operation."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.map(data, **self.map_kwargs)
+        return data.map(self.map_fn, **self.map_kwargs)
 
 
 class FilterOp(DatasetOp):
@@ -97,29 +97,29 @@ class FilterOp(DatasetOp):
         return data.filter(self.filter_fn, **self.filter_kwargs)
 
 
-class RandomMapOp(MapOp):
+class RandomCondMapOp(MapOp):
     """Random map operation."""
 
     def __init__(self, threshold: float, **kwargs) -> None:
-        """Create RandomDatasetOp."""
+        """Create RandomCondMapOp."""
         super().__init__(**kwargs)
         self.threshold = threshold
 
     def true_fn(self, data: Any) -> Any:
         """Run if true."""
-        return tf.identity(data)
+        return data
 
     def false_fn(self, data: Any) -> Any:
         """Run if false."""
-        return tf.identity(data)
+        return data
 
     def map_fn(self, data: Any) -> Any:
         """Call dataset op."""
         rand = tf.random.uniform([])
         return tf.cond(
             rand < self.threshold,
-            self.true_fn(data),
-            self.false_fn(data)
+            lambda: self.true_fn(data),
+            lambda: self.false_fn(data),
         )
 
 
@@ -315,7 +315,7 @@ class RandomBrightnessOp(MapOp):
         }
 
 
-class RandomHorizontalFlipOp(RandomMapOp):
+class RandomHorizontalFlipOp(RandomCondMapOp):
     """Random horizontal flip."""
 
     def true_fn(self, data: Any) -> Any:
@@ -330,7 +330,7 @@ class RandomHorizontalFlipOp(RandomMapOp):
         }
 
 
-class RandomVerticalFlipOp(RandomMapOp):
+class RandomVerticalFlipOp(RandomCondMapOp):
     """Random vertical flip."""
 
     def true_fn(self, data: Any) -> Any:
@@ -345,7 +345,7 @@ class RandomVerticalFlipOp(RandomMapOp):
         }
 
 
-class RandomTransposeOp(RandomMapOp):
+class RandomTransposeOp(RandomCondMapOp):
     """Random transposition."""
 
     def true_fn(self, data: Any) -> Any:

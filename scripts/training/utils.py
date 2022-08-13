@@ -100,7 +100,7 @@ def gif_summary(name: str, tensor: tf.Tensor, fps: int = 15,
 def display_data(dataset: tf.data.Dataset, num_img: int) -> None:
     """Display dataset.
 
-    Paramters
+    Parameters
     ---------
     dataset: tf.data.Dataset
         Dataset
