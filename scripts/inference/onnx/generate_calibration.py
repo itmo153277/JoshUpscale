@@ -211,7 +211,7 @@ def main(
     lr_data = read_data(lowres_path)
     hr_data = read_data(hires_path)
     num_images = len(hr_data)
-    assert len(lr_data) == num_images, "Number of frames do not match"
+    assert len(lr_data) == num_images, "Numbers of frames do not match"
     num_inputs = len(model.graph.input)
     if num_inputs > 1:
         num_images -= num_inputs - 2

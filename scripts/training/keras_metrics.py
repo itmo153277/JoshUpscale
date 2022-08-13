@@ -136,3 +136,5 @@ CUSTOM_METRICS = {
     "ExponentialMovingAvg": ExponentialMovingAvg,
     "CounterMetric": CounterMetric,
 }
+
+__all__ = ["CUSTOM_METRICS"] + list(CUSTOM_METRICS)

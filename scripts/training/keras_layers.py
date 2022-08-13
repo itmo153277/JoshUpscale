@@ -147,7 +147,7 @@ class DepthToSpace(layers.Layer):
     """Depth to space layer."""
 
     def __init__(self, block_size: int = 2, **kwargs) -> None:
-        """Create DepthToSpacelayer.
+        """Create DepthToSpaceLayer.
 
         Parameters
         ----------
@@ -290,3 +290,5 @@ CUSTOM_LAYERS = {
     "PreprocessLayer": PreprocessLayer,
     "PostprocessLayer": PostprocessLayer,
 }
+
+__all__ = ["CUSTOM_LAYERS"] + list(CUSTOM_LAYERS)
