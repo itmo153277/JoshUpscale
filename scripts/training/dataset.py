@@ -153,7 +153,7 @@ class ParseSingleExampleOp(MapOp):
         shape = tf.shape(images)
         inputs = tf.compat.v1.image.resize_nearest_neighbor(
             images=images,
-            size=shape[1:3] / 4,
+            size=shape[1:3] // 4,
             align_corners=False,
             half_pixel_centers=False,
         )
@@ -282,7 +282,7 @@ class RandomContrastOp(MapOp):
         """Augment contrast."""
         inp = data["input"]
         target = data["target"]
-        rate = tf.pow(self.base,
+        rate = tf.pow(float(self.base),
                       tf.random.normal(shape=[1], stddev=self.stddev))[0]
         mean = tf.math.reduce_mean(target, axis=[0, 1, 2])
         inp = (inp - mean) * rate + mean
@@ -382,6 +382,34 @@ class ClipOp(MapOp):
         }
 
 
+class SingleFrameMapOp(MapOp):
+    """Convert dataset to single-frame."""
+
+    def __init__(self, flow_frames: int, **kwargs) -> None:
+        """Create SingleFrameMapOp."""
+        super().__init__(**kwargs)
+        self.flow_frames = flow_frames
+
+    def map_fn(self, data: Any) -> Any:
+        """Convert dataset to single-frame."""
+        inp = data["inp"]
+        target = data["target"]
+        idx = tf.random.uniform(
+            shape=[],
+            minval=0,
+            maxval=10 - self.flow_frames,
+            dtype=tf.int32
+        )
+        inp = inp[idx:idx+self.flow_frames]
+        target = target[idx + (self.flow_frames - 1)]
+        last = target[idx + (self.flow_frames - 2)]
+        return {
+            "input": inp,
+            "target": target,
+            "last": last,
+        }
+
+
 class SampleDatasetOp(DatasetOp):
     """Sample from datasets."""
 
@@ -389,7 +417,7 @@ class SampleDatasetOp(DatasetOp):
                  **kwargs) -> None:
         """Create SampleDatasetOp."""
         super().__init__()
-        self.datasets = configs
+        self.configs = configs
         self.kwargs = kwargs
 
     def __call__(self, data: Any) -> Any:
@@ -495,6 +523,7 @@ DATASET_OPS = {
     "RandomTransposeOp": RandomTransposeOp,
     "ClipOp": ClipOp,
     "SampleDatasetOp": SampleDatasetOp,
+    "SingleFrameMapOp": SingleFrameMapOp,
     "BatchOp": BatchOp,
     "RepeatOp": RepeatOp,
     "ShuffleOp": ShuffleOp,
