@@ -108,15 +108,28 @@ def display_data(dataset: tf.data.Dataset, num_img: int) -> None:
         Number of images
     """
     # pylint: disable=invalid-name
-    data = [x for x in dataset.unbatch().take(num_img).batch(num_img)][0]
-    fig = plt.figure(figsize=(20, 4 * num_img))
+    spec = dataset.element_spec
+    seq_len = spec["input"].shape[1]
+    data = list(dataset.unbatch().take(num_img).batch(num_img))[0]
+    fig = plt.figure(figsize=(2 * seq_len, 4 * num_img))
     for ind in range(num_img):
-        for i in range(10):
-            sp = fig.add_subplot(2 * num_img, 10, ind * 20 + 1 + i)
+        for i in range(seq_len):
+            sp = fig.add_subplot(2 * num_img, seq_len,
+                                 ind * 2 * seq_len + 1 + i)
             sp.axis("off")
             plt.imshow(data["input"][ind, i][:, :, ::-1])
-        for i in range(10):
-            sp = fig.add_subplot(2 * num_img, 10, ind * 20 + 11 + i)
+        if "last" in spec:
+            sp = fig.add_subplot(2 * num_img, seq_len,
+                                 (ind + 1) * 2 * seq_len - 1)
             sp.axis("off")
-            plt.imshow(data["target"][ind, i][:, :, ::-1])
+            plt.imshow(data["last"][ind][:, :, ::-1])
+            sp = fig.add_subplot(2 * num_img, seq_len, (ind + 1) * 2 * seq_len)
+            sp.axis("off")
+            plt.imshow(data["target"][ind][:, :, ::-1])
+        else:
+            for i in range(seq_len):
+                sp = fig.add_subplot(2 * num_img, seq_len,
+                                     (ind * 2 + 1) * seq_len + 1 + i)
+                sp.axis("off")
+                plt.imshow(data["target"][ind, i][:, :, ::-1])
     plt.show()

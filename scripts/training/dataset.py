@@ -400,13 +400,13 @@ class SingleFrameMapOp(MapOp):
             maxval=10 - self.flow_frames,
             dtype=tf.int32
         )
-        inp = inp[idx:idx+self.flow_frames]
-        target = target[idx + (self.flow_frames - 1)]
-        last = target[idx + (self.flow_frames - 2)]
         return {
-            "input": inp,
-            "target": target,
-            "last": last,
+            "input": tf.reshape(
+                inp[idx:idx+self.flow_frames],
+                tf.concat([[self.flow_frames], tf.shape(inp)[1:]], axis=0)
+            ),
+            "target": target[idx + (self.flow_frames - 1)],
+            "last": target[idx + (self.flow_frames - 2)],
         }
 
 
@@ -540,7 +540,7 @@ def create_dataset(config: List[Dict[str, Any]]) -> tf.data.Dataset:
         if "name" not in op_config:
             raise ValueError("Op name is not defined")
         name = op_config["name"]
-        del op_config["name"]
+        op_config = {k: op_config[k] for k in op_config if k != "name"}
         if name not in DATASET_OPS:
             raise ValueError(f"Unknown dataset op: {name}")
         dataset_op = DATASET_OPS[name](**op_config)
