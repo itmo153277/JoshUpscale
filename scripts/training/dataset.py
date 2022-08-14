@@ -145,10 +145,9 @@ class ParseSingleExampleOp(MapOp):
 
     def map_fn(self, data: Any) -> Any:
         """Convert encoded proto to tensors."""
-        parsed = tf.io.parse_single_example(
-            data,
-            tf.io.FixedLenFeature([10], tf.string)
-        )
+        parsed = tf.io.parse_single_example(data, {
+            "images": tf.io.FixedLenFeature([10], tf.string),
+        })["images"]
         images = tf.map_fn(tf.io.decode_image, parsed,
                            fn_output_signature=tf.uint8)
         shape = tf.shape(images)
