@@ -2,9 +2,13 @@
 
 """Dataset routines."""
 
+import os
 import random
-from typing import Any, Dict, List, Tuple,  Union
+from glob import glob
+from typing import Any, Dict, Iterator, List, Tuple,  Union
 import tensorflow as tf
+import cv2
+import numpy as np
 
 
 class DatasetOp:
@@ -56,8 +60,53 @@ class TFRecordDatasetOp(DatasetOp):
         elif data is not None:
             path = data
         else:
-            raise RuntimeError("Dataset path is not defined")
+            raise ValueError("Dataset path is not defined")
         return tf.data.TFRecordDataset(path, **self.kwargs)
+
+
+class LocalDatasetOp(DatasetOp):
+    """Local dataset."""
+
+    def __init__(self, hr_path: str, lr_path: str,
+                 shuffle: bool = False) -> None:
+        """Create LocalDatasetOp."""
+        super().__init__()
+        hr_files = list(sorted(glob(hr_path, recursive=True)))
+        lr_files = list(sorted(glob(lr_path, recursive=True)))
+        if len(lr_files) != len(hr_files) or len(hr_files) % 10 != 0:
+            raise ValueError("Invalid number of images")
+        hr_files = [os.path.abspath(x) for x in hr_files]
+        lr_files = [os.path.abspath(x) for x in lr_files]
+        frames = zip(lr_files, hr_files)
+        self.batch = list(zip(*(iter(frames), ) * 10))
+        if shuffle:
+            random.shuffle(self.batch)
+
+    def _generator(self) -> Iterator[np.ndarray]:
+        """Iterate over dataset."""
+        for batch in self.batch:
+            data = [
+                np.array([
+                    cv2.imread(batch[j][i], cv2.IMREAD_COLOR)
+                    for j in range(10)
+                ])
+                for i in range(2)
+            ]
+            yield {
+                "input": data[0],
+                "target": data[1],
+            }
+
+    def __call__(self, data: Any) -> Any:
+        """Create dataset."""
+        del data
+        return tf.data.TFRecordDataset.from_generator(
+            self._generator,
+            output_signature={
+                "input": tf.TensorSpec(dtype=tf.uint8, shape=None),
+                "target": tf.TensorSpec(dtype=tf.uint8, shape=None),
+            }
+        )
 
 
 class MapOp(DatasetOp):
@@ -392,7 +441,7 @@ class SingleFrameMapOp(MapOp):
 
     def map_fn(self, data: Any) -> Any:
         """Convert dataset to single-frame."""
-        inp = data["inp"]
+        inp = data["input"]
         target = data["target"]
         idx = tf.random.uniform(
             shape=[],
@@ -509,6 +558,7 @@ DATASET_OPS = {
     "GlobOp": GlobOp,
     "ListShuffleOp": ListShuffleOp,
     "TFRecordDatasetOp": TFRecordDatasetOp,
+    "LocalDatasetOp": LocalDatasetOp,
     "ParsePairExampleOp": ParsePairExampleOp,
     "ParseSingleExampleOp": ParseSingleExampleOp,
     "RandomCropOp": RandomCropOp,

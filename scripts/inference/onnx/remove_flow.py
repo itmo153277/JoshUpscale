@@ -36,8 +36,8 @@ def parse_args() -> argparse.Namespace:
 
 
 # Hardcoded nodes
-INPUT_NODE = "final/full/generator/concatenate/concat"
-TARGET_NODE = 'final/full/generator/conv2d/Conv2D'
+INPUT_NODE = "final/full/generator/concat/concat"
+TARGET_NODE = 'final/full/generator/conv_1/Conv2D'
 
 
 def main(

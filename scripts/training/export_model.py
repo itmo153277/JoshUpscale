@@ -142,7 +142,7 @@ def create_onnx_model(model: keras.Model, opset: int = 12,
         model=model,
         opset=opset,
     )
-    model_proto, check = simplify(model_proto, input_shapes={
+    model_proto, check = simplify(model_proto, overwrite_input_shapes={
         x.name: [1] + list(x.shape)[1:]
         for x in model.inputs
     }, check_n=num_checks)

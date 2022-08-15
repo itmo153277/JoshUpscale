@@ -1,0 +1,73 @@
+# Config for model tests
+train_dataset:
+  batch_size: 16
+  config:
+    - name: LocalDatasetOp
+      lr_path: /content/img/lr/*.png
+      hr_path: /content/img/hr/*.jpg
+      shuffle: True
+    - name: TakeOp
+      size: 2
+    - name: CacheOp
+    - name: RepeatOp
+    - name: RandomCropOp
+      crop_size: 32
+    - name: NormalizeOp
+      crop_size: 32
+    - name: FilterFlatOp
+      threshold: 0.01
+    - name: RandomHorizontalFlipOp
+      threshold: 0.5
+    - name: RandomVerticalFlipOp
+      threshold: 0.5
+    - name: RandomTransposeOp
+      threshold: 0.5
+    - name: RandomBrightnessOp
+      stddev: 0.05
+    - name: RandomContrastOp
+      stddev: 1
+      base: 2
+    - name: RandomNoiseOp
+      stddev: 0.01
+    - name: ClipOp
+      minval: 0
+      maxval: 1
+    - name: SingleFrameMapOp
+      flow_frames: 4
+    - name: FilterFlatOp
+      threshold: 0.03
+models:
+  generator:
+    name: generator-resnet
+    num_filters: 64
+    num_res_blocks: 24
+    activation: lrelu
+  flow:
+    name: flow-autoencoder
+    num_inputs: 4
+    activation: lrelu
+  full:
+    name: inference
+    generator_model:
+      model: generator
+    flow_model:
+      model: flow
+    skip_processing: False
+    frame_height: 270
+    frame_width: 480
+    flow_pad_factor: 8
+  train_infer:
+    name: inference
+    generator_model:
+      model: generator
+    flow_model:
+      model: flow
+    skip_processing: True
+train:
+  model: frvsr
+  epochs: 1
+  steps_per_epoch: 10
+export:
+  model: full
+  model_path: /content/model.json
+  weights_path: /content/weights.h5
