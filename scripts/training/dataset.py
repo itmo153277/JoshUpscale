@@ -616,7 +616,6 @@ def create_val_dataset(config: List[Dict[str, Any]], batch_size: int,
     val_ds = create_dataset(config + [
         {"name": "TakeOp", "size": val_size},
         {"name": "BatchOp", "batch_size": batch_size},
-        {"name": "CacheOp"},
     ])
     play_ds = create_dataset(config + [
         {"name": "TakeOp", "size": play_size},

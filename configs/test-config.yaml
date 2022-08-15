@@ -63,11 +63,16 @@ models:
     flow_model:
       model: flow
     skip_processing: True
+  frvsr:
+    name: frvsr-single
+    inference_model:
+      model: train_infer
+    crop_size: 32
 train:
   model: frvsr
-  epochs: 1
+  epochs: 10
   steps_per_epoch: 10
 export:
-  model: full
-  model_path: /content/model.json
-  weights_path: /content/weights.h5
+  full:
+    model_path: /content/model.json
+    weights_path: /content/weights.h5

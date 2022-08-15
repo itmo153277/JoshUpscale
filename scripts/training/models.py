@@ -9,6 +9,7 @@ from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
     PreprocessLayer, PostprocessLayer, DenseWarpLayer
+from keras_models import FRVSRModelSingle
 
 
 Activation = Union[str, Dict[str, Any]]
@@ -571,10 +572,55 @@ def get_inference_model(
     )
     return model
 
+
+def get_frvsr_single(
+    inference_model: keras.Model,
+    crop_size: int,
+    learning_rate: Any = 0.0005,
+    steps_per_execution: Union[int, None] = None,
+    name: str = "frvsr",
+):
+    """Get FRVSR model (single).
+
+    Inputs:
+    - input: (N x num_flow_frames x H x W x 3) - input frames
+    - target: (N x H*4 x W*4 x 3) - target frame
+    - last: (N x H*4 x W*4 x 3) - last frame
+
+    Outputs:
+    - gen_output: (N x H*4 x W*4 x 3) - generated frame
+    - pre_warp: (N x H*4 x W*4 x 3) - warped last frame
+
+    Parameters
+    ----------
+    inference_model: keras.Model
+        Inference model
+    crop_size: int
+        Image size
+    learning_rate: Any
+        Learning rate
+    steps_per_execution: int
+        Steps per single execution
+
+    Returns
+    -------
+    keras.Model
+        Model
+    """
+    model = FRVSRModelSingle(
+        inference_model=inference_model,
+        crop_size=crop_size,
+        name=name
+    )
+    model.compile(
+        learning_rate=learning_rate,
+        steps_per_execution=steps_per_execution
+    )
+    return model
+
 # discriminator
 # vgg
 # flow single
-# FRVSR single
 # FRVSR
 # GAN
 
@@ -584,6 +630,7 @@ MODELS = {
     "flow-autoencoder": get_flow_autoencoder,
     "generator-resnet": get_generator_resnet,
     "inference": get_inference_model,
+    "frvsr-single": get_frvsr_single,
 }
 
 
