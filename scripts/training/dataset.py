@@ -421,10 +421,8 @@ class ClipOp(MapOp):
         """Clip values."""
         inp = data["input"]
         target = data["target"]
-        inp = tf.minimum(inp, self.maxval)
-        inp = tf.maximum(inp, self.minval)
-        target = tf.minimum(target, self.maxval)
-        target = tf.maximum(target, self.minval)
+        inp = tf.clip_by_value(inp, self.minval, self.maxval)
+        target = tf.clip_by_value(target, self.minval, self.maxval)
         return {
             "input": inp,
             "target": target,
