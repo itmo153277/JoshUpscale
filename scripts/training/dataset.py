@@ -614,13 +614,18 @@ def create_val_dataset(config: List[Dict[str, Any]], batch_size: int,
     val_ds = create_dataset(config + [
         {"name": "TakeOp", "size": val_size},
         {"name": "BatchOp", "batch_size": batch_size},
+        {"name": "CacheOp"},
     ])
     play_ds = create_dataset(config + [
         {"name": "TakeOp", "size": play_size},
         {"name": "BatchOp", "batch_size": play_size},
         {"name": "CacheOp"},
     ])
-    list(play_ds.as_numpy_iterator())
+    # Fill up cache for play and val datasets
+    for _ in val_ds:
+        pass
+    for _ in play_ds:
+        pass
     return (val_ds, play_ds)
 
 
