@@ -132,7 +132,8 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
             monitor_metric=config["train"].get("monitor_metric", None),
             play_ds=play_ds,
             early_stopping=config["train"].get("early_stopping", 0),
-            profile=profile)
+            profile=profile
+        )
         train_model.fit(
             train_ds,
             validation_data=val_ds,

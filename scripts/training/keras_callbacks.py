@@ -55,7 +55,7 @@ class PlayCallback(keras.callbacks.Callback):
                 elif len(val.shape) == 4:
                     tf.summary.image(
                         name=key,
-                        data=val,
+                        data=val[:, :, :, ::-1],
                         step=epoch,
                         max_outputs=val.shape[0]
                     )
