@@ -119,10 +119,15 @@ class DataReader(quantization.CalibrationDataReader):
             i.name: DataReader.ONNX_TYPES[i.type.tensor_type.elem_type]
             for i in model.graph.input
         }
+        if len(self.names) > 2:
+            self.pad_frame_shape = [
+                d.dim_value
+                for d in model.graph.input[2].type.tensor_type.shape.dim
+            ]
         self.states = {}
         last_gen = None
         for name in self.names[-1:1:-1]:
-            self.states[name] = DataReader._normalize(
+            self.states[name] = self._normalize_and_pad(
                 next(self.lr_data_iter),
                 self.dtypes[name]
             )
@@ -141,6 +146,19 @@ class DataReader(quantization.CalibrationDataReader):
     def _normalize(img: np.ndarray, dtype: np.dtype) -> np.ndarray:
         """Normalize data."""
         return np.transpose(img.astype(dtype) / 255, [0, 3, 1, 2])
+
+    def _normalize_and_pad(self, img: np.ndarray,
+                           dtype: np.dtype) -> np.ndarray:
+        """Normalize and pad data."""
+        data = DataReader._normalize(img, dtype)
+        data = np.pad(
+            data,
+            [
+                [b - a, 0]
+                for a, b in zip(data.shape, self.pad_frame_shape)
+            ]
+        )
+        return data
 
     def get_next(self) -> Union[None, Dict[str, np.ndarray]]:
         """Iterate over data."""
@@ -165,7 +183,7 @@ class DataReader(quantization.CalibrationDataReader):
                 self.dtypes[self.names[1]]
             )
         if len(self.names) > 2:
-            self.states[self.names[2]] = DataReader._normalize(
+            self.states[self.names[2]] = self._normalize_and_pad(
                 cur_frame,
                 self.dtypes[self.names[2]]
             )
