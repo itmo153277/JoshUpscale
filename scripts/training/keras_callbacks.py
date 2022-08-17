@@ -43,7 +43,11 @@ class PlayCallback(keras.callbacks.Callback):
     def on_epoch_end(self, epoch: int, _logs=None) -> None:
         """Epoch end callback."""
         self._ensure_writer_exists()
-        data = self.model.predict(self.dataset, steps=self.num_steps)
+        data = self.model.predict(
+            self.dataset,
+            steps=self.num_steps,
+            verbose=0,
+        )
         with self.writer.as_default():
             for key, val in data.items():
                 if len(val.shape) == 5:

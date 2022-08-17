@@ -40,21 +40,28 @@ def parse_args() -> argparse.Namespace:
                         help="Visible GPUs",
                         type=str,
                         nargs="+")
+    parser.add_argument("--disable-mixed-precision",
+                        dest="mixed_precision",
+                        help="Disable mixed precision",
+                        default=True,
+                        action="store_false")
     return parser.parse_args()
 
 
 def init(gpus: Union[List[str], None] = None,
-         random_seed: Union[int, None] = None) -> tf.distribute.Strategy:
+         random_seed: Union[int, None] = None,
+         mixed_precision: Union[bool, None] = True) -> tf.distribute.Strategy:
     """Init hardware and libraries."""
     if gpus is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(gpus)
     physical_devices = tf.config.experimental.list_physical_devices("GPU")
     for device in physical_devices:
         tf.config.experimental.set_memory_growth(device, True)
-        details = tf.config.experimental.get_device_details(device)
-        compute_capability = details.get("compute_capability", None)
-        if compute_capability and compute_capability[0] >= 7:
-            keras.mixed_precision.experimental.set_policy("mixed_float16")
+        if mixed_precision:
+            details = tf.config.experimental.get_device_details(device)
+            compute_capability = details.get("compute_capability", None)
+            if compute_capability and compute_capability[0] >= 7:
+                keras.mixed_precision.experimental.set_policy("mixed_float16")
     tf.config.optimizer.set_jit(True)
     if random_seed is not None:
         keras.utils.set_random_seed(2)
@@ -153,7 +160,8 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
             f.write(export_model.to_json())
 
 
-def main(config_path: str, gpus: Union[List[str], None] = None) -> int:
+def main(config_path: str, gpus: Union[List[str], None],
+         mixed_precision: bool) -> int:
     """
     Run CLI.
 
@@ -163,6 +171,8 @@ def main(config_path: str, gpus: Union[List[str], None] = None) -> int:
         Path to config file
     gpus: Union[List[str], None]
         Visible GPUs
+    mixed_precision: bool
+        Use mixed precision for training if available
 
     Returns
     -------
@@ -173,7 +183,8 @@ def main(config_path: str, gpus: Union[List[str], None] = None) -> int:
         config = yaml.unsafe_load(f)
     strategy = init(
         gpus=gpus,
-        random_seed=config["seed"] if "seed" in config else None
+        random_seed=config["seed"] if "seed" in config else None,
+        mixed_precision=mixed_precision,
     )
     train(config, strategy)
     return 0

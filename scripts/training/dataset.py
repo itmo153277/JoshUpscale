@@ -14,6 +14,10 @@ import numpy as np
 class DatasetOp:
     """Dataset operation."""
 
+    def __init__(self, name: str) -> None:
+        """Create DatasetOp."""
+        self.name = name
+
     def __call__(self, data: Any) -> Any:
         """Call dataset op."""
         del data
@@ -23,9 +27,9 @@ class DatasetOp:
 class GlobOp(DatasetOp):
     """Glob operation."""
 
-    def __init__(self, glob_pattern: str) -> None:
+    def __init__(self, name: str, glob_pattern: str) -> None:
         """Create GlobOp."""
-        super().__init__()
+        super().__init__(name)
         self.glob_pattern = glob_pattern
 
     def __call__(self, data: Any) -> Any:
@@ -47,9 +51,10 @@ class ListShuffleOp(DatasetOp):
 class TFRecordDatasetOp(DatasetOp):
     """Dataset from TFRecord."""
 
-    def __init__(self, path: Union[str, None] = None, **kwargs) -> None:
+    def __init__(self, name: str, path: Union[str, None] = None,
+                 **kwargs) -> None:
         """Create TFRecordDatasetOp."""
-        super().__init__()
+        super().__init__(name)
         self.path = path
         self.kwargs = kwargs
 
@@ -61,16 +66,16 @@ class TFRecordDatasetOp(DatasetOp):
             path = data
         else:
             raise ValueError("Dataset path is not defined")
-        return tf.data.TFRecordDataset(path, **self.kwargs)
+        return tf.data.TFRecordDataset(path, name=self.name, **self.kwargs)
 
 
 class LocalDatasetOp(DatasetOp):
     """Local dataset."""
 
-    def __init__(self, hr_path: str, lr_path: str,
+    def __init__(self, name: str, hr_path: str, lr_path: str,
                  shuffle: bool = False) -> None:
         """Create LocalDatasetOp."""
-        super().__init__()
+        super().__init__(name)
         hr_files = list(sorted(glob(hr_path, recursive=True)))
         lr_files = list(sorted(glob(lr_path, recursive=True)))
         if len(lr_files) != len(hr_files) or len(hr_files) % 10 != 0:
@@ -105,16 +110,17 @@ class LocalDatasetOp(DatasetOp):
             output_signature={
                 "input": tf.TensorSpec(dtype=tf.uint8, shape=None),
                 "target": tf.TensorSpec(dtype=tf.uint8, shape=None),
-            }
+            },
+            name=self.name,
         )
 
 
 class MapOp(DatasetOp):
     """Dataset map operation."""
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, name: str, **kwargs) -> None:
         """Create MapOp."""
-        super().__init__()
+        super().__init__(name)
         self.map_kwargs = kwargs
 
     def map_fn(self, data: Any) -> Any:
@@ -124,15 +130,23 @@ class MapOp(DatasetOp):
     def __call__(self, data: Any) -> Any:
         """Call operation."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.map(self.map_fn, **self.map_kwargs)
+        return data.map(self.map_fn, **self.map_kwargs, name=self.name)
+
+
+class FlatMapOp(MapOp):
+    """Dataset flat map operation."""
+
+    def __call__(self, data: Any) -> Any:
+        """Call operation."""
+        return super().__call__(data).unbatch(name=f"{self.name}_unbatch")
 
 
 class FilterOp(DatasetOp):
     """Dataset filter operation."""
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, name: str, **kwargs) -> None:
         """Create FilterOp."""
-        super().__init__()
+        super().__init__(name)
         self.filter_kwargs = kwargs
 
     def filter_fn(self, data: Any) -> bool:
@@ -143,7 +157,8 @@ class FilterOp(DatasetOp):
     def __call__(self, data: Any) -> Any:
         """Call operation."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.filter(self.filter_fn, **self.filter_kwargs)
+        return data.filter(self.filter_fn, **self.filter_kwargs,
+                           name=self.name)
 
 
 class RandomCondMapOp(MapOp):
@@ -212,38 +227,44 @@ class ParseSingleExampleOp(MapOp):
         }
 
 
-class RandomCropOp(MapOp):
+class RandomCropOp(FlatMapOp):
     """Random crop operation."""
 
     # pylint: disable=invalid-name
 
-    def __init__(self, crop_size: int, **kwargs) -> None:
+    def __init__(self, crop_size: int, num_img: int, **kwargs) -> None:
         """Create RandomCropOp."""
         super().__init__(**kwargs)
         self.crop_size = crop_size
+        self.num_img = num_img
 
     def map_fn(self, data: Any) -> Any:
         """Crop images."""
         inp_shape = tf.shape(data["input"])
         height = inp_shape[1]
         width = inp_shape[2]
-        x0 = tf.random.uniform(
-            shape=[],
-            minval=0,
-            maxval=width - self.crop_size,
-            dtype=tf.int32
-        )
-        y0 = tf.random.uniform(
-            shape=[],
-            minval=0,
-            maxval=height - self.crop_size,
-            dtype=tf.int32
-        )
-        x1 = x0 + self.crop_size
-        y1 = y0 + self.crop_size
+        inputs = []
+        targets = []
+        for _ in range(self.num_img):
+            x0 = tf.random.uniform(
+                shape=[],
+                minval=0,
+                maxval=width - self.crop_size,
+                dtype=tf.int32
+            )
+            y0 = tf.random.uniform(
+                shape=[],
+                minval=0,
+                maxval=height - self.crop_size,
+                dtype=tf.int32
+            )
+            x1 = x0 + self.crop_size
+            y1 = y0 + self.crop_size
+            inputs.append(data["input"][:, y0:y1, x0:x1, :])
+            targets.append(data["target"][:, y0*4:y1*4, x0*4:x1*4, :])
         return {
-            "input": data["input"][:, y0:y1, x0:x1, :],
-            "target": data["target"][:, y0 * 4:y1 * 4, x0 * 4:x1 * 4, :],
+            "input": tf.stack(inputs, axis=0),
+            "target": tf.stack(targets, axis=0),
         }
 
 
@@ -429,7 +450,7 @@ class ClipOp(MapOp):
         }
 
 
-class SingleFrameMapOp(MapOp):
+class SingleFrameMapOp(FlatMapOp):
     """Convert dataset to single-frame."""
 
     def __init__(self, flow_frames: int, **kwargs) -> None:
@@ -439,31 +460,27 @@ class SingleFrameMapOp(MapOp):
 
     def map_fn(self, data: Any) -> Any:
         """Convert dataset to single-frame."""
-        inp = data["input"]
-        target = data["target"]
-        idx = tf.random.uniform(
-            shape=[],
-            minval=0,
-            maxval=10 - self.flow_frames,
-            dtype=tf.int32
-        )
+        inputs = []
+        targets = []
+        last = []
+        for idx in range(11 - self.flow_frames):
+            inputs.append(data["input"][idx:idx+self.flow_frames])
+            targets.append(data["target"][idx + (self.flow_frames - 1)])
+            last.append(data["target"][idx + (self.flow_frames - 2)])
         return {
-            "input": tf.reshape(
-                inp[idx:idx+self.flow_frames],
-                tf.concat([[self.flow_frames], tf.shape(inp)[1:]], axis=0)
-            ),
-            "target": target[idx + (self.flow_frames - 1)],
-            "last": target[idx + (self.flow_frames - 2)],
+            "input": tf.stack(inputs, axis=0),
+            "target": tf.stack(targets, axis=0),
+            "last": tf.stack(last, axis=0),
         }
 
 
 class SampleDatasetOp(DatasetOp):
     """Sample from datasets."""
 
-    def __init__(self, configs: List[List[Dict[str, Any]]],
+    def __init__(self, name: str, configs: List[List[Dict[str, Any]]],
                  **kwargs) -> None:
         """Create SampleDatasetOp."""
-        super().__init__()
+        super().__init__(name)
         self.configs = configs
         self.kwargs = kwargs
 
@@ -473,22 +490,23 @@ class SampleDatasetOp(DatasetOp):
         return tf.data.Dataset.sample_from_datasets(
             datasets=[create_dataset(config)
                       for config in self.configs],
-            **self.kwargs
+            **self.kwargs,
         )
 
 
 class BatchOp(DatasetOp):
     """Batch op."""
 
-    def __init__(self, batch_size: int) -> None:
+    def __init__(self, name: str, batch_size: int) -> None:
         """Create BatchOp."""
-        super().__init__()
+        super().__init__(name)
         self.batch_size = batch_size
 
     def __call__(self, data: Any) -> Any:
         """Batch data."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.batch(self.batch_size, drop_remainder=True)
+        return data.batch(self.batch_size, drop_remainder=True,
+                          name=self.name)
 
 
 class RepeatOp(DatasetOp):
@@ -497,22 +515,23 @@ class RepeatOp(DatasetOp):
     def __call__(self, data: Any) -> Any:
         """Repeat data."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.repeat()
+        return data.repeat(name=self.name)
 
 
 class ShuffleOp(DatasetOp):
     """Shuffle op."""
 
-    def __init__(self, shuffle_window: int, **kwargs) -> None:
+    def __init__(self, name: str, shuffle_window: int, **kwargs) -> None:
         """Create ShuffleOp."""
-        super().__init__()
+        super().__init__(name)
         self.shuffle_window = shuffle_window
         self.kwargs = kwargs
 
     def __call__(self, data: Any) -> Any:
         """Shuffle data."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.shuffle(self.shuffle_window, **self.kwargs)
+        return data.shuffle(self.shuffle_window, **self.kwargs,
+                            name=self.name)
 
 
 class CacheOp(DatasetOp):
@@ -521,35 +540,58 @@ class CacheOp(DatasetOp):
     def __call__(self, data: Any) -> Any:
         """Cache data."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.cache()
+        return data.cache(name=self.name)
 
 
 class PrefetchOp(DatasetOp):
     """Prefetch op."""
 
-    def __init__(self, buffer_size: int) -> None:
+    def __init__(self, name: str, buffer_size: int) -> None:
         """Create PrefetchOp."""
-        super().__init__()
+        super().__init__(name)
         self.buffer_size = buffer_size
 
     def __call__(self, data: Any) -> Any:
         """Prefetch data."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.prefetch(self.buffer_size)
+        return data.prefetch(self.buffer_size, name=self.name)
 
 
 class TakeOp(DatasetOp):
     """Take op."""
 
-    def __init__(self, size: int) -> None:
+    def __init__(self, name: str, size: int) -> None:
         """Create TakeOp."""
-        super().__init__()
+        super().__init__(name)
         self.size = size
 
     def __call__(self, data: Any) -> Any:
         """Take data."""
         assert isinstance(data, tf.data.Dataset), "Type mismatch"
-        return data.take(self.size)
+        return data.take(self.size, name=self.name)
+
+
+class OptionsOp(DatasetOp):
+    """Options op."""
+
+    def __init__(self, name: str, options: Dict[str, Any]) -> None:
+        """Create OptionsOp."""
+        super().__init__(name)
+
+        def set_opt(obj: Any, opt: Dict[str, Any]) -> None:
+            for key, val in opt.items():
+                if isinstance(val, dict):
+                    set_opt(getattr(obj, key), val)
+                else:
+                    setattr(obj, key, val)
+
+        self.options = tf.data.Options()
+        set_opt(self.options, options)
+
+    def __call__(self, data: Any) -> Any:
+        """Call operation."""
+        assert isinstance(data, tf.data.Dataset), "Type mismatch"
+        return data.with_options(self.options, name=self.name)
 
 
 DATASET_OPS = {
@@ -578,6 +620,7 @@ DATASET_OPS = {
     "CacheOp": CacheOp,
     "PrefetchOp": PrefetchOp,
     "TakeOp": TakeOp,
+    "OptionsOp": OptionsOp,
 }
 
 
@@ -588,7 +631,6 @@ def create_dataset(config: List[Dict[str, Any]]) -> tf.data.Dataset:
         if "name" not in op_config:
             raise ValueError("Op name is not defined")
         name = op_config["name"]
-        op_config = {k: op_config[k] for k in op_config if k != "name"}
         if name not in DATASET_OPS:
             raise ValueError(f"Unknown dataset op: {name}")
         dataset_op = DATASET_OPS[name](**op_config)
