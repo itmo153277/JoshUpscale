@@ -3,11 +3,24 @@
 """Utility functions."""
 
 from typing import Union
+import os
+import inspect
 import tempfile
 import numpy as np
 import tensorflow as tf
 from moviepy import editor as mpy
 from matplotlib import pyplot as plt
+
+
+gif_args = {}
+gif_sig = inspect.signature(mpy.ImageSequenceClip.write_gif).parameters
+if "verbose" in gif_sig:
+    gif_args["verbose"] = False
+if "logger" in gif_sig:
+    gif_args["logger"] = None
+if "progress_bar" in gif_sig:
+    gif_args["progress_bar"] = None
+del gif_sig
 
 
 def create_gif(images: np.ndarray, fps: int = 15) -> bytes:
@@ -28,14 +41,18 @@ def create_gif(images: np.ndarray, fps: int = 15) -> bytes:
     # pylint: disable=invalid-name, unexpected-keyword-arg
     images = images[:, :, :, ::-1]
     images = (np.clip(images, 0, 1) * 255).astype(np.uint8)
-    clip = mpy.ImageSequenceClip(list(images), fps=fps)
-    with tempfile.NamedTemporaryFile(suffix=".gif") as f:
-        try:
-            clip.write_gif(f.name, verbose=False, progress_bar=False)
-        except TypeError:
-            clip.write_gif(f.name, verbose=False, logger=None)
-        f.seek(0)
-        return f.read()
+    filename = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".gif", delete=False) as f:
+            filename = f.name
+        clip = mpy.ImageSequenceClip(list(images), fps=fps)
+        clip.write_gif(filename, **gif_args)
+        with open(filename, "rb") as f:
+            gif = f.read()
+    finally:
+        if filename is not None and os.path.exists(filename):
+            os.remove(filename)
+    return gif
 
 
 def encode_gif_summary(images: np.ndarray, name: str,

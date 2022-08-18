@@ -1,0 +1,126 @@
+train_dataset:
+  batch_size: 64
+  config:
+    - name: SampleDatasetOp
+      weights:
+        - 1.0
+        - 0.5
+      configs:
+        - - name: GlobOp
+            glob_pattern: gs://able-bazaar-289411.appspot.com/ds_x4_mixed_test/train_*.tfrecord
+          - name: ListShuffleOp
+          - name: TFRecordDatasetOp
+            num_parallel_reads: -1
+          - name: OptionsOp
+            options:
+              deterministic: False
+          - name: ParsePairExampleOp
+            num_parallel_calls: -1
+          - name: RepeatOp
+        - - name: GlobOp
+            glob_pattern: gs://able-bazaar-289411.appspot.com/ds_x4_single_test/train_*.tfrecord
+          - name: ListShuffleOp
+          - name: TFRecordDatasetOp
+            num_parallel_reads: -1
+          - name: OptionsOp
+            options:
+              deterministic: False
+          - name: ParseSingleExampleOp
+            num_parallel_calls: -1
+          - name: RepeatOp
+    - name: OptionsOp
+      options:
+        deterministic: False
+    - name: RandomCropOp
+      num_parallel_calls: -1
+      crop_size: 32
+      num_img: 16
+    - name: NormalizeOp
+      crop_size: 32
+    - name: RgbToBgrOp
+    - name: RandomHorizontalFlipOp
+      num_parallel_calls: -1
+      threshold: 0.5
+    - name: RandomVerticalFlipOp
+      num_parallel_calls: -1
+      threshold: 0.5
+    - name: RandomTransposeOp
+      num_parallel_calls: -1
+      threshold: 0.5
+    - name: RandomBrightnessOp
+      stddev: 0.05
+    - name: RandomContrastOp
+      stddev: 1
+      base: 2
+    - name: RandomNoiseOp
+      stddev: 0.01
+    - name: ClipOp
+      minval: 0
+      maxval: 1
+    - name: SingleFrameMapOp
+      num_parallel_calls: -1
+      flow_frames: 4
+    - name: ShuffleOp
+      shuffle_window: 7168
+    - name: FilterFlatOp
+      threshold: 0.03
+val_dataset:
+  batch_size: 64
+  play_size: 8
+  val_size: 640
+  config:
+    - name: TFRecordDatasetOp
+      path: gs://able-bazaar-289411.appspot.com/ds_x4_mixed_test/validate.tfrecord
+    - name: ParsePairExampleOp
+    - name: RepeatOp
+    - name: RandomCropOp
+      crop_size: 32
+      num_img: 16
+    - name: NormalizeOp
+      crop_size: 32
+    - name: RgbToBgrOp
+    - name: SingleFrameMapOp
+      flow_frames: 4
+    - name: ShuffleOp
+      shuffle_window: 7168
+    - name: FilterFlatOp
+      threshold: 0.03
+models:
+  generator:
+    name: generator-resnet
+    num_filters: 64
+    num_res_blocks: 24
+    activation: lrelu
+  flow:
+    name: flow-autoencoder
+    num_inputs: 4
+    activation: lrelu
+  full:
+    name: inference
+    generator_model:
+      model: generator
+    flow_model:
+      model: flow
+    skip_processing: False
+    frame_height: 270
+    frame_width: 480
+    flow_pad_factor: 8
+  train_infer:
+    name: inference
+    generator_model:
+      model: generator
+    flow_model:
+      model: flow
+    skip_processing: True
+  frvsr:
+    name: frvsr-single
+    inference_model:
+      model: train_infer
+    crop_size: 32
+    learning_rate: 0.0001
+train:
+  model: frvsr
+  epochs: 480
+  steps_per_epoch: 1000
+  monitor_metric: val_gen_outputs_loss
+  output_dir: gs://able-bazaar-289411.appspot.com/joshupscale_test_v12/03/frvsr_single
