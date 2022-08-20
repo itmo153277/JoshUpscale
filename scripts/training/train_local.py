@@ -45,12 +45,18 @@ def parse_args() -> argparse.Namespace:
                         help="Disable mixed precision",
                         default=True,
                         action="store_false")
+    parser.add_argument("--disable-xla",
+                        dest="xla",
+                        help="Disable XLA auto-clustering",
+                        default=True,
+                        action="store_false")
     return parser.parse_args()
 
 
 def init(gpus: Union[List[str], None] = None,
          random_seed: Union[int, None] = None,
-         mixed_precision: Union[bool, None] = True) -> tf.distribute.Strategy:
+         mixed_precision: bool = True,
+         xla: bool = True) -> tf.distribute.Strategy:
     """Init hardware and libraries."""
     if gpus is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(gpus)
@@ -62,7 +68,8 @@ def init(gpus: Union[List[str], None] = None,
             compute_capability = details.get("compute_capability", None)
             if compute_capability and compute_capability[0] >= 7:
                 keras.mixed_precision.experimental.set_policy("mixed_float16")
-    tf.config.optimizer.set_jit(True)
+    if xla:
+        tf.config.optimizer.set_jit("autoclustering")
     if random_seed is not None:
         keras.utils.set_random_seed(2)
     strategy = tf.distribute.get_strategy()
@@ -161,7 +168,7 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
 
 
 def main(config_path: str, gpus: Union[List[str], None],
-         mixed_precision: bool) -> int:
+         mixed_precision: bool, xla: bool) -> int:
     """
     Run CLI.
 
@@ -173,6 +180,8 @@ def main(config_path: str, gpus: Union[List[str], None],
         Visible GPUs
     mixed_precision: bool
         Use mixed precision for training if available
+    xla: bool
+        Use XLA autoclustering
 
     Returns
     -------
@@ -185,6 +194,7 @@ def main(config_path: str, gpus: Union[List[str], None],
         gpus=gpus,
         random_seed=config["seed"] if "seed" in config else None,
         mixed_precision=mixed_precision,
+        xla=xla,
     )
     train(config, strategy)
     return 0

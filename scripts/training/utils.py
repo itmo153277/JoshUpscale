@@ -4,23 +4,11 @@
 
 from typing import Union
 import os
-import inspect
 import tempfile
 import numpy as np
 import tensorflow as tf
-from moviepy import editor as mpy
+import imageio
 from matplotlib import pyplot as plt
-
-
-gif_args = {}
-gif_sig = inspect.signature(mpy.ImageSequenceClip.write_gif).parameters
-if "verbose" in gif_sig:
-    gif_args["verbose"] = False
-if "logger" in gif_sig:
-    gif_args["logger"] = None
-if "progress_bar" in gif_sig:
-    gif_args["progress_bar"] = None
-del gif_sig
 
 
 def create_gif(images: np.ndarray, fps: int = 15) -> bytes:
@@ -45,8 +33,14 @@ def create_gif(images: np.ndarray, fps: int = 15) -> bytes:
     try:
         with tempfile.NamedTemporaryFile(suffix=".gif", delete=False) as f:
             filename = f.name
-        clip = mpy.ImageSequenceClip(list(images), fps=fps)
-        clip.write_gif(filename, **gif_args)
+        with imageio.save(
+            filename,
+            format="GIF",
+            duration=1.0/fps,
+            loop=0,
+        ) as writer:
+            for img in images:
+                writer.append_data(img)
         with open(filename, "rb") as f:
             gif = f.read()
     finally:

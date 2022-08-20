@@ -6,7 +6,7 @@ onnxruntime==1.12.1
 onnx-simplifier==0.4.7
 tf2onnx==1.12.0
 
-moviepy==1.0.3
+imageio
 opencv-python-headless
 matplotlib
 numpy
