@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Remove flow net from model."""
+"""Change model output to flow frames."""
 
 import sys
 import argparse
 import onnx
-from onnx import numpy_helper
 from graph import Graph
 from utils import simplify_model
 
@@ -21,7 +20,7 @@ def parse_args() -> argparse.Namespace:
         Parsed arguments
     """
     parser = argparse.ArgumentParser(
-        description="Remove flow net from model.")
+        description="Change model output to flow frames.")
     parser.add_argument("model_path",
                         help="Model",
                         type=str)
@@ -36,8 +35,8 @@ def parse_args() -> argparse.Namespace:
 
 
 # Hardcoded nodes
-INPUT_NODE = "final/full/generator/concat/concat"
-TARGET_NODE = "final/full/generator/conv_1/Conv2D"
+INPUT_NODE = "final/full/generator/space_to_depth/SpaceToDepth"
+TARGET_NODE = "final/full/postprocess/mul"
 
 
 def main(
@@ -65,19 +64,11 @@ def main(
     model = onnx.load(model_path)
     graph = Graph(model)
 
-    inp_name = graph.find_node_by_name(INPUT_NODE).input[0]
+    input_node = graph.find_node_by_name(INPUT_NODE)
     target_node = graph.find_node_by_name(TARGET_NODE)
+    target_node.input[0] = input_node.input[0]
 
-    weights = numpy_helper.to_array(graph.init_dict[target_node.input[1]])
-    weights = weights[:, :3, :, :]
-    graph.init_dict[target_node.input[1]] = numpy_helper.from_array(
-        weights, name=target_node.input[1])
-    target_node.input[0] = inp_name
-
-    model = graph.serialize(
-        inputs=[graph.inputs[0]],
-        outputs=[graph.outputs[0]],
-    )
+    model = graph.serialize()
     model = simplify_model(model, num_checks=num_checks)
     onnx.save(model, output_path)
     return 0

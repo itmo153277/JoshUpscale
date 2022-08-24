@@ -70,3 +70,23 @@ class PlayCallback(keras.callbacks.Callback):
     def on_train_end(self, _logs=None) -> None:
         """Train end callback."""
         self._close_writer()
+
+
+class TensorBoard(keras.callbacks.TensorBoard):
+    """TensorBoard callback with improved weight logging."""
+
+    def _log_weights(self, epoch: int) -> None:
+        """Log weights."""
+        weight_names = {}
+        with self._train_writer.as_default():
+            for weight in self.model.trainable_weights:
+                weight_name = weight.name.replace(':', '_')
+                if weight_name in weight_names:
+                    weight_names[weight_name] += 1
+                    weight_name += f"_{weight_names[weight_name]}"
+                else:
+                    weight_names[weight_name] = 0
+                tf.summary.histogram(weight_name, weight, step=epoch)
+                if self.write_images:
+                    self._log_weight_as_image(weight, weight_name, epoch)
+        self._train_writer.flush()

@@ -13,7 +13,7 @@ import tensorflow as tf
 from tensorflow import keras
 from models import create_models
 from dataset import create_train_dataset, create_val_dataset
-from keras_callbacks import PlayCallback
+from keras_callbacks import PlayCallback, TensorBoard
 
 
 LOG = logging.getLogger("train_local")
@@ -92,7 +92,7 @@ def get_callbacks(
     if output_dir is not None:
         log_dir = f"{output_dir}/logs"
         checkpoint_dir = f"{output_dir}/checkpoints"
-        callbacks.append(keras.callbacks.TensorBoard(
+        callbacks.append(TensorBoard(
             log_dir=log_dir,
             histogram_freq=20,
             profile_batch=(5, 10) if profile else 0,
