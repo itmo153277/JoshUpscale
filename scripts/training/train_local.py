@@ -50,6 +50,11 @@ def parse_args() -> argparse.Namespace:
                         help="Disable XLA auto-clustering",
                         default=True,
                         action="store_false")
+    parser.add_argument("--disable-profile",
+                        dest="profile",
+                        help="Disable profiling",
+                        default=True,
+                        action="store_false")
     return parser.parse_args()
 
 
@@ -126,6 +131,7 @@ def get_callbacks(
 def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
           profile: bool = True) -> None:
     """Run training."""
+    LOG.info("Constructing models...")
     with strategy.scope():
         models = create_models(config["models"])
     if "train" in config:
@@ -146,7 +152,7 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
             monitor_metric=config["train"].get("monitor_metric", None),
             play_ds=play_ds,
             early_stopping=config["train"].get("early_stopping", 0),
-            profile=profile
+            profile=profile,
         )
         train_model.fit(
             train_ds,
@@ -168,7 +174,7 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
 
 
 def main(config_path: str, gpus: Union[List[str], None],
-         mixed_precision: bool, xla: bool) -> int:
+         mixed_precision: bool, xla: bool, profile: bool) -> int:
     """
     Run CLI.
 
@@ -182,6 +188,8 @@ def main(config_path: str, gpus: Union[List[str], None],
         Use mixed precision for training if available
     xla: bool
         Use XLA autoclustering
+    profile: bool
+        Enable profiling
 
     Returns
     -------
@@ -196,7 +204,7 @@ def main(config_path: str, gpus: Union[List[str], None],
         mixed_precision=mixed_precision,
         xla=xla,
     )
-    train(config, strategy)
+    train(config, strategy, profile)
     return 0
 
 

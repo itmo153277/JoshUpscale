@@ -8,9 +8,10 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import schedules
+from tensorflow.keras import applications
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
     PreprocessLayer, PostprocessLayer, DenseWarpLayer
-from keras_models import FRVSRModelSingle, FRVSRModel
+from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
 
 
 Activation = Union[str, Dict[str, Any]]
@@ -219,7 +220,7 @@ def get_flow_resnet(
             inp=out,
             num_filters=num_filters,
             activation=activation,
-            name=f"block_{i}",
+            name=f"block_{i + 1}",
         )
     out = layers.Conv2D(
         filters=32,
@@ -351,9 +352,9 @@ def get_flow_autoencoder(
 
     block_count = len(filters) // 2
     for i in range(block_count):
-        out = down_block(out, filters[i], f"block_{i}")
+        out = down_block(out, filters[i], f"block_{i + 1}")
     for i in range(block_count, block_count * 2):
-        out = up_block(out, filters[i], f"block_{i}")
+        out = up_block(out, filters[i], f"block_{i + 1}")
     if len(filters) % 2:
         out = layers.Conv2D(
             filters=filters[-1],
@@ -389,7 +390,7 @@ def get_generator_resnet(
     num_res_blocks: int = 24,
     activation: Activation = "relu",
     name: str = "generator"
-):
+) -> keras.Model:
     """Create generator model (resnet architecture).
 
     Inputs:
@@ -439,7 +440,7 @@ def get_generator_resnet(
         name="a_1",
     )(out)
     for i in range(num_res_blocks):
-        out = res_block(out, num_filters, activation, f"block_{i}")
+        out = res_block(out, num_filters, activation, f"block_{i + 1}")
     out = layers.Conv2DTranspose(
         filters=32,
         kernel_size=2,
@@ -479,6 +480,89 @@ def get_generator_resnet(
     return model
 
 
+def get_discriminator(
+    crop_size: int,
+    activation: Activation = "lrelu",
+    alpha: float = 1.0,
+    name: str = "discriminator"
+) -> keras.Model:
+    """Create discriminator model.
+
+    Inputs:
+    - (N x crop_size*4 x crop_size*4 x 27) - concatenated inputs
+
+    Outputs:
+    - (N x crop_size*4 x crop_size*4 x 64*alpha) - layer 1 output
+    - (N x crop_size*2 x crop_size*2 x 64*alpha) - layer 2 output
+    - (N x crop_size x crop_size x 128*alpha) - layer 3 output
+    - (N x crop_size/2 x crop_size/2 x 256*alpha) - layer 4 output
+    - (N x crop_size/2 x crop_size/2 x 1) - fake / real
+
+    Parameters
+    ----------
+    crop_size: int
+        Image size
+    activation: Activation
+        Activation
+    alpha: float
+        Weight scaling
+    name: str
+        Model name
+
+    Returns
+    -------
+    keras.Model
+        model
+    """
+    input_val = keras.Input(
+        shape=[crop_size*4, crop_size*4, 27],
+        name="input"
+    )
+    outputs = []
+    net = input_val
+    net = layers.Conv2D(
+        filters=int(64 * alpha),
+        kernel_size=3,
+        strides=1,
+        padding="SAME",
+        name="conv_1"
+    )(net)
+    net = get_activation(activation)(
+        name="a_1"
+    )(net)
+
+    def discriminator_block(out, filters, name):
+        out = layers.Conv2D(
+            filters=filters,
+            kernel_size=4,
+            strides=2,
+            padding="SAME",
+            use_bias=False,
+            name=get_scoped_name(name, "conv")
+        )(out)
+        out = layers.BatchNormalization(
+            name=get_scoped_name(name, "bn")
+        )(out)
+        out = get_activation(activation)(
+            name=get_scoped_name(name, "a")
+        )(out)
+        return out
+
+    net = discriminator_block(net, int(64 * alpha), "block_1")
+    outputs.append(net)
+    net = discriminator_block(net, int(64 * alpha), "block_2")
+    outputs.append(net)
+    net = discriminator_block(net, int(128 * alpha), "block_3")
+    outputs.append(net)
+    net = discriminator_block(net, int(256 * alpha), "block_4")
+    outputs.append(net)
+    net = layers.Dense(1, name="dense")(net)
+    net = layers.Activation(K.sigmoid, name="a_2")(net)
+    outputs.append(net)
+    model = keras.Model(inputs=input_val, outputs=outputs, name=name)
+    return model
+
+
 def get_inference_model(
     generator_model: keras.Model,
     flow_model: keras.Model,
@@ -487,7 +571,7 @@ def get_inference_model(
     frame_width: Union[int, None] = None,
     flow_pad_factor: Union[int, None] = None,
     name: str = "inference"
-):
+) -> keras.Model:
     """Create inference model.
 
     Inputs:
@@ -664,16 +748,17 @@ def get_frvsr(
     learning_rate: LearningRateSchedule = 0.0005,
     steps_per_execution: Union[int, None] = None,
     name: str = "frvsr",
-):
+) -> keras.Model:
     """Get FRVSR model.
 
     Inputs:
-    - input: (N x 10 x H x W x 3) - input frames
-    - target: (N x 10 x H*4 x W*4 x 3) - target frames
+    - input: (N x 10 x crop_size x crop_size x 3) - input frames
+    - target: (N x 10 x crop_size*4 x crop_size*4 x 3) - target frames
 
     Outputs:
-    - gen_output: (N x 10 x H*4 x W*4 x 3) - generated frames
-    - target_warp: (N x 10 x H*4 x W*4 x 3) - warped last frame
+    - gen_output: (N x 10 x crop_size*4 x crop_size*4 x 3) - generated frames
+    - target_warp: (N x 10 x crop_size*4 x crop_size*4 x 3) - warped target
+                                                              frames
 
     Parameters
     ----------
@@ -685,9 +770,9 @@ def get_frvsr(
         Generator model
     crop_size: int
         Image size
-    learning_rate: Any
+    learning_rate: LearningRateSchedule
         Learning rate
-    steps_per_execution: int
+    steps_per_execution: Union[None, int]
         Steps per single execution
 
     Returns
@@ -708,18 +793,147 @@ def get_frvsr(
     )
     return model
 
-# discriminator
-# vgg
-# GAN
+
+def get_vgg(
+    crop_size: int,
+    out_layers: Union[None, List[str]] = None,
+    name: str = "vgg"
+) -> keras.Model:
+    """Get VGG19 model.
+
+    Inputs:
+    - (N x crop_size*4 x crop_size*4 x 3) - input image
+                                            (normalized to [0-1] range)
+
+    Outputs are defined via out_layers
+
+    Parameters
+    ----------
+    crop_size: int
+        Image size
+    out_layers: Union[None, List[str]]
+        List of layers from VGG19
+    name: str
+        Model name
+
+    Returns
+    -------
+    keras.Model
+        Model
+    """
+    input_img = keras.Input(
+        shape=[crop_size*4, crop_size*4, 3],
+        name="input"
+    )
+    out = input_img
+    out = layers.Rescaling(255, name="rescale")(out)
+    out = applications.vgg19.preprocess_input(out)
+    vgg_net = applications.VGG19(
+        include_top=False,
+        weights="imagenet",
+        input_tensor=out,
+    )
+    outputs = []
+    if out_layers is None:
+        out_layers = [
+            "block2_conv2",
+            "block3_conv4",
+            "block4_conv4",
+            "block5_conv4",
+        ]
+    for layer_name in out_layers:
+        outputs.append(vgg_net.get_layer(layer_name).output)
+    model = keras.Model(inputs=input_img, outputs=outputs, name=name)
+    model.trainable = False
+    return model
+
+
+def get_gan(
+    inference_model: keras.Model,
+    generator_model: keras.Model,
+    flow_model: keras.Model,
+    discriminator_model: keras.Model,
+    vgg_model: keras.Model,
+    crop_size: int,
+    learning_rate: LearningRateSchedule = 0.0005,
+    loss_config: Union[None, Dict[str, Any]] = None,
+    steps_per_execution: Union[None, int] = None,
+    name: str = "gan",
+) -> keras.Model:
+    """Get GAN model.
+
+    Inputs:
+    - input: (N x 10 x crop_size x crop_size x 3) - input frames
+    - target: (N x 10 x crop_size*4 x crop_size*4 x 3) - target frames
+
+    Outputs:
+    - gen_outputs: (N x 10 x crop_size*4 x crop_size*4 x 3) - generated frames
+    - gen_warp: (N x 19 x crop_size*4 x crop_size*4 x 3) - warped generated
+                                                           frames
+    - target_warp: (N x 18 x crop_size*4 x crop_size*4 x 3) - warped target
+                                                              frames
+    - real_output: discr_layers x (N x 6 x S x S x C) - discriminator output on
+                                                        real data
+    - fake_output: discr_layers x (N x 6 x S x S x C) - discriminator output on
+                                                        fake data
+    - vgg_real_output: vgg_layers x (N x 19 x H x W x C) - vgg output on
+                                                           real data
+    - vgg_fake_output: vgg_layers x (N x 19 x H x W x C) - vgg output on
+                                                           fake data
+
+    Parameters
+    ----------
+    inference_model: keras.Model
+        Inference model
+    generator_model: keras.Model
+        Generator model
+    flow_model: keras.Model
+        Flow model
+    discriminator_model: keras.Model
+        Discriminator model
+    vgg_model: keras.Model
+        VGG19 model
+    crop_size: int
+        Image size
+    learning_rate: LearningRateSchedule
+        Learning rate
+    loss_config: Union[None, Dict[str, Any]]
+        Loss config
+    steps_per_execution: Union[NOne, int]
+        Steps per execution
+
+    Returns
+    -------
+    keras.Model
+        Model
+    """
+    model = GANModel(
+        inference_model=inference_model,
+        generator_model=generator_model,
+        flow_model=flow_model,
+        discriminator_model=discriminator_model,
+        vgg_model=vgg_model,
+        loss_config=loss_config,
+        crop_size=crop_size,
+        name=name,
+    )
+    model.compile(
+        learning_rate=get_learning_rate(learning_rate),
+        steps_per_execution=steps_per_execution,
+    )
+    return model
 
 
 MODELS = {
     "flow-resnet": get_flow_resnet,
     "flow-autoencoder": get_flow_autoencoder,
     "generator-resnet": get_generator_resnet,
+    "discriminator": get_discriminator,
     "inference": get_inference_model,
     "frvsr-single": get_frvsr_single,
     "frvsr": get_frvsr,
+    "vgg": get_vgg,
+    "gan": get_gan,
 }
 
 

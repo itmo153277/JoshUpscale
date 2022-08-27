@@ -20,7 +20,6 @@ class DatasetOp:
 
     def __call__(self, data: Any) -> Any:
         """Call dataset op."""
-        del data
         raise NotImplementedError()
 
 
@@ -34,7 +33,7 @@ class GlobOp(DatasetOp):
 
     def __call__(self, data: Any) -> Any:
         """Call operation."""
-        del data
+        assert data is None
         return tf.io.gfile.glob(self.glob_pattern)
 
 
@@ -104,7 +103,7 @@ class LocalDatasetOp(DatasetOp):
 
     def __call__(self, data: Any) -> Any:
         """Create dataset."""
-        del data
+        assert data is None
         return tf.data.TFRecordDataset.from_generator(
             self._generator,
             output_signature={
@@ -486,7 +485,7 @@ class SampleDatasetOp(DatasetOp):
 
     def __call__(self, data: Any) -> Any:
         """Sample from datasets."""
-        del data
+        assert data is None
         return tf.data.Dataset.sample_from_datasets(
             datasets=[create_dataset(config)
                       for config in self.configs],

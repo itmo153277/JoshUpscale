@@ -98,7 +98,7 @@ class CounterMetric(keras.metrics.Metric):
             dtype=tf.int64,
             initializer='zeros',
             aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
-            synchronization=tf.VariableSynchronization.ON_WRITE,
+            synchronization=tf.VariableSynchronization.NONE,
         )
 
     def update_state(self) -> Union[None, tf.Operation]:
