@@ -7,16 +7,24 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
+from tensorflow.keras.optimizers import schedules
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
     PreprocessLayer, PostprocessLayer, DenseWarpLayer
 from keras_models import FRVSRModelSingle, FRVSRModel
 
 
 Activation = Union[str, Dict[str, Any]]
+LearningRateSchedule = Union[float, Dict[str, Any]]
 
 ACTIVATIONS = {
     "relu": layers.ReLU,
     "lrelu": layers.LeakyReLU,
+}
+
+LR_SCHEDULES = {
+    "constant": None,
+    "exponential": schedules.ExponentialDecay,
+    "piecewise": schedules.PiecewiseConstantDecay,
 }
 
 
@@ -39,10 +47,39 @@ def get_activation(activation: Activation) -> Callable[..., layers.Layer]:
     elif isinstance(activation, dict):
         name = activation["name"]
         custom_args = {k: activation[k] for k in activation if k != "name"}
+    else:
+        raise TypeError("Unknown type")
     if name not in ACTIVATIONS:
         raise ValueError(f"Unknown activation: {name}")
     return lambda *args, **kwargs: ACTIVATIONS[name](
         *args, **custom_args, **kwargs)
+
+
+def get_learning_rate(lr_schedule: LearningRateSchedule) -> \
+        Union[float, schedules.LearningRateSchedule]:
+    """Get learning rate schedule.
+
+    Parameters
+    ----------
+    lr_schedule: LearningRateSchedule
+        Learning rate definition
+
+    Returns
+    -------
+    Union[float, schedules.LearningRateSchedule]
+        Learning rate schedule
+    """
+    if isinstance(lr_schedule, float):
+        return lr_schedule
+    elif not isinstance(lr_schedule, dict):
+        raise TypeError("Unknown type")
+    name = lr_schedule["name"]
+    if name not in LR_SCHEDULES:
+        raise ValueError(f"Unknown learning rate type: {name}")
+    if LR_SCHEDULES[name] is None:
+        return lr_schedule["value"]
+    return LR_SCHEDULES[name](
+        **{k: v for k, v in lr_schedule.items() if k != "name"})
 
 
 def get_scoped_name(scope: Union[str, None], name: str) -> Union[str, None]:
@@ -62,7 +99,7 @@ def get_scoped_name(scope: Union[str, None], name: str) -> Union[str, None]:
     """
     if scope is None:
         return None
-    return f"{scope}/{name}"
+    return f"{scope}_{name}"
 
 
 def res_block(inp: tf.Tensor, num_filters: int,
@@ -624,7 +661,7 @@ def get_frvsr(
     flow_model: keras.Model,
     generator_model: keras.Model,
     crop_size: int,
-    learning_rate: Any = 0.0005,
+    learning_rate: LearningRateSchedule = 0.0005,
     steps_per_execution: Union[int, None] = None,
     name: str = "frvsr",
 ):
@@ -666,7 +703,7 @@ def get_frvsr(
         name=name
     )
     model.compile(
-        learning_rate=learning_rate,
+        learning_rate=get_learning_rate(learning_rate),
         steps_per_execution=steps_per_execution
     )
     return model
