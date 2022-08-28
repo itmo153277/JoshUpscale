@@ -150,6 +150,19 @@ class GraphSerializer:
             self.calibration[output_name] = self.calibration[input_name]
         return {}
 
+    def _get_pooling_params(self, layer: trt.ILayer) -> Dict[str, Any]:
+        layer.__class__ = trt.IPoolingLayer
+        return {
+            "pooling_type": layer.type.name,
+            "padding_mode": layer.padding_mode.name,
+            "blend_factor": layer.blend_factor,
+            "average_count_excludes_padding":
+                layer.average_count_excludes_padding,
+            "window_size_nd": convert_to_list(layer.window_size_nd),
+            "stride_nd": convert_to_list(layer.stride_nd),
+            "padding_nd": convert_to_list(layer.padding_nd),
+        }
+
     def _get_resize_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IResizeLayer
         params = {
@@ -214,6 +227,7 @@ class GraphSerializer:
             trt.LayerType.ELEMENTWISE: self._get_elementwise_params,
             trt.LayerType.GATHER: self._get_gather_params,
             trt.LayerType.IDENTITY: self._get_identity_params,
+            trt.LayerType.POOLING: self._get_pooling_params,
             trt.LayerType.RESIZE: self._get_resize_params,
             trt.LayerType.SCALE: self._get_scale_params,
             trt.LayerType.SHUFFLE: self._get_shuffle_params,

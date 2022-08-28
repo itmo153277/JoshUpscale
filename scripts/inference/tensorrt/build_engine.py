@@ -254,6 +254,23 @@ class GraphDeserializer:
             trt.DataType, config["output_dtypes"][0]))
         return layer
 
+    def _add_pooling(self, config: Dict[str, Any]) -> trt.ILayer:
+        assert len(config["inputs"]) == 1
+        input_tensor = self._tensors[config["inputs"][0]]
+        layer = self._network.add_pooling_nd(
+            input_tensor,
+            enum_from_string(trt.PoolingType, config["pooling_type"]),
+            config["window_size_nd"],
+        )
+        layer.padding_mode = enum_from_string(
+            trt.PaddingMode, config["padding_mode"])
+        layer.blend_factor = config["blend_factor"]
+        layer.average_count_excludes_padding = \
+            config["average_count_excludes_padding"]
+        layer.stride_nd = config["stride_nd"]
+        layer.padding_nd = config["padding_nd"]
+        return layer
+
     def _add_resize(self, config: Dict[str, Any]) -> trt.ILayer:
         assert len(config["inputs"]) in [1, 2]
         input_tensor = self._tensors[config["inputs"][0]]
@@ -333,6 +350,7 @@ class GraphDeserializer:
             trt.LayerType.ELEMENTWISE: self._add_elementwise,
             trt.LayerType.GATHER: self._add_gather,
             trt.LayerType.IDENTITY: self._add_identity,
+            trt.LayerType.POOLING: self._add_pooling,
             trt.LayerType.RESIZE: self._add_resize,
             trt.LayerType.SCALE: self._add_scale,
             trt.LayerType.SHUFFLE: self._add_shuffle,
