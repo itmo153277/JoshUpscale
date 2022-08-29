@@ -22,6 +22,7 @@ TensorRTBackend::TensorRTBackend(const std::vector<std::string> &inputNames,
     , m_OutputBuffer{cuda::getPaddedSize(1920 * 1080 * 3)}
     , m_InputBufferFp{cuda::getPaddedSize(480 * 270 * 3)}
     , m_OutputBufferFp{cuda::getPaddedSize(1920 * 1080 * 3)}
+    , m_BindingsIdx{0}
     , m_Engine{nullptr}
     , m_Context{nullptr} {
 	try {
@@ -30,21 +31,29 @@ TensorRTBackend::TensorRTBackend(const std::vector<std::string> &inputNames,
 		m_Engine = trt::TrtPtr{
 		    runtime->deserializeCudaEngine(engine.data(), engine.size())};
 		m_Context = trt::TrtPtr{m_Engine->createExecutionContext()};
-		std::unordered_map<std::string, void *> bindingMap;
-		bindingMap[inputNames[0]] = m_InputBufferFp.get();
-		bindingMap[outputNames[0]] = m_OutputBufferFp.get();
-		if (outputNames.size() > 1) {
-			m_InterBuffers.emplace_back(1920 * 1080 * 3);
-			for (std::size_t i = 2; i < outputNames.size(); ++i) {
-				m_InterBuffers.emplace_back(480 * 270 * 3);
+		auto interBufs = outputNames.size() - 1;
+		if (interBufs > 0) {
+			for (std::size_t i = 0; i < 2; ++i) {
+				m_InterBuffers.emplace_back(1920 * 1080 * 3);
+				for (std::size_t j = 0; j < interBufs - 1; ++j) {
+					m_InterBuffers.emplace_back(480 * 272 * 3);
+				}
 			}
 		}
-		for (std::size_t i = 1; i < outputNames.size(); ++i) {
-			bindingMap[inputNames[i]] = m_InterBuffers[i - 1].get();
-			bindingMap[outputNames[i]] = m_InterBuffers[i - 1].get();
-		}
-		for (std::int32_t i = 0; i < m_Engine->getNbBindings(); ++i) {
-			m_Bindings.push_back(bindingMap[m_Engine->getBindingName(i)]);
+		for (std::size_t i = 0; i < 2; ++i) {
+			std::unordered_map<std::string, void *> bindingMap;
+			bindingMap[inputNames[0]] = m_InputBufferFp.get();
+			bindingMap[outputNames[0]] = m_OutputBufferFp.get();
+			for (std::size_t j = 0; j < interBufs; ++j) {
+				void *ptr1 = m_InterBuffers[j + i * interBufs].get();
+				void *ptr2 = m_InterBuffers[j + (i ^ 1) * interBufs].get();
+				bindingMap[inputNames[j + 1]] = ptr1;
+				bindingMap[outputNames[j + 1]] = ptr2;
+			}
+			for (std::int32_t j = 0; j < m_Engine->getNbBindings(); ++j) {
+				m_Bindings[i].push_back(
+				    bindingMap[m_Engine->getBindingName(j)]);
+			}
 		}
 	} catch (...) {
 		m_ErrorRecorder.rethrowException();
@@ -58,12 +67,14 @@ void TensorRTBackend::processImage(
 	try {
 		cuda::cudaCopy(inputImage, m_InputBuffer, m_Stream);
 		cuda::cudaCast(m_InputBuffer, m_InputBufferFp, m_Stream);
-		if (!m_Context->enqueueV2(m_Bindings.data(), m_Stream, nullptr)) {
+		if (!m_Context->enqueueV2(
+		        m_Bindings[m_BindingsIdx].data(), m_Stream, nullptr)) {
 			throw trt::TrtException();
 		}
 		cuda::cudaCast(m_OutputBufferFp, m_OutputBuffer, m_Stream);
 		cuda::cudaCopy(m_OutputBuffer, outputImage, m_Stream);
 		m_Stream.synchronize();
+		m_BindingsIdx ^= 1;
 	} catch (...) {
 		m_ErrorRecorder.rethrowException();
 	}

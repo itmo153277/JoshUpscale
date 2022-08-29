@@ -32,7 +32,8 @@ private:
 	cuda::CudaBuffer<float> m_InputBufferFp;
 	cuda::CudaBuffer<float> m_OutputBufferFp;
 	std::vector<cuda::CudaBuffer<float>> m_InterBuffers;
-	std::vector<void *> m_Bindings;
+	std::vector<void *> m_Bindings[2];
+	int m_BindingsIdx;
 	trt::TrtPtr<nvinfer1::ICudaEngine> m_Engine;
 	trt::TrtPtr<nvinfer1::IExecutionContext> m_Context;
 	cuda::CudaStream m_Stream;
