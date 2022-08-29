@@ -6,7 +6,7 @@
 # pylint: disable=unused-import
 # pylint: disable=no-member
 
-from typing import Iterator, List, Sequence, Tuple
+from typing import Dict, Iterator, List, Sequence, Tuple
 import os
 import sys
 import logging
@@ -83,39 +83,67 @@ class Session:
         output_names = model_def["outputs"]
         self._input_buf = cuda.mem_alloc(get_buf_size(
             self._engine.get_binding_shape(input_names[0])))
-        self._output_bufs = [
-            cuda.mem_alloc(get_buf_size(self._engine.get_binding_shape(x)))
-            for x in output_names
-        ]
-        self._output_buf_cpu = np.zeros(
-            self._engine.get_binding_shape(output_names[0]), dtype=np.float32)
-        for i, buf in enumerate(self._output_bufs):
-            data = np.zeros(self._engine.get_binding_shape(output_names[i]),
-                            dtype=np.float32)
-            cuda.memcpy_htod(buf, data)
+        output_shape = self._engine.get_binding_shape(output_names[0])
+        self._output_buf = self._malloc(output_shape)
+        self._output_buf_cpu = np.zeros(output_shape, dtype=np.float32)
+        self._inter_bufs = []
         if len(input_names) == 1:
-            bindings = {
+            bindings = [{
                 input_names[0]: int(self._input_buf),
-                output_names[0]: int(self._output_bufs[0]),
-            }
+                output_names[0]: int(self._output_buf),
+            }, {
+                input_names[0]: int(self._input_buf),
+                output_names[0]: int(self._output_buf),
+            }]
         else:
-            bindings = {
+            num_inter = len(input_names) - 1
+            for _ in range(2):
+                for i in range(num_inter):
+                    self._inter_bufs.append(self._malloc(
+                        self._engine.get_binding_shape(output_names[i + 1])
+                    ))
+            bindings = [{
                 input_names[0]: int(self._input_buf),
+                output_names[0]: int(self._output_buf),
                 **{
-                    input_names[i]: int(self._output_bufs[i])
-                    for i in range(1, len(input_names))
+                    input_names[i + 1]: int(self._inter_bufs[i])
+                    for i in range(num_inter)
                 },
                 **{
-                    output_names[i]: int(x)
-                    for i, x in enumerate(self._output_bufs)
-                }
-            }
-        self._bindings = [
-            bindings[self._engine.get_binding_name(i)]
-            for i in range(self._engine.num_bindings)
-        ]
+                    output_names[i + 1]: int(self._inter_bufs[num_inter + i])
+                    for i in range(num_inter)
+                },
+            }, {
+                input_names[0]: int(self._input_buf),
+                output_names[0]: int(self._output_buf),
+                **{
+                    input_names[i + 1]: int(self._inter_bufs[num_inter + i])
+                    for i in range(num_inter)
+                },
+                **{
+                    output_names[i + 1]: int(self._inter_bufs[i])
+                    for i in range(num_inter)
+                },
+            }]
+        self._bindings = [self._convert_bindings(x)
+                          for x in bindings]
+        self._bindings_idx = 0
         self._stream = cuda.Stream()
         self._context = self._engine.create_execution_context()
+
+    def _malloc(self, shape: List[int]) -> cuda.DeviceAllocation:
+        """Memory allocation."""
+        size = get_buf_size(shape)
+        data = cuda.mem_alloc(size)
+        cuda.memset_d8(data, 0, size)
+        return data
+
+    def _convert_bindings(self, binding_map: Dict[str, int]) -> List[int]:
+        """Convert bindings."""
+        return [
+            binding_map[self._engine.get_binding_name(i)]
+            for i in range(self._engine.num_bindings)
+        ]
 
     def run(self, image: np.ndarray) -> np.ndarray:
         """Run inference.
@@ -133,11 +161,12 @@ class Session:
         inp = image.ravel().astype(np.float32)
         cuda.memcpy_htod_async(self._input_buf, inp, self._stream)
         check = self._context.execute_async_v2(
-            self._bindings, self._stream.handle, None)
+            self._bindings[self._bindings_idx], self._stream.handle, None)
         assert check
         cuda.memcpy_dtoh_async(self._output_buf_cpu,
-                               self._output_bufs[0], self._stream)
+                               self._output_buf, self._stream)
         self._stream.synchronize()
+        self._bindings_idx ^= 1
         return np.squeeze(self._output_buf_cpu, axis=0).astype(np.uint8)
 
 
