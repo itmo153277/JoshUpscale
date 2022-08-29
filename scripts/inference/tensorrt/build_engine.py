@@ -271,6 +271,17 @@ class GraphDeserializer:
         layer.padding_nd = config["padding_nd"]
         return layer
 
+    def _add_reduce(self, config: Dict[str, Any]) -> trt.ILayer:
+        assert len(config["inputs"]) == 1
+        input_tensor = self._tensors[config["inputs"][0]]
+        layer = self._network.add_reduce(
+            input_tensor,
+            enum_from_string(trt.ReduceOperation, config["op"]),
+            config["axes"],
+            config["keep_dims"],
+        )
+        return layer
+
     def _add_resize(self, config: Dict[str, Any]) -> trt.ILayer:
         assert len(config["inputs"]) in [1, 2]
         input_tensor = self._tensors[config["inputs"][0]]
@@ -351,6 +362,7 @@ class GraphDeserializer:
             trt.LayerType.GATHER: self._add_gather,
             trt.LayerType.IDENTITY: self._add_identity,
             trt.LayerType.POOLING: self._add_pooling,
+            trt.LayerType.REDUCE: self._add_reduce,
             trt.LayerType.RESIZE: self._add_resize,
             trt.LayerType.SCALE: self._add_scale,
             trt.LayerType.SHUFFLE: self._add_shuffle,

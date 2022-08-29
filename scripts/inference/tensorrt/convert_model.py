@@ -163,6 +163,14 @@ class GraphSerializer:
             "padding_nd": convert_to_list(layer.padding_nd),
         }
 
+    def _get_reduce_params(self, layer: trt.ILayer) -> Dict[str, Any]:
+        layer.__class__ = trt.IReduceLayer
+        return {
+            "op": layer.op.name,
+            "axes": layer.axes,
+            "keep_dims": layer.keep_dims,
+        }
+
     def _get_resize_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IResizeLayer
         params = {
@@ -228,6 +236,7 @@ class GraphSerializer:
             trt.LayerType.GATHER: self._get_gather_params,
             trt.LayerType.IDENTITY: self._get_identity_params,
             trt.LayerType.POOLING: self._get_pooling_params,
+            trt.LayerType.REDUCE: self._get_reduce_params,
             trt.LayerType.RESIZE: self._get_resize_params,
             trt.LayerType.SCALE: self._get_scale_params,
             trt.LayerType.SHUFFLE: self._get_shuffle_params,
