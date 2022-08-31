@@ -119,20 +119,19 @@ class DataReader(quantization.CalibrationDataReader):
             i.name: DataReader.ONNX_TYPES[i.type.tensor_type.elem_type]
             for i in model.graph.input
         }
-        if len(self.names) > 2:
+        self.states = {}
+        last_gen = None
+        if len(self.names) > 1:
             self.pad_frame_shape = [
                 d.dim_value
                 for d in model.graph.input[2].type.tensor_type.shape.dim
             ]
-        self.states = {}
-        last_gen = None
-        for name in self.names[-1:1:-1]:
-            self.states[name] = self._normalize_and_pad(
-                next(self.lr_data_iter),
-                self.dtypes[name]
-            )
-        last_gen = next(self.hr_data_iter)
-        if len(self.names) > 1:
+            for name in self.names[-1:1:-1]:
+                self.states[name] = self._normalize_and_pad(
+                    next(self.lr_data_iter),
+                    self.dtypes[name]
+                )
+                last_gen = next(self.hr_data_iter)
             self.states[self.names[1]] = DataReader._normalize(
                 last_gen,
                 self.dtypes[self.names[1]]
@@ -166,23 +165,20 @@ class DataReader(quantization.CalibrationDataReader):
             i = next(self.step_iter, None)
             if i is None:
                 return None
-        last_gen = next(self.hr_data_iter, None)
-        if last_gen is None:
-            return None
         cur_frame = next(self.lr_data_iter)
         value = {
             self.names[0]: cur_frame,
             **self.states
         }
-        for old_name, new_name in zip(self.names[-2:1:-1],
-                                      self.names[-1:2:-1]):
-            self.states[new_name] = self.states[old_name]
-        if len(self.names) > 1:
+        last_gen = next(self.hr_data_iter, None)
+        if len(self.names) > 1 and last_gen is not None:
             self.states[self.names[1]] = DataReader._normalize(
                 last_gen,
                 self.dtypes[self.names[1]]
             )
-        if len(self.names) > 2:
+            for old_name, new_name in zip(self.names[-2:1:-1],
+                                          self.names[-1:2:-1]):
+                self.states[new_name] = self.states[old_name]
             self.states[self.names[2]] = self._normalize_and_pad(
                 cur_frame,
                 self.dtypes[self.names[2]]
