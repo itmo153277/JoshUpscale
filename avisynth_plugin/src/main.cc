@@ -5,6 +5,7 @@
 #include <JoshUpscale/core.h>
 #include <avisynth.h>
 
+#include <cstddef>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -20,6 +21,7 @@ private:
 	std::unique_ptr<JoshUpscale::core::Runtime> m_Runtime;
 };
 
+// NOLINTNEXTLINE
 JoshUpscalePlugin::JoshUpscalePlugin(PClip _child, IScriptEnvironment *env,
     const char *modelPath, const char *enginePath)
     : GenericVideoFilter(_child) {
@@ -48,19 +50,21 @@ PVideoFrame __stdcall JoshUpscalePlugin::GetFrame(
 	inputImage.height = 270;
 	inputImage.stride = -src->GetPitch();
 	inputImage.ptr = reinterpret_cast<std::byte *>(const_cast<BYTE *>(
-	    src->GetReadPtr() + (src->GetHeight() - 1) * src->GetPitch()));
+	    src->GetReadPtr() +
+	    (static_cast<std::ptrdiff_t>(src->GetHeight()) - 1) * src->GetPitch()));
 	JoshUpscale::core::Image outputImage;
 	outputImage.width = 1920;
 	outputImage.height = 1080;
 	outputImage.stride = -dst->GetPitch();
 	outputImage.ptr = reinterpret_cast<std::byte *>(
-	    dst->GetWritePtr() + (dst->GetHeight() - 1) * dst->GetPitch());
+	    dst->GetWritePtr() +
+	    (static_cast<std::ptrdiff_t>(dst->GetHeight()) - 1) * dst->GetPitch());
 	m_Runtime->processImage(inputImage, outputImage);
 	return dst;
 }
 
 AVSValue __cdecl Create_JoshUpscale(
-    AVSValue args, void *, IScriptEnvironment *env) {
+    AVSValue args, [[maybe_unused]] void *user_data, IScriptEnvironment *env) {
 	return new JoshUpscalePlugin(
 	    args[0].AsClip(), env, args[1].AsString(), args[2].AsString());
 }

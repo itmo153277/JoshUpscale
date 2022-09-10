@@ -2,14 +2,7 @@
 
 #pragma once
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable : 4100)
-#endif
 #include <NvInfer.h>
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #include <atomic>
 #include <cstdint>
