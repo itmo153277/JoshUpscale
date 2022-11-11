@@ -1,0 +1,4 @@
+tvm==0.10.0
+pyyaml
+numpy
+opencv-python-headless

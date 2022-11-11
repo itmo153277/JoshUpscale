@@ -64,7 +64,7 @@ def get_buf_size(shape: Sequence[int]) -> int:
 class Session:
     """Inference session."""
 
-    def __init__(self, model_path: str, engine_path) -> None:
+    def __init__(self, model_path: str, engine_path: str) -> None:
         """Create Session.
 
         Parameters
