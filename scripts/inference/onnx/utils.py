@@ -25,3 +25,22 @@ def simplify_model(model: onnx.ModelProto,
     model, check = simplify(model, check_n=num_checks)
     assert check, "Model is broken"
     return model
+
+
+def get_opset_version(model: onnx.ModelProto) -> int:
+    """Get ONNX opset version.
+
+    Parameters
+    ----------
+    model: onnx.ModelProto
+        Input model
+
+    Returns
+    -------
+    int
+        opset version
+    """
+    for imp in model.opset_import:
+        if imp.domain == "":
+            return imp.version
+    return 0

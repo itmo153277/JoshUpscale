@@ -140,6 +140,14 @@ class GraphSerializer:
             "mode": layer.mode.name,
         }
 
+    def _get_grid_sample_params(self, layer: trt.ILayer) -> Dict[str, Any]:
+        layer.__class__ = trt.IGridSampleLayer
+        return {
+            "align_corners": layer.align_corners,
+            "interpolation_mode": layer.interpolation_mode.name,
+            "sample_mode": layer.sample_mode.name,
+        }
+
     def _get_identity_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         input_name = layer.get_input(0).name
         output_name = layer.get_output(0).name
@@ -234,6 +242,7 @@ class GraphSerializer:
             trt.LayerType.DECONVOLUTION: self._get_deconvolution_params,
             trt.LayerType.ELEMENTWISE: self._get_elementwise_params,
             trt.LayerType.GATHER: self._get_gather_params,
+            trt.LayerType.GRID_SAMPLE: self._get_grid_sample_params,
             trt.LayerType.IDENTITY: self._get_identity_params,
             trt.LayerType.POOLING: self._get_pooling_params,
             trt.LayerType.REDUCE: self._get_reduce_params,

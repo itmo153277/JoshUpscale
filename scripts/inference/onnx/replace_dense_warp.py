@@ -7,8 +7,9 @@ import sys
 import argparse
 import numpy as np
 import onnx
+from onnx import version_converter
 from graph import Graph
-from utils import simplify_model
+from utils import simplify_model, get_opset_version
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,6 +68,8 @@ def main(
         Exit code
     """
     model = onnx.load(model_path)
+    if get_opset_version(model) < 16:
+        model = version_converter.convert_version(model, 16)
     graph = Graph(model)
 
     out_name = graph.find_node_by_name(OUT_NODE).input[0]
@@ -90,15 +93,14 @@ def main(
         [width * 0.5, height * 0.5], dtype=np.float32))
     graph.create_node("grid_norm", "Div", ["grid_val", "grid_norm_const"])
     graph.create_constant("grid_shift_const", np.array(
-        [-1, -1], dtype=np.float32))
+        [-1 + 1 / width, -1 + 1 / height], dtype=np.float32))
     graph.create_node("grid_shift", "Add", ["grid_norm", "grid_shift_const"])
     graph.create_node(
         "grid_sample", "GridSample", [img_inp, "grid_shift"],
         outputs=[out_name],
-        domain="com.microsoft",
         mode="bilinear",
         padding_mode="border",
-        align_corners=False
+        align_corners=0,
     )
 
     model = graph.serialize()

@@ -237,13 +237,28 @@ class GraphDeserializer:
         assert len(config["inputs"]) == 2
         input_tensor = self._tensors[config["inputs"][0]]
         indices = self._tensors[config["inputs"][1]]
-        layer = self._network.add_gather(
+        layer = self._network.add_gather_v2(
             input_tensor,
             indices,
             enum_from_string(trt.GatherMode, config["mode"])
         )
         layer.axis = config["axis"]
         layer.num_elementwise_dims = config["num_elementwise_dims"]
+        return layer
+
+    def _add_grid_sample(self, config: Dict[str, Any]) -> trt.ILayer:
+        assert len(config["inputs"]) == 2
+        input_tensor = self._tensors[config["inputs"][0]]
+        grid = self._tensors[config["inputs"][1]]
+        layer = self._network.add_grid_sample(
+            input_tensor,
+            grid,
+        )
+        layer.align_corners = config["align_corners"]
+        layer.interpolation_mode = enum_from_string(
+            trt.InterpolationMode, config["interpolation_mode"])
+        layer.sample_mode = enum_from_string(
+            trt.SampleMode, config["sample_mode"])
         return layer
 
     def _add_identity(self, config: Dict[str, Any]) -> trt.ILayer:
@@ -360,6 +375,7 @@ class GraphDeserializer:
             trt.LayerType.DECONVOLUTION: self._add_deconvolution,
             trt.LayerType.ELEMENTWISE: self._add_elementwise,
             trt.LayerType.GATHER: self._add_gather,
+            trt.LayerType.GRID_SAMPLE: self._add_grid_sample,
             trt.LayerType.IDENTITY: self._add_identity,
             trt.LayerType.POOLING: self._add_pooling,
             trt.LayerType.REDUCE: self._add_reduce,
