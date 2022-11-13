@@ -82,8 +82,8 @@ class Session:
         input_names = [x["name"] for x in model_def["inputs"]]
         output_names = model_def["outputs"]
         self._input_buf = cuda.mem_alloc(get_buf_size(
-            self._engine.get_binding_shape(input_names[0])))
-        output_shape = self._engine.get_binding_shape(output_names[0])
+            self._engine.get_tensor_shape(input_names[0])))
+        output_shape = self._engine.get_tensor_shape(output_names[0])
         self._output_buf = self._malloc(output_shape)
         self._output_buf_cpu = np.zeros(output_shape, dtype=np.float32)
         self._inter_bufs = []
@@ -100,7 +100,7 @@ class Session:
             for _ in range(2):
                 for i in range(num_inter):
                     self._inter_bufs.append(self._malloc(
-                        self._engine.get_binding_shape(output_names[i + 1])
+                        self._engine.get_tensor_shape(output_names[i + 1])
                     ))
             bindings = [{
                 input_names[0]: int(self._input_buf),
@@ -141,7 +141,7 @@ class Session:
     def _convert_bindings(self, binding_map: Dict[str, int]) -> List[int]:
         """Convert bindings."""
         return [
-            binding_map[self._engine.get_binding_name(i)]
+            binding_map[self._engine.get_tensor_name(i)]
             for i in range(self._engine.num_bindings)
         ]
 
