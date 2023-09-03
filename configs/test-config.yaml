@@ -12,6 +12,7 @@ train_dataset:
     - name: RepeatOp
     - name: RandomCropOp
       crop_size: 32
+      num_img: 16
     - name: NormalizeOp
       crop_size: 32
     - name: FilterFlatOp

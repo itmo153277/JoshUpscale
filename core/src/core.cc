@@ -47,7 +47,7 @@ Runtime *createRuntime(
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		auto size = static_cast<std::streamsize>(file.tellg());
 		file.seekg(0, std::ios::beg);
-		engine.resize(size);
+		engine.resize(static_cast<std::size_t>(size));
 		file.read(reinterpret_cast<char *>(engine.data()), size);
 	}
 	::YAML::Node modelConfig;

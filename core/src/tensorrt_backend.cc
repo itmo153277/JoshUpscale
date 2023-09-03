@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "JoshUpscale/core/cuda.h"
@@ -41,18 +40,13 @@ TensorRTBackend::TensorRTBackend(const std::vector<std::string> &inputNames,
 			}
 		}
 		for (std::size_t i = 0; i < 2; ++i) {
-			std::unordered_map<std::string, void *> bindingMap;
-			bindingMap[inputNames[0]] = m_InputBufferFp.get();
-			bindingMap[outputNames[0]] = m_OutputBufferFp.get();
+			m_BindingMaps[i][inputNames[0]] = m_InputBufferFp.get();
+			m_BindingMaps[i][outputNames[0]] = m_OutputBufferFp.get();
 			for (std::size_t j = 0; j < interBufs; ++j) {
 				void *ptr1 = m_InterBuffers[j + i * interBufs].get();
 				void *ptr2 = m_InterBuffers[j + (i ^ 1) * interBufs].get();
-				bindingMap[inputNames[j + 1]] = ptr1;
-				bindingMap[outputNames[j + 1]] = ptr2;
-			}
-			for (std::int32_t j = 0; j < m_Engine->getNbBindings(); ++j) {
-				m_Bindings[i].push_back(
-				    bindingMap[m_Engine->getBindingName(j)]);
+				m_BindingMaps[i][inputNames[j + 1]] = ptr1;
+				m_BindingMaps[i][outputNames[j + 1]] = ptr2;
 			}
 		}
 	} catch (...) {
@@ -67,8 +61,13 @@ void TensorRTBackend::processImage(
 	try {
 		cuda::cudaCopy(inputImage, m_InputBuffer, m_Stream);
 		cuda::cudaCast(m_InputBuffer, m_InputBufferFp, m_Stream);
-		if (!m_Context->enqueueV2(
-		        m_Bindings[m_BindingsIdx].data(), m_Stream, nullptr)) {
+		for (const auto &[tensorName, tensorAddr] :
+		    m_BindingMaps[m_BindingsIdx]) {
+			if (!m_Context->setTensorAddress(tensorName.c_str(), tensorAddr)) {
+				throw trt::TrtException();
+			}
+		}
+		if (!m_Context->enqueueV3(m_Stream)) {
 			throw trt::TrtException();
 		}
 		cuda::cudaCast(m_OutputBufferFp, m_OutputBuffer, m_Stream);

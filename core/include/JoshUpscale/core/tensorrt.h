@@ -10,6 +10,7 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -22,12 +23,12 @@ namespace core {
 
 namespace trt {
 
-struct TrtException : std::exception {
+struct TrtException : std::runtime_error {
 	TrtException() : TrtException("TensorRT general failure") {
 	}
 	explicit TrtException(const std::string &msg) : TrtException(msg.c_str()) {
 	}
-	explicit TrtException(const char *msg) : std::exception(msg) {
+	explicit TrtException(const char *msg) : std::runtime_error(msg) {
 	}
 };
 
@@ -43,7 +44,7 @@ template <typename T>
 struct TrtPtr : std::unique_ptr<T> {
 	using unique_ptr = std::unique_ptr<T>;
 
-	explicit TrtPtr(nullptr_t) : unique_ptr(nullptr) {
+	explicit TrtPtr(std::nullptr_t) : unique_ptr(nullptr) {
 	}
 	explicit TrtPtr(T *obj) : unique_ptr(throwIfNull(obj)) {
 	}

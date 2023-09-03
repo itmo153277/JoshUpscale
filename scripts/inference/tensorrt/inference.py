@@ -88,7 +88,7 @@ class Session:
         self._output_buf_cpu = np.zeros(output_shape, dtype=np.float32)
         self._inter_bufs = []
         if len(input_names) == 1:
-            bindings = [{
+            self._bindings = [{
                 input_names[0]: int(self._input_buf),
                 output_names[0]: int(self._output_buf),
             }, {
@@ -102,7 +102,7 @@ class Session:
                     self._inter_bufs.append(self._malloc(
                         self._engine.get_tensor_shape(output_names[i + 1])
                     ))
-            bindings = [{
+            self._bindings = [{
                 input_names[0]: int(self._input_buf),
                 output_names[0]: int(self._output_buf),
                 **{
@@ -125,8 +125,6 @@ class Session:
                     for i in range(num_inter)
                 },
             }]
-        self._bindings = [self._convert_bindings(x)
-                          for x in bindings]
         self._bindings_idx = 0
         self._stream = cuda.Stream()
         self._context = self._engine.create_execution_context()
@@ -137,13 +135,6 @@ class Session:
         data = cuda.mem_alloc(size)
         cuda.memset_d8(data, 0, size)
         return data
-
-    def _convert_bindings(self, binding_map: Dict[str, int]) -> List[int]:
-        """Convert bindings."""
-        return [
-            binding_map[self._engine.get_tensor_name(i)]
-            for i in range(self._engine.num_bindings)
-        ]
 
     def run(self, image: np.ndarray) -> np.ndarray:
         """Run inference.
@@ -160,8 +151,11 @@ class Session:
         """
         inp = image.ravel().astype(np.float32)
         cuda.memcpy_htod_async(self._input_buf, inp, self._stream)
-        check = self._context.execute_async_v2(
-            self._bindings[self._bindings_idx], self._stream.handle, None)
+        for tensor_name, tensor_addr in \
+                self._bindings[self._bindings_idx].items():
+            check = self._context.set_tensor_address(tensor_name, tensor_addr)
+            assert check
+        check = self._context.execute_async_v3(self._stream.handle)
         assert check
         cuda.memcpy_dtoh_async(self._output_buf_cpu,
                                self._output_buf, self._stream)

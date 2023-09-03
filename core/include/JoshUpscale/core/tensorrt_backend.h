@@ -3,8 +3,9 @@
 #pragma once
 
 #include <cstddef>
-#include <ranges>
+#include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "JoshUpscale/core/cuda.h"
@@ -32,7 +33,7 @@ private:
 	cuda::CudaBuffer<float> m_InputBufferFp;
 	cuda::CudaBuffer<float> m_OutputBufferFp;
 	std::vector<cuda::CudaBuffer<float>> m_InterBuffers;
-	std::vector<void *> m_Bindings[2];
+	std::unordered_map<std::string, void *> m_BindingMaps[2];
 	int m_BindingsIdx;
 	trt::TrtPtr<nvinfer1::ICudaEngine> m_Engine;
 	trt::TrtPtr<nvinfer1::IExecutionContext> m_Context;

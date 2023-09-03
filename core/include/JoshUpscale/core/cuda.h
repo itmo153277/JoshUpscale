@@ -6,8 +6,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <exception>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include "JoshUpscale/core/tensor.h"
@@ -21,13 +21,13 @@ namespace cuda {
 constexpr int WARP_SIZE = 32;
 constexpr int ALIGN_SIZE = WARP_SIZE * 4;
 
-struct CudaException : std::exception {
+struct CudaException : std::runtime_error {
 	CudaException() : CudaException("CUDA general failure") {
 	}
 	explicit CudaException(::cudaError_t error)
 	    : CudaException(::cudaGetErrorString(error)) {
 	}
-	explicit CudaException(const char *msg) : std::exception(msg) {
+	explicit CudaException(const char *msg) : std::runtime_error(msg) {
 	}
 };
 
@@ -87,7 +87,7 @@ public:
 	CudaStream() {
 		cudaCheck(::cudaStreamCreate(&m_Stream));
 	}
-	explicit CudaStream(nullptr_t) {
+	explicit CudaStream(std::nullptr_t) {
 	}
 	~CudaStream() {
 		if (m_Stream != nullptr) {

@@ -1,5 +1,4 @@
---extra-index-url https://pypi.ngc.nvidia.com
-nvidia-tensorrt==8.5.1.7
+tensorrt==8.6.1
 pycuda
 pyyaml
 numpy

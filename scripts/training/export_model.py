@@ -14,6 +14,8 @@ import onnx
 import tf2onnx
 from onnxsim import simplify
 
+keras.__internal__.enable_unsafe_deserialization()
+
 
 def parse_args() -> argparse.Namespace:
     """

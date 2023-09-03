@@ -14,6 +14,8 @@ set_target_properties(JoshUpscale PROPERTIES
 generate_export_header(JoshUpscale
   EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/generated/include/JoshUpscale/core/export.h
 )
+target_compile_features(JoshUpscale PUBLIC cxx_std_20)
+target_compile_features(JoshUpscale PUBLIC cuda_std_17)
 target_include_directories(JoshUpscale PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(JoshUpscale PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/public
@@ -24,13 +26,3 @@ target_link_libraries(JoshUpscale PRIVATE
   CUDA::cudart
   TensorRT::nvinfer
 )
-
-if (ENABLE_LINT)
-  if (MSVC)
-    set_target_properties(JoshUpscale PROPERTIES
-      VS_GLOBAL_RunCodeAnalysis true
-      VS_GLOBAL_EnableMicrosoftCodeAnalysis true
-      VS_GLOBAL_EnableClangTidyCodeAnalysis true
-    )
-  endif()
-endif()

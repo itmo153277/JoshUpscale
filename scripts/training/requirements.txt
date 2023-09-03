@@ -1,10 +1,10 @@
-tensorflow==2.9.1
-tensorflow-addons==0.17.1
+tensorflow==2.13.0
+tensorflow-addons==0.21.0
 
-onnx==1.12.0
-onnxruntime==1.12.1
-onnx-simplifier==0.4.7
-tf2onnx==1.12.0
+onnx==1.14.1
+onnxruntime==1.15.1
+onnx-simplifier==0.4.33
+tf2onnx==1.15.1
 
 imageio
 opencv-python-headless

@@ -49,7 +49,7 @@ std::string demangle(const char *name) {
 }  // namespace
 
 void printException(
-    std::ostream &os, const std::exception &e, const type_info &info) {
+    std::ostream &os, const std::exception &e, const std::type_info &info) {
 	os << demangle(info.name()) << ": " << e.what();
 	try {
 		std::rethrow_if_nested(e);
