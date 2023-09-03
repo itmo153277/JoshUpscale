@@ -128,19 +128,19 @@ def display_data(dataset: tf.data.Dataset, num_img: int) -> None:
             sp = fig.add_subplot(2 * num_img, seq_len,
                                  ind * 2 * seq_len + 1 + i)
             sp.axis("off")
-            plt.imshow(data["input"][ind, i][:, :, ::-1])
+            plt.imshow(data["input"][ind, i][:, :, ::-1] + 0.5)
         if "last" in spec:
             sp = fig.add_subplot(2 * num_img, seq_len,
                                  (ind + 1) * 2 * seq_len - 1)
             sp.axis("off")
-            plt.imshow(data["last"][ind][:, :, ::-1])
+            plt.imshow(data["last"][ind][:, :, ::-1] + 0.5)
             sp = fig.add_subplot(2 * num_img, seq_len, (ind + 1) * 2 * seq_len)
             sp.axis("off")
-            plt.imshow(data["target"][ind][:, :, ::-1])
+            plt.imshow(data["target"][ind][:, :, ::-1] + 0.5)
         else:
             for i in range(seq_len):
                 sp = fig.add_subplot(2 * num_img, seq_len,
                                      (ind * 2 + 1) * seq_len + 1 + i)
                 sp.axis("off")
-                plt.imshow(data["target"][ind, i][:, :, ::-1])
+                plt.imshow(data["target"][ind, i][:, :, ::-1] + 0.5)
     plt.show()
