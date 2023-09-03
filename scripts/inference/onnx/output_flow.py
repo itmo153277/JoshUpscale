@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
 
 # Hardcoded nodes
 INPUT_NODE = "final/full/generator/space_to_depth/SpaceToDepth"
-TARGET_NODE = "final/full/postprocess/mul"
+TARGET_NODE = "final/full/postprocess/add"
 
 
 def main(
