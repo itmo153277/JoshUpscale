@@ -28,7 +28,7 @@ def create_gif(images: np.ndarray, fps: int = 15) -> bytes:
     """
     # pylint: disable=invalid-name, unexpected-keyword-arg
     images = images[:, :, :, ::-1]
-    images = (np.clip(images, 0, 1) * 255).astype(np.uint8)
+    images = (np.clip(images + 0.5, 0, 1) * 255).astype(np.uint8)
     filename = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".gif", delete=False) as f:

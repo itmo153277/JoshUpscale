@@ -144,7 +144,7 @@ class DataReader(quantization.CalibrationDataReader):
     @staticmethod
     def _normalize(img: np.ndarray, dtype: np.dtype) -> np.ndarray:
         """Normalize data."""
-        return np.transpose(img.astype(dtype) / 255, [0, 3, 1, 2])
+        return np.transpose(img / 255 - 0.5, [0, 3, 1, 2]).astype(dtype) 
 
     def _normalize_and_pad(self, img: np.ndarray,
                            dtype: np.dtype) -> np.ndarray:

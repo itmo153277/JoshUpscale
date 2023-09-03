@@ -208,7 +208,7 @@ class PreprocessLayer(layers.Layer):
         tf.Tensor
             Output tensor
         """
-        return inputs / 255
+        return inputs / 255 - 0.5
 
 
 class PostprocessLayer(layers.Layer):
@@ -228,7 +228,7 @@ class PostprocessLayer(layers.Layer):
             Output tensor
         """
         out = inputs
-        out = out * 255
+        out = (out + 0.5) * 255
         out = K.cast(out, "uint8")
         return out
 
@@ -236,7 +236,7 @@ class PostprocessLayer(layers.Layer):
 class ClipLayer(layers.Layer):
     """Value clipping layer."""
 
-    def __init__(self, min_val: float = 0, max_val: float = 1,
+    def __init__(self, min_val: float = -0.5, max_val: float = 0.5,
                  **kwargs) -> None:
         """Create ClipLayer.
 

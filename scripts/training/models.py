@@ -803,7 +803,7 @@ def get_vgg(
 
     Inputs:
     - (N x crop_size*4 x crop_size*4 x 3) - input image
-                                            (normalized to [0-1] range)
+                                            (normalized to [-0.5, 0.5] range)
 
     Outputs are defined via out_layers
 
@@ -826,7 +826,7 @@ def get_vgg(
         name="input"
     )
     out = input_img
-    out = layers.Rescaling(255, name="rescale")(out)
+    out = layers.Rescaling(scale=255, offset=0.5, name="rescale")(out)
     out = applications.vgg19.preprocess_input(out)
     vgg_net = applications.VGG19(
         include_top=False,

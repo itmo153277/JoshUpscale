@@ -281,11 +281,11 @@ class NormalizeOp(MapOp):
             "input": tf.reshape(
                 tf.cast(data["input"], tf.float32),
                 [10, self.crop_size, self.crop_size, 3]
-            ) / 255.0,
+            ) / 255.0 - 0.5,
             "target": tf.reshape(
                 tf.cast(data["target"], tf.float32),
                 [10, self.crop_size*4, self.crop_size*4, 3]
-            ) / 255.0,
+            ) / 255.0 - 0.5,
         }
 
 

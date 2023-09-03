@@ -55,8 +55,8 @@ train_dataset:
     - name: RandomNoiseOp
       stddev: 0.01
     - name: ClipOp
-      minval: 0
-      maxval: 1
+      minval: -0.5
+      maxval: 0.5
     - name: SingleFrameMapOp
       num_parallel_calls: -1
       flow_frames: 4
