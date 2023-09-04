@@ -9,6 +9,7 @@ from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import schedules
 from tensorflow.keras import applications
+from tensorflow.keras import regularizers
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
     PreprocessLayer, PostprocessLayer, DenseWarpLayer
 from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
@@ -16,6 +17,7 @@ from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
 
 Activation = Union[str, Dict[str, Any]]
 LearningRateSchedule = Union[float, Dict[str, Any]]
+Regularizer = Union[str, Dict[str, Any]]
 
 ACTIVATIONS = {
     "relu": layers.ReLU,
@@ -39,7 +41,7 @@ def get_activation(activation: Activation) -> Callable[..., layers.Layer]:
 
     Returns
     -------
-    keras.layers.Layer
+    Callable[..., keras.layers.Layer]
         Activation layer
     """
     if isinstance(activation, str):
@@ -83,6 +85,30 @@ def get_learning_rate(lr_schedule: LearningRateSchedule) -> \
         **{k: v for k, v in lr_schedule.items() if k != "name"})
 
 
+def get_regularizer(regularizer: Regularizer) -> regularizers.Regularizer:
+    """Get regularizer.
+
+    Parameters
+    ----------
+    regularizer: Regularizer
+        Regularizer definition
+
+    Returns
+    -------
+    keras.regularuzers.Regularizer
+        Regularizer
+    """
+    if isinstance(regularizer, str):
+        return regularizers.get(regularizer)
+    elif not isinstance(regularizer, dict):
+        raise TypeError("Unknown type")
+    config = {
+        "class_name": regularizer["name"],
+        "config": {k: v for k, v in regularizer.items() if k != "name"}
+    }
+    return regularizers.get(config)
+
+
 def get_scoped_name(scope: Union[str, None], name: str) -> Union[str, None]:
     """Get scoped name.
 
@@ -101,6 +127,52 @@ def get_scoped_name(scope: Union[str, None], name: str) -> Union[str, None]:
     if scope is None:
         return None
     return f"{scope}_{name}"
+
+
+def get_layer_deep(model: keras.Model, name: str) -> layers.Layer:
+    """Get model layer from name.
+
+    Parameters
+    ----------
+    model: keras.Model
+        Model
+    name: str
+        dot-separated layer name
+
+    Returns
+    -------
+    keras.layers.Layer
+        Layer
+    """
+    current = model
+    for seg in name.split("."):
+        current = current.get_layer(seg)
+    return current
+
+
+def add_regularization(model: keras.Model,
+                       config: Union[Dict[str, Regularizer], Regularizer]) \
+        -> None:
+    """Add regularization to model.
+
+    Parameters
+    ----------
+    model: keras.Model
+        Model
+    config: Union[Dict[str, Regularizer], Regularizer]
+        Global regularizer config or per-layer regularizer config
+    """
+    if isinstance(config, str) or "name" in config:
+        pairs = [(model.trainable_variables, config)]
+    else:
+        pairs = [(get_layer_deep(model, k).trainable_variables, v)
+                 for k, v in config.items()]
+    for weights, reg_config in pairs:
+        reg = get_regularizer(reg_config)
+
+        for w in weights:
+            with K.name_scope(get_scoped_name(w.name, "reg")):
+                model.add_loss(lambda: reg(w))
 
 
 def res_block(inp: tf.Tensor, num_filters: int,
@@ -699,6 +771,7 @@ def get_frvsr_single(
     crop_size: int,
     learning_rate: Any = 0.0005,
     steps_per_execution: Union[int, None] = None,
+    regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
     name: str = "frvsr",
 ):
     """Get FRVSR model (single).
@@ -722,6 +795,8 @@ def get_frvsr_single(
         Learning rate
     steps_per_execution: int
         Steps per single execution
+    regularization: Union[Dict[str, Regularizer], Regularizer, None]
+        Regularization config
 
     Returns
     -------
@@ -733,6 +808,8 @@ def get_frvsr_single(
         crop_size=crop_size,
         name=name
     )
+    if regularization is not None:
+        add_regularization(model, regularization)
     model.compile(
         learning_rate=learning_rate,
         steps_per_execution=steps_per_execution
@@ -747,6 +824,7 @@ def get_frvsr(
     crop_size: int,
     learning_rate: LearningRateSchedule = 0.0005,
     steps_per_execution: Union[int, None] = None,
+    regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
     name: str = "frvsr",
 ) -> keras.Model:
     """Get FRVSR model.
@@ -774,6 +852,8 @@ def get_frvsr(
         Learning rate
     steps_per_execution: Union[None, int]
         Steps per single execution
+    regularization: Union[Dict[str, Regularizer], Regularizer, None]
+        Regularization config
 
     Returns
     -------
@@ -787,6 +867,8 @@ def get_frvsr(
         crop_size=crop_size,
         name=name
     )
+    if regularization is not None:
+        add_regularization(model, regularization)
     model.compile(
         learning_rate=get_learning_rate(learning_rate),
         steps_per_execution=steps_per_execution
@@ -858,6 +940,7 @@ def get_gan(
     learning_rate: LearningRateSchedule = 0.0005,
     loss_config: Union[None, Dict[str, Any]] = None,
     steps_per_execution: Union[None, int] = None,
+    regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
     name: str = "gan",
 ) -> keras.Model:
     """Get GAN model.
@@ -899,8 +982,10 @@ def get_gan(
         Learning rate
     loss_config: Union[None, Dict[str, Any]]
         Loss config
-    steps_per_execution: Union[NOne, int]
+    steps_per_execution: Union[None, int]
         Steps per execution
+    regularization: Union[Dict[str, Regularizer], Regularizer, None]
+        Regularization config
 
     Returns
     -------
@@ -917,6 +1002,8 @@ def get_gan(
         crop_size=crop_size,
         name=name,
     )
+    if regularization is not None:
+        add_regularization(model, regularization)
     model.compile(
         learning_rate=get_learning_rate(learning_rate),
         steps_per_execution=steps_per_execution,

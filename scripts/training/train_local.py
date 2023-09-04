@@ -76,7 +76,7 @@ def init(gpus: Union[List[str], None] = None,
     if xla:
         tf.config.optimizer.set_jit("autoclustering")
     if random_seed is not None:
-        keras.utils.set_random_seed(2)
+        keras.utils.set_random_seed(random_seed)
     strategy = tf.distribute.get_strategy()
     if len(physical_devices) > 1:
         strategy = tf.distribute.MirroredStrategy(

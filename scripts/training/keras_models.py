@@ -154,7 +154,7 @@ class FRVSRModelSingle(keras.Model):
         self.loss_tr.update_state(loss, sample_weight=batch_size)
 
         # Average loss across all replicas is summed
-        return loss / num_replicas
+        return tf.add_n(self.losses + [loss]) / num_replicas
 
     @staticmethod
     def _build_model_args(
@@ -274,7 +274,7 @@ class FRVSRModel(JoshUpscaleModel):
         self.loss_tr.update_state(loss, sample_weight=batch_size)
 
         # Average loss across all replicas is summed
-        return loss / num_replicas
+        return tf.add_n(self.losses + [loss]) / num_replicas
 
     @staticmethod
     def _build_model_args(
@@ -553,8 +553,8 @@ class GANModel(JoshUpscaleModel):
         if self.loss_config["vgg_loss"] > 0:
             gen_loss.append(self.loss_config["vgg_loss"] * vgg_loss)
 
-        gen_loss = tf.add_n(gen_loss)
-        discr_loss = tf.add_n(discr_loss)
+        gen_loss = tf.add_n(gen_loss + self.losses)
+        discr_loss = tf.add_n(discr_loss + self.losses)
         t_balance = adv_loss - discr_real_loss
 
         self.content_loss_tr.update_state(
@@ -575,7 +575,6 @@ class GANModel(JoshUpscaleModel):
             "gen_loss": gen_loss / num_replicas,
             "discr_loss": discr_loss / num_replicas,
             "t_balance": t_balance,
-            "loss": (gen_loss + discr_loss) / num_replicas,
         }
 
     def compute_metrics(self, x, y, y_pred, sample_weight):

@@ -1,4 +1,5 @@
 # Config for model tests
+seed: 2
 train_dataset:
   batch_size: 16
   config:
