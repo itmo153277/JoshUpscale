@@ -72,7 +72,7 @@ def init(gpus: Union[List[str], None] = None,
             details = tf.config.experimental.get_device_details(device)
             compute_capability = details.get("compute_capability", None)
             if compute_capability and compute_capability[0] >= 7:
-                keras.mixed_precision.experimental.set_policy("mixed_float16")
+                keras.mixed_precision.set_global_policy("mixed_float16")
     if xla:
         tf.config.optimizer.set_jit("autoclustering")
     if random_seed is not None:

@@ -1,7 +1,7 @@
 # Config for model tests
 seed: 2
 train_dataset:
-  batch_size: 16
+  batch_size: 8
   config:
     - name: LocalDatasetOp
       lr_path: /content/img/lr/*.png
@@ -34,8 +34,26 @@ train_dataset:
     - name: ClipOp
       minval: -0.5
       maxval: 0.5
-    - name: SingleFrameMapOp
-      flow_frames: 4
+    - name: FilterFlatOp
+      threshold: 0.03
+val_dataset:
+  batch_size: 8
+  play_size: 8
+  val_size: 160
+  config:
+    - name: LocalDatasetOp
+      lr_path: /content/img/lr/*.png
+      hr_path: /content/img/hr/*.jpg
+      shuffle: True
+    - name: TakeOp
+      size: 2
+    - name: CacheOp
+    - name: RepeatOp
+    - name: RandomCropOp
+      crop_size: 32
+      num_img: 1
+    - name: NormalizeOp
+      crop_size: 32
     - name: FilterFlatOp
       threshold: 0.03
 models:
@@ -66,14 +84,20 @@ models:
       model: flow
     skip_processing: True
   frvsr:
-    name: frvsr-single
+    name: frvsr
     inference_model:
       model: train_infer
+    flow_model:
+      model: flow
+    generator_model:
+      model: generator
     crop_size: 32
+    regularization: l1
 train:
   model: frvsr
-  epochs: 10
-  steps_per_epoch: 10
+  epochs: 20
+  steps_per_epoch: 100
+  output_dir: /content/train
 export:
   full:
     model_path: /content/model.json

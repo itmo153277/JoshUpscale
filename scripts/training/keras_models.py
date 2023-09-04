@@ -48,6 +48,7 @@ class JoshUpscaleModel(keras.Model):
         """
         x, _, _ = keras.utils.unpack_x_y_sample_weight(data)
         inputs = x["input"]
+        targets = x["target"]
         shape = tf.shape(inputs)
         batch_size = shape[0]
         height = shape[2]
@@ -70,6 +71,22 @@ class JoshUpscaleModel(keras.Model):
             last_frames = outputs["last_frames"]
         gen_outputs = tf.stack(gen_outputs, axis=1)
         pre_warps = tf.stack(pre_warps[1:], axis=1)
+        t_inputs = tf.reshape(inputs, [-1, height, width, 3])
+        t_inputs = UpscaleLayer(
+            scale=4,
+            resize_type="nearest",
+            dtype="float32"
+        )(t_inputs)
+        t_inputs = tf.reshape(t_inputs, [-1, 10, height * 4, width * 4, 3])
+        t_inputs_r = t_inputs[:, 8:0:-1]
+        t_inputs = tf.concat([t_inputs, t_inputs_r], axis=1)
+        t_targets = targets
+        t_targets_r = t_targets[:, 8:0:-1]
+        t_targets = tf.concat([t_targets, t_targets_r], axis=1)
+        pre_warps = tf.concat(
+            [t_inputs[:, 2:], pre_warps, t_targets[:, 2:]], axis=3)
+        gen_outputs = tf.concat([t_inputs, gen_outputs, t_targets], axis=3)
+
         return {"gen_output": gen_outputs, "pre_warp": pre_warps}
 
 
@@ -446,6 +463,7 @@ class GANModel(JoshUpscaleModel):
         result = super().test_step(data)
         # Remove discr_steps from validation metrics
         del result["discr_steps"]
+        del result["t_balance"]
         return result
 
     def compile(self, learning_rate: Any = 0.0005, **kwargs) -> None:
@@ -588,7 +606,11 @@ class GANModel(JoshUpscaleModel):
             tf.ones_like(real_output[-1]), real_output[-1])
         self.discr_fake_acc_tr.update_state(
             tf.zeros_like(fake_output[-1]), fake_output[-1])
-        return super().compute_metrics(x, y, y_pred, sample_weight)
+        metrics = super().compute_metrics(x, y, y_pred, sample_weight)
+        return {
+            **metrics,
+            "t_balance": self.t_balance_avg.result()
+        }
 
     def train_step(self, data):
         """Train step."""
