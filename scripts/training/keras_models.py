@@ -317,8 +317,8 @@ class FRVSRModel(JoshUpscaleModel):
                 tf.stack([
                     tf.random.uniform(
                         input_shape,
-                        minval=0,
-                        maxval=1,
+                        minval=-0.5,
+                        maxval=0.5,
                         dtype="float32"
                     )
                     for _ in range(num_rand_frames)
@@ -349,8 +349,8 @@ class FRVSRModel(JoshUpscaleModel):
         # First frame uses random pre_warp
         last_output = generator_model([
             inputs[:, 0, :, :, :],
-            tf.random.uniform(output_shape, minval=0,
-                              maxval=1, dtype="float32")
+            tf.random.uniform(output_shape, minval=-0.5,
+                              maxval=0.5, dtype="float32")
         ])
         gen_outputs = [last_output]
         for frame_i in range(9):
@@ -721,8 +721,8 @@ class GANModel(JoshUpscaleModel):
                 tf.stack([
                     tf.random.uniform(
                         input_shape,
-                        minval=0,
-                        maxval=1,
+                        minval=-0.5,
+                        maxval=0.5,
                         dtype="float32"
                     )
                     for _ in range(num_rand_frames)
@@ -753,8 +753,8 @@ class GANModel(JoshUpscaleModel):
         # First frame uses random pre_warp
         last_output = generator_model([
             inputs[:, 0, :, :, :],
-            tf.random.uniform(output_shape, minval=0,
-                              maxval=1, dtype="float32")
+            tf.random.uniform(output_shape, minval=-0.5,
+                              maxval=0.5, dtype="float32")
         ])
         gen_outputs = [last_output]
         gen_warp = []
