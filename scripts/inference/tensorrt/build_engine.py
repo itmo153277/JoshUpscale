@@ -133,11 +133,13 @@ def enum_from_string(enum: Type, val: str) -> Any:
 class GraphDeserializer:
     """TensorRT graph deserializer."""
 
-    def __init__(self) -> None:
+    def __init__(self, quant_int8: bool, quant_fp16: bool) -> None:
         """Create object."""
         self._network = None
         self._tensors = {}
         self._weights = []
+        self._quant_int8 = quant_int8
+        self._quant_fp16 = quant_fp16
 
     def _set_dynamic_range(self, name: str,
                            val_range: Union[List[float], None]) -> None:
@@ -390,6 +392,15 @@ class GraphDeserializer:
             raise ValueError(f"Unsupported layer type: {layer_type.name}")
         layer = layer_deserializers[layer_type](config)
         layer.name = config["name"]
+        if "precision" in config:
+            precision = enum_from_string(
+                trt.DataType, config["precision"])
+            if precision == trt.DataType.HALF and not self._quant_fp16:
+                precision = trt.DataType.FLOAT
+            if self._quant_fp16 or self._quant_fp16:
+                LOG.info("Forced precision %s for %s",
+                         config["precision"], layer.name)
+                layer.precision = precision
         assert layer.num_outputs == len(config["output_names"])
         for i, out_name, out_dtype, out_range in zip(
             range(layer.num_outputs),
@@ -459,7 +470,10 @@ def main(
     weights = load_weights(weights_path)
     trt_logger = trt.Logger(trt.Logger.INFO)
     builder = trt.Builder(trt_logger)
-    network = GraphDeserializer().deserialize(builder, model, weights)
+    network = GraphDeserializer(
+        quant_fp16=quant_fp16,
+        quant_int8=quant_int8,
+    ).deserialize(builder, model, weights)
     config = builder.create_builder_config()
     config.set_memory_pool_limit(
         trt.MemoryPoolType.WORKSPACE, int(workspace_size or 2 << 30))

@@ -144,7 +144,7 @@ class DataReader(quantization.CalibrationDataReader):
     @staticmethod
     def _normalize(img: np.ndarray, dtype: np.dtype) -> np.ndarray:
         """Normalize data."""
-        return np.transpose(img / 255 - 0.5, [0, 3, 1, 2]).astype(dtype) 
+        return np.transpose(img / 255 - 0.5, [0, 3, 1, 2]).astype(dtype)
 
     def _normalize_and_pad(self, img: np.ndarray,
                            dtype: np.dtype) -> np.ndarray:
@@ -258,7 +258,8 @@ def main(
         LOG.info("Computing")
         calibration = calibrator.compute_range()
     with open(output_path, "wt", encoding="utf-8") as f:
-        json.dump(calibration, f)
+        json.dump({k: [float(low), float(hi)]
+                  for k, (low, hi) in calibration.items()}, f)
     return 0
 
 
