@@ -400,7 +400,7 @@ class GraphDeserializer:
             if self._quant_fp16 or self._quant_fp16:
                 LOG.info("Forced precision %s for %s",
                          config["precision"], layer.name)
-                layer.precision = precision
+                # layer.precision = precision
         assert layer.num_outputs == len(config["output_names"])
         for i, out_name, out_dtype, out_range in zip(
             range(layer.num_outputs),
@@ -418,11 +418,15 @@ class GraphDeserializer:
             self._set_dynamic_range(out_name, out_range)
         return layer
 
-    def deserialize(self, builder: trt.Builder, model: Dict[str, Any],
-                    weights: List[np.ndarray]) -> trt.INetworkDefinition:
+    def deserialize(self, model_path: str, builder: trt.Builder,
+                    model: Dict[str, Any]) -> trt.INetworkDefinition:
         """Deserialize network from model definition."""
         self._tensors = {}
-        self._weights = weights
+
+        weights_path = os.path.join(
+            os.path.dirname(model_path), model["weights"]
+        )
+        self._weights = load_weights(weights_path)
         self._network = builder.create_network(
             1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
         for inp in model["inputs"]:
@@ -442,6 +446,8 @@ def main(
     quant_int8: bool = False,
     quant_fp16: bool = False,
     workspace_size: Union[None, HumanReadableSize] = None,
+
+
 ) -> int:
     """
     Run CLI.
@@ -466,14 +472,12 @@ def main(
     """
     with open(model_path, "rt", encoding="utf-8") as f:
         model = yaml.unsafe_load(f)
-    weights_path = os.path.join(os.path.dirname(model_path), model["weights"])
-    weights = load_weights(weights_path)
     trt_logger = trt.Logger(trt.Logger.INFO)
     builder = trt.Builder(trt_logger)
     network = GraphDeserializer(
         quant_fp16=quant_fp16,
         quant_int8=quant_int8,
-    ).deserialize(builder, model, weights)
+    ).deserialize(model_path, builder, model)
     config = builder.create_builder_config()
     config.set_memory_pool_limit(
         trt.MemoryPoolType.WORKSPACE, int(workspace_size or 2 << 30))

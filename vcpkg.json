@@ -3,6 +3,7 @@
   "name": "joshupscale",
   "version-semver": "1.0.0",
   "dependencies": [
-    "yaml-cpp"
+    "yaml-cpp",
+    "boost-iostreams"
   ]
 }

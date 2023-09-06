@@ -9,6 +9,7 @@
 from typing import Iterator, List, Sequence, Tuple
 import os
 import sys
+import time
 import logging
 from glob import glob
 import argparse
@@ -210,13 +211,19 @@ def main(
         Exit code
     """
     sess = Session(model_path, engine_path)
+    num_img = 0
+    total_time = 0
     for input_path, output_path in get_data(image_paths, output_dir):
         LOG.info("Processing %s", input_path)
         img = cv2.imread(input_path, cv2.IMREAD_COLOR)
         assert img is not None, f"Could not open image: {input_path}"
+        start = time.time()
         img_out = sess.run(img)
+        total_time += time.time() - start
+        num_img += 1
         ret = cv2.imwrite(output_path, img_out)
         assert ret, f"Could not save image: {output_path}"
+    LOG.info("average time: %fs", total_time / num_img)
     return 0
 
 

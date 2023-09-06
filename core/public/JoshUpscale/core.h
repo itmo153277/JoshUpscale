@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <filesystem>
 
 #include "JoshUpscale/core/export.h"
 
@@ -26,7 +27,7 @@ struct Runtime {
 };
 
 JOSHUPSCALE_EXPORT Runtime *createRuntime(
-    int deviceId, const char *modelPath, const char *enginePath);
+    int deviceId, const std::filesystem::path &modelPath);
 
 }  // namespace core
 

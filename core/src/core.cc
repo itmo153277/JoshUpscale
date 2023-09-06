@@ -5,9 +5,10 @@
 #include <yaml-cpp/yaml.h>
 
 #include <cstddef>
+#include <filesystem>
 #include <fstream>
 #include <memory>
-#include <ranges>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -20,12 +21,8 @@ namespace JoshUpscale {
 namespace core {
 
 struct TensorRTRuntime : Runtime {
-	TensorRTRuntime(int deviceId, const std::vector<std::string> &inputNames,
-	    const std::vector<std::string> &outputNames,
-	    std::span<std::byte> engine) {
+	explicit TensorRTRuntime(int deviceId) {
 		cuda::DeviceContext cudaCtx(deviceId);
-		m_Backend =
-		    std::make_unique<TensorRTBackend>(inputNames, outputNames, engine);
 	}
 
 	void processImage(
@@ -39,29 +36,14 @@ private:
 	std::unique_ptr<TensorRTBackend> m_Backend = nullptr;
 };
 
-Runtime *createRuntime(
-    int deviceId, const char *modelPath, const char *enginePath) {
-	std::vector<std::byte> engine;
-	{
-		std::ifstream file(enginePath, std::ios::binary | std::ios::ate);
-		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-		auto size = static_cast<std::streamsize>(file.tellg());
-		file.seekg(0, std::ios::beg);
-		engine.resize(static_cast<std::size_t>(size));
-		file.read(reinterpret_cast<char *>(engine.data()), size);
-	}
+Runtime *createRuntime(int deviceId, const std::filesystem::path &modelPath) {
 	::YAML::Node modelConfig;
 	{
 		std::ifstream file(modelPath);
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		modelConfig = ::YAML::Load(file);
 	}
-	std::vector<std::string> inputNames;
-	auto outputNames = modelConfig["outputs"].as<std::vector<std::string>>();
-	for (auto input : modelConfig["inputs"]) {
-		inputNames.push_back(input["name"].as<std::string>());
-	}
-	return new TensorRTRuntime(deviceId, inputNames, outputNames, engine);
+	return new TensorRTRuntime(deviceId);
 }
 
 }  // namespace core
