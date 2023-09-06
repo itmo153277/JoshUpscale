@@ -439,7 +439,8 @@ class GANModel(JoshUpscaleModel):
         self.discr_fake_acc_tr = keras.metrics.BinaryAccuracy(
             name="discr_fake_acc")
         self.discr_steps_tr = CounterMetric(name="discr_steps")
-        self.t_balance_avg = ExponentialMovingAvg(decay=0.99)
+        self.t_balance1_avg = ExponentialMovingAvg(decay=0.99)
+        self.t_balance2_avg = ExponentialMovingAvg(decay=0.99)
 
     @property
     def metrics(self):
@@ -463,7 +464,8 @@ class GANModel(JoshUpscaleModel):
         result = super().test_step(data)
         # Remove discr_steps from validation metrics
         del result["discr_steps"]
-        del result["t_balance"]
+        del result["t_balance1"]
+        del result["t_balance2"]
         return result
 
     def compile(self, learning_rate: Any = 0.0005, **kwargs) -> None:
@@ -526,18 +528,27 @@ class GANModel(JoshUpscaleModel):
         if self.loss_config["pp_loss"] > 0:
             gen_loss.append(self.loss_config["pp_loss"] * pp_loss)
 
-        adv_loss = -tf.math.log(fake_output[-1] + 1e-10)
+        if self.loss_config["t_balance2_threshold"] is not None:
+            t_balance2_cond = tf.sign(
+                self.t_balance2_avg.result() -
+                self.loss_config["t_balance2_threshold"]
+            ) / 2 + 0.5
+        else:
+            t_balance2_cond = 1
+
+        adv_loss = -tf.math.log(fake_output[-1] + 1e-5)
         adv_loss = tf.math.reduce_mean(adv_loss)
         if self.loss_config["adv_loss"] > 0:
-            gen_loss.append(self.loss_config["adv_loss"] * adv_loss)
+            gen_loss.append(
+                self.loss_config["adv_loss"] * t_balance2_cond * adv_loss)
 
-        discr_fake_loss = -tf.math.log(1 - fake_output[-1] + 1e-10)
+        discr_fake_loss = -tf.math.log(1 - fake_output[-1] + 1e-5)
         discr_fake_loss = tf.math.reduce_mean(discr_fake_loss)
         if self.loss_config["discr_fake_loss"] > 0:
             discr_loss.append(
                 self.loss_config["discr_fake_loss"] * discr_fake_loss)
 
-        discr_real_loss = -tf.math.log(real_output[-1] + 1e-10)
+        discr_real_loss = -tf.math.log(real_output[-1] + 1e-5)
         discr_real_loss = tf.math.reduce_mean(discr_real_loss)
         if self.loss_config["discr_real_loss"] > 0:
             discr_loss.append(
@@ -573,7 +584,8 @@ class GANModel(JoshUpscaleModel):
 
         gen_loss = tf.add_n(gen_loss + self.losses)
         discr_loss = tf.add_n(discr_loss + self.losses)
-        t_balance = adv_loss - discr_real_loss
+        t_balance1 = adv_loss - discr_real_loss
+        t_balance2 = adv_loss - discr_fake_loss
 
         self.content_loss_tr.update_state(
             content_loss, sample_weight=batch_size * 19)
@@ -592,7 +604,8 @@ class GANModel(JoshUpscaleModel):
         return {
             "gen_loss": gen_loss / num_replicas,
             "discr_loss": discr_loss / num_replicas,
-            "t_balance": t_balance,
+            "t_balance1": t_balance1,
+            "t_balance2": t_balance2,
         }
 
     def compute_metrics(self, x, y, y_pred, sample_weight):
@@ -609,7 +622,8 @@ class GANModel(JoshUpscaleModel):
         metrics = super().compute_metrics(x, y, y_pred, sample_weight)
         return {
             **metrics,
-            "t_balance": self.t_balance_avg.result()
+            "t_balance1": self.t_balance1_avg.result(),
+            "t_balance2": self.t_balance2_avg.result(),
         }
 
     def train_step(self, data):
@@ -638,15 +652,17 @@ class GANModel(JoshUpscaleModel):
 
         def train_discr():
             self.discr_steps_tr.update_state()
-            return self.optimizer_discr.apply_gradients(
+            self.optimizer_discr.apply_gradients(
                 zip(discr_grad, discr_variables))
+            return tf.no_op()
 
-        self.t_balance_avg.update_state(loss["t_balance"])
+        self.t_balance1_avg.update_state(loss["t_balance1"])
+        self.t_balance2_avg.update_state(loss["t_balance2"])
 
         # Control-flow: assuming everything is in sync between all replicas
         tf.cond(
-            pred=tf.less(self.t_balance_avg.result(),
-                         self.loss_config["t_balance_threshold"]),
+            pred=tf.less(self.t_balance1_avg.result(),
+                         self.loss_config["t_balance1_threshold"]),
             true_fn=train_discr,
             false_fn=tf.no_op,
         )
@@ -679,15 +695,16 @@ class GANModel(JoshUpscaleModel):
         loss_config = {
             "train_flow": True,
             "content_loss": 1.0,
-            "pp_loss": 0.3,
+            "pp_loss": 0.5,
             "warp_loss": 1.0,
-            "adv_loss": 0.01,
-            "discr_layer_norms": [12.0, 14.0, 24.0, 100.0],
+            "adv_loss": 0.1,
+            "discr_layer_norms": [12.0, 14.0, 48.0, 250.0],
             "discr_layer_loss": 0.2,
-            "vgg_loss": 0.1,
+            "vgg_loss": 0.2,
             "discr_real_loss": 1.0,
             "discr_fake_loss": 1.0,
-            "t_balance_threshold": 0.4,
+            "t_balance1_threshold": 0.2,
+            "t_balance2_threshold": 0.0,
             **loss_config
         }
         return loss_config
