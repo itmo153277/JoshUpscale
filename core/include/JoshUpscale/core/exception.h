@@ -19,7 +19,7 @@ struct ExceptionWithIdBase {
 
 template <typename T>
 struct ExceptionWithId : T, ExceptionWithIdBase {
-	explicit ExceptionWithId(T base) : T(std::move(base)) {
+	explicit ExceptionWithId(T &&base) : T(std::move(base)) {
 	}
 
 	const std::type_info &type_info() const noexcept override {

@@ -124,6 +124,7 @@ class GraphSerializer:
             "kernel_size_nd": convert_to_list(layer.kernel_size_nd),
             "stride_nd": convert_to_list(layer.stride_nd),
             "padding_nd": convert_to_list(layer.padding_nd),
+            "dilation_nd": convert_to_list(layer.dilation_nd),
         }
 
     def _get_elementwise_params(self, layer: trt.ILayer) -> Dict[str, Any]:

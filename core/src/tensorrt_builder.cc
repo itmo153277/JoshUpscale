@@ -1,11 +1,9 @@
 // Copyright 2023 Ivanov Viktor
 
 #include <NvInfer.h>
-#include <NvInferRuntimeBase.h>
-#include <yaml-cpp/node/node.h>
 #include <yaml-cpp/yaml.h>
 
-#include <boost/iostreams/filter/zlib.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -22,7 +20,6 @@
 
 #include "JoshUpscale/core/exception.h"
 #include "JoshUpscale/core/tensorrt.h"
-#include "JoshUpscale/core/tensorrt_backend.h"
 
 namespace YAML {
 
@@ -102,6 +99,88 @@ struct convert<::nvinfer1::LayerType> {
 	}
 };
 
+template <>
+struct convert<::nvinfer1::ActivationType> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::ActivationType &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::ActivationType::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::ActivationType>
+		    enumMap = {
+		        ENUM_DEF(RELU),
+		        ENUM_DEF(TANH),
+		        ENUM_DEF(LEAKY_RELU),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::PaddingMode> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::PaddingMode &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::PaddingMode::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::PaddingMode>
+		    enumMap = {
+		        ENUM_DEF(EXPLICIT_ROUND_DOWN),
+		        ENUM_DEF(EXPLICIT_ROUND_UP),
+		        ENUM_DEF(SAME_UPPER),
+		        ENUM_DEF(SAME_LOWER),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::ElementWiseOperation> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::ElementWiseOperation &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::ElementWiseOperation::k##x }
+		static const std::unordered_map<std::string,
+		    ::nvinfer1::ElementWiseOperation>
+		    enumMap = {
+		        ENUM_DEF(SUM),
+		        ENUM_DEF(PROD),
+		        ENUM_DEF(MAX),
+		        ENUM_DEF(MIN),
+		        ENUM_DEF(SUB),
+		        ENUM_DEF(DIV),
+		        ENUM_DEF(POW),
+		        ENUM_DEF(FLOOR_DIV),
+		        ENUM_DEF(AND),
+		        ENUM_DEF(OR),
+		        ENUM_DEF(XOR),
+		        ENUM_DEF(EQUAL),
+		        ENUM_DEF(GREATER),
+		        ENUM_DEF(LESS),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
 }  // namespace YAML
 
 namespace JoshUpscale {
@@ -148,6 +227,30 @@ void saveEngine(
 	}
 }
 
+std::size_t getDimensionsSize(::nvinfer1::Dims dims) {
+	std::size_t size = 1;
+	for (std::int32_t i = 0; i < dims.nbDims; ++i) {
+		size *= static_cast<std::size_t>(dims.d[i]);
+	}
+	return size;
+}
+
+::nvinfer1::Dims convertDimensions(std::vector<std::size_t> dimensions) {
+	::nvinfer1::Dims dims;
+	dims.nbDims = static_cast<std::int32_t>(dimensions.size());
+	for (std::size_t i = 0; i < dimensions.size(); ++i) {
+		dims.d[i] = static_cast<std::int32_t>(dimensions[i]);
+	}
+	return dims;
+}
+
+bool dimensionsEqual(::nvinfer1::Dims lhs, ::nvinfer1::Dims rhs) {
+	if (lhs.nbDims != rhs.nbDims) {
+		return false;
+	}
+	return std::equal(lhs.d, lhs.d + lhs.nbDims, rhs.d);
+}
+
 struct GraphDeserializer {
 	explicit GraphDeserializer(::nvinfer1::INetworkDefinition *network)
 	    : m_Network(network) {
@@ -157,9 +260,22 @@ struct GraphDeserializer {
 	    const std::filesystem::path &modelPath, const ::YAML::Node &config) {
 		loadWeights(
 		    modelPath.parent_path() / config["weights"].as<std::string>());
-		addInputs(config["inputs"]);
-		addLayers(config["layers"]);
-		markOutputs(config["outputs"]);
+		for (const auto &input : config["inputs"]) {
+			addInput(input);
+		}
+		for (const auto &layer : config["layers"]) {
+			addLayer(layer);
+		}
+		for (const auto &output : config["outputs"]) {
+			auto *tensor = m_TensorMap[output.as<std::string>()];
+			m_Network->markOutput(*tensor);
+			tensor->setAllowedFormats(
+			    1 << static_cast<::nvinfer1::TensorFormats>(
+			        ::nvinfer1::TensorFormat::kLINEAR));
+		}
+		if (!validateNetwork()) {
+			throw std::runtime_error("Model is invalid");
+		}
 	}
 
 private:
@@ -172,6 +288,58 @@ private:
 	std::unordered_map<std::string, ::nvinfer1::ITensor *> m_TensorMap;
 	std::vector<WeightData> m_Weights;
 
+	bool validateNetwork() {
+		if (m_Network->getNbInputs() == 1) {
+			if (m_Network->getNbOutputs() != 1) {
+				return false;
+			}
+		} else if (m_Network->getNbInputs() >= 3) {
+			if (m_Network->getNbInputs() != m_Network->getNbOutputs()) {
+				return false;
+			}
+			for (std::int32_t i = 1; i < m_Network->getNbInputs(); ++i) {
+				if (!dimensionsEqual(m_Network->getInput(i)->getDimensions(),
+				        m_Network->getOutput(i)->getDimensions())) {
+					return false;
+				}
+			}
+			if (!dimensionsEqual(m_Network->getInput(1)->getDimensions(),
+			        convertDimensions({1, 3, 1080, 1920}))) {
+				return false;
+			}
+			constexpr std::size_t maxSize = 1ULL * 3ULL * 272ULL * 480ULL;
+			for (std::int32_t i = 1; i < m_Network->getNbInputs(); ++i) {
+				if (getDimensionsSize(m_Network->getInput(i)->getDimensions()) >
+				    maxSize) {
+					return false;
+				}
+			}
+		} else {
+			return false;
+		}
+		if (!dimensionsEqual(m_Network->getInput(0)->getDimensions(),
+		        convertDimensions({1, 270, 480, 3}))) {
+			return false;
+		}
+		if (!dimensionsEqual(m_Network->getOutput(1)->getDimensions(),
+		        convertDimensions({1, 1080, 1920, 3}))) {
+			return false;
+		}
+		for (std::int32_t i = 0; i < m_Network->getNbInputs(); ++i) {
+			if (m_Network->getInput(i)->getType() !=
+			    ::nvinfer1::DataType::kFLOAT) {
+				return false;
+			}
+		}
+		for (std::int32_t i = 0; i < m_Network->getNbOutputs(); ++i) {
+			if (m_Network->getOutput(i)->getType() !=
+			    ::nvinfer1::DataType::kFLOAT) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	void loadWeights(const std::filesystem::path &path) {
 		try {
 			std::ifstream weightFile(
@@ -179,7 +347,7 @@ private:
 			weightFile.exceptions(
 			    std::ifstream::badbit | std::ifstream::failbit);
 			boost::iostreams::filtering_istream is;
-			is.push(boost::iostreams::zlib_decompressor());
+			is.push(boost::iostreams::gzip_decompressor());
 			is.push(weightFile);
 			is.exceptions(std::ios::badbit | std::ios::failbit);
 			while (!is.eof()) {
@@ -210,42 +378,13 @@ private:
 		}
 	}
 
-	void addInputs(const ::YAML::Node &inputs) {
-		if (!inputs.IsSequence()) {
-			throw std::runtime_error("Failed to load network");
-		}
-		for (const auto &input : inputs) {
-			addInput(input);
-		}
-	}
-
-	void addLayers(const ::YAML::Node &layers) {
-		if (!layers.IsSequence()) {
-			throw std::runtime_error("Failed to load network");
-		}
-		for (const auto &layer : layers) {
-			addLayer(layer);
-		}
-	}
-
-	void markOutputs(const ::YAML::Node &outputs) {
-		if (!outputs.IsSequence()) {
-			throw std::runtime_error("Failed to load network");
-		}
-		for (const auto &output : outputs) {
-			auto *tensor = m_TensorMap[output.as<std::string>()];
-			m_Network->markOutput(*tensor);
-			tensor->setAllowedFormats(1 << static_cast<std::uint32_t>(
-			                              ::nvinfer1::TensorFormat::kLINEAR));
-		}
-	}
-
 	void setDynamicRange(const std::string &name, const ::YAML::Node &range) {
 		auto *tensor = m_TensorMap[name];
-		if (range.IsDefined() || range.IsNull()) {
+		if (!range.IsDefined() || range.IsNull()) {
 			if (tensor->getType() == ::nvinfer1::DataType::kFLOAT) {
 				throw std::runtime_error("Missing range values");
 			}
+			return;
 		}
 		if (!range.IsSequence() || range.size() != 2) {
 			throw std::runtime_error("Invalid range");
@@ -268,9 +407,24 @@ private:
 	}
 
 	void addLayer(const ::YAML::Node &config) {
+		// clang-format off
 		static const std::unordered_map<::nvinfer1::LayerType,
 		    ::nvinfer1::ILayer *(GraphDeserializer::*) (const ::YAML::Node &)>
-		    layerDeserializers = {};
+		    layerDeserializers = {
+				{::nvinfer1::LayerType::kACTIVATION,
+		            &GraphDeserializer::addActivation},
+		        {::nvinfer1::LayerType::kCONCATENATION,
+		            &GraphDeserializer::addConcat},
+		        {::nvinfer1::LayerType::kCONSTANT,
+		            &GraphDeserializer::addConstant},
+		        {::nvinfer1::LayerType::kCONVOLUTION,
+		            &GraphDeserializer::addConvolution},
+		        {::nvinfer1::LayerType::kDECONVOLUTION,
+		            &GraphDeserializer::addDeconvolution},
+		        {::nvinfer1::LayerType::kELEMENTWISE,
+		            &GraphDeserializer::addElementwise},
+			};
+		// clang-format on
 		auto layerType = config["type"].as<::nvinfer1::LayerType>();
 		auto deserializerIter = layerDeserializers.find(layerType);
 		if (deserializerIter == layerDeserializers.end()) {
@@ -299,6 +453,90 @@ private:
 			setDynamicRange(name, config["output_ranges"][i]);
 		}
 	}
+
+	::nvinfer1::ILayer *addActivation(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto activationType =
+		    config["activation_type"].as<::nvinfer1::ActivationType>();
+		auto *layer = m_Network->addActivation(*inputTensor, activationType);
+		layer->setAlpha(config["alpha"].as<float>());
+		layer->setBeta(config["beta"].as<float>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addConcat(const ::YAML::Node &config) {
+		std::vector<::nvinfer1::ITensor *> inputs;
+		inputs.reserve(config["inputs"].size());
+		for (const auto &input : config["inputs"]) {
+			inputs.push_back(m_TensorMap[input.as<std::string>()]);
+		}
+		auto *layer = m_Network->addConcatenation(
+		    inputs.data(), static_cast<int32_t>(inputs.size()));
+		layer->setAxis(config["axis"].as<std::int32_t>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addConstant(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 0) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto shape = config["shape"].as<::nvinfer1::Dims>();
+		auto weights = m_Weights.at(config["weights"].as<std::size_t>()).data;
+		auto *layer = m_Network->addConstant(shape, weights);
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addConvolution(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>()).data;
+		auto bias = m_Weights.at(config["bias"].as<std::size_t>()).data;
+		auto *layer = m_Network->addConvolutionNd(*inputTensor,
+		    config["num_output_maps"].as<int32_t>(),
+		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
+		layer->setPaddingMode(
+		    config["padding_mode"].as<::nvinfer1::PaddingMode>());
+		layer->setNbGroups(config["num_groups"].as<int32_t>());
+		layer->setStrideNd(config["stride_nd"].as<::nvinfer1::Dims>());
+		layer->setPaddingNd(config["padding_nd"].as<::nvinfer1::Dims>());
+		layer->setDilationNd(config["dilation_nd"].as<::nvinfer1::Dims>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addDeconvolution(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>()).data;
+		auto bias = m_Weights.at(config["bias"].as<std::size_t>()).data;
+		auto *layer = m_Network->addDeconvolutionNd(*inputTensor,
+		    config["num_output_maps"].as<int32_t>(),
+		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
+		layer->setPaddingMode(
+		    config["padding_mode"].as<::nvinfer1::PaddingMode>());
+		layer->setNbGroups(config["num_groups"].as<int32_t>());
+		layer->setStrideNd(config["stride_nd"].as<::nvinfer1::Dims>());
+		layer->setPaddingNd(config["padding_nd"].as<::nvinfer1::Dims>());
+		layer->setDilationNd(config["dilation_nd"].as<::nvinfer1::Dims>());
+		return layer;
+	}
+	::nvinfer1::ILayer *addElementwise(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 2) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor1 = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *inputTensor2 = m_TensorMap[config["inputs"][2].as<std::string>()];
+		auto op = config["op"].as<::nvinfer1::ElementWiseOperation>();
+		auto *layer =
+		    m_Network->addElementWise(*inputTensor1, *inputTensor2, op);
+		return layer;
+	}
 };
 
 void prepareBuilderConfig(
@@ -322,7 +560,9 @@ void prepareBuilderConfig(
 	}
 }
 
-std::vector<std::byte> buildEngineInternal(
+}  // namespace
+
+std::vector<std::byte> buildTrtEngine(
     const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig) {
 	try {
 		trt::Logger logger;
@@ -333,8 +573,9 @@ std::vector<std::byte> buildEngineInternal(
 			auto builderConfig = trt::TrtPtr(builder->createBuilderConfig());
 			prepareBuilderConfig(builder, builderConfig);
 			auto network = trt::TrtPtr(builder->createNetworkV2(
-			    1 << static_cast<std::uint32_t>(::nvinfer1::
-			            NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)));
+			    1 << static_cast<::nvinfer1::NetworkDefinitionCreationFlags>(
+			        ::nvinfer1::NetworkDefinitionCreationFlag::
+			            kEXPLICIT_BATCH)));
 			GraphDeserializer(network).deserialize(modelPath, modelConfig);
 			auto engine = trt::TrtPtr(
 			    builder->buildSerializedNetwork(*network, *builderConfig));
@@ -350,15 +591,13 @@ std::vector<std::byte> buildEngineInternal(
 	}
 }
 
-}  // namespace
-
-std::vector<std::byte> buildEngine(
+std::vector<std::byte> buildTrtEngineCached(
     const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig) {
 	auto filePath = getEnginePath(modelConfig);
 	if (std::filesystem::exists(filePath)) {
 		return readEngineFromFile(filePath);
 	}
-	std::vector<std::byte> engine = buildEngineInternal(modelPath, modelConfig);
+	std::vector<std::byte> engine = buildTrtEngine(modelPath, modelConfig);
 	saveEngine(engine, filePath);
 	return engine;
 }

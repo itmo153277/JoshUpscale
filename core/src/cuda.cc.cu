@@ -125,7 +125,7 @@ DECLARE_SPEC(CudaBuffer<float>, CudaBuffer<float>);
 #undef DECLARE_SPEC
 
 template <typename From, typename To>
-void cudaCopy<From, To>(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
+void cudaCopy(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
     const CudaStream &stream, std::size_t size) {
 	assert(from.getByteSize() >= size && to.getByteSize() >= size);
 	cudaCheck(::cudaMemcpyAsync(to.get(), from.get(), size,

@@ -22,19 +22,20 @@ private:
 };
 
 // NOLINTNEXTLINE
-JoshUpscalePlugin::JoshUpscalePlugin(PClip _child, IScriptEnvironment *env,
-    const char *modelPath, const char *enginePath)
+JoshUpscalePlugin::JoshUpscalePlugin(
+    PClip _child, IScriptEnvironment *env, const char *modelPath)
     : GenericVideoFilter(_child) {
 	if (!vi.IsRGB24()) {
 		env->ThrowError("JoshUpscale: only RGB24 format is supported");
 	}
-	if (vi.width != 480 || vi.height != 270) {
+	if (vi.width != JoshUpscale::core::INPUT_WIDTH ||
+	    vi.height != JoshUpscale::core::INPUT_HEIGHT) {
 		env->ThrowError("JoshUpscale: unsupported video size");
 	}
-	vi.width = 1920;
-	vi.height = 1080;
+	vi.width = JoshUpscale::core::OUTPUT_WIDTH;
+	vi.height = JoshUpscale::core::OUTPUT_HEIGHT;
 	child->SetCacheHints(CACHE_ACCESS_SEQ1, 0);
-	m_Runtime.reset(JoshUpscale::core::createRuntime(0, modelPath, enginePath));
+	m_Runtime.reset(JoshUpscale::core::createRuntime(0, modelPath));
 }
 
 JoshUpscalePlugin::~JoshUpscalePlugin() {
@@ -65,8 +66,7 @@ PVideoFrame __stdcall JoshUpscalePlugin::GetFrame(
 
 AVSValue __cdecl Create_JoshUpscale(
     AVSValue args, [[maybe_unused]] void *user_data, IScriptEnvironment *env) {
-	return new JoshUpscalePlugin(
-	    args[0].AsClip(), env, args[1].AsString(), args[2].AsString());
+	return new JoshUpscalePlugin(args[0].AsClip(), env, args[1].AsString());
 }
 
 const AVS_Linkage *AVS_linkage = nullptr;
@@ -74,7 +74,7 @@ const AVS_Linkage *AVS_linkage = nullptr;
 extern "C" __declspec(dllexport) const char *__stdcall AvisynthPluginInit3(
     IScriptEnvironment *env, const AVS_Linkage *const vectors) {
 	AVS_linkage = vectors;
-	env->AddFunction("JoshUpscale", "[clip]c[modelPath]s[enginePath]s",
-	    Create_JoshUpscale, 0);
+	env->AddFunction(
+	    "JoshUpscale", "[clip]c[modelPath]s", Create_JoshUpscale, 0);
 	return "JoshUpscale plugin";
 }

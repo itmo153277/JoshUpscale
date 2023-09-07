@@ -48,12 +48,23 @@ inline int getDevice() {
 	return device;
 }
 
+namespace detail {
+
 template <typename T>
-struct CudaBuffer : std::unique_ptr<T, decltype(&::cudaFree)> {
-	using unique_ptr = std::unique_ptr<T, decltype(&::cudaFree)>;
+struct CudaDeleter {
+	void operator()(T *ptr) {
+		::cudaFree(ptr);
+	}
+};
+
+}  // namespace detail
+
+template <typename T>
+struct CudaBuffer : std::unique_ptr<T, detail::CudaDeleter<T>> {
+	using unique_ptr = std::unique_ptr<T, detail::CudaDeleter<T>>;
 
 	explicit CudaBuffer(std::size_t size)
-	    : unique_ptr(alloc(size), &::cudaFree), m_Size(size) {
+	    : unique_ptr(alloc(size)), m_Size(size) {
 	}
 
 	// Non-copyable, default-movable

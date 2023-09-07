@@ -4,12 +4,18 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <vector>
 
 #include "JoshUpscale/core/export.h"
 
 namespace JoshUpscale {
 
 namespace core {
+
+inline constexpr std::size_t INPUT_WIDTH = 480;
+inline constexpr std::size_t INPUT_HEIGHT = 270;
+inline constexpr std::size_t OUTPUT_WIDTH = 1920;
+inline constexpr std::size_t OUTPUT_HEIGHT = 1080;
 
 struct Image {
 	void *ptr;

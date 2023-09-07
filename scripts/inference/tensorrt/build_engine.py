@@ -225,6 +225,7 @@ class GraphDeserializer:
         layer.num_groups = config["num_groups"]
         layer.stride_nd = config["stride_nd"]
         layer.padding_nd = config["padding_nd"]
+        layer.dilation_nd = config["dilation_nd"]
         return layer
 
     def _add_elementwise(self, config: Dict[str, Any]) -> trt.ILayer:
