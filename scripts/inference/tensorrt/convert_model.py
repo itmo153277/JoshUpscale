@@ -187,6 +187,8 @@ class GraphSerializer:
             "coordinate_transformation": layer.coordinate_transformation.name,
             "selector_for_single_pixel": layer.selector_for_single_pixel.name,
             "nearest_rounding": layer.nearest_rounding.name,
+            "exclude_outside": layer.exclude_outside,
+            "cubic_coeff": layer.cubic_coeff,
         }
         if layer.num_inputs < 2:
             params["shape"] = convert_to_list(layer.shape),
@@ -221,12 +223,14 @@ class GraphSerializer:
 
     def _get_slice_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.ISliceLayer
-        return {
+        params = {
             "mode": layer.mode.name,
-            "start": convert_to_list(layer.start),
-            "shape": convert_to_list(layer.shape),
             "stride": convert_to_list(layer.stride),
         }
+        if layer.num_inputs < 2:
+            params["start"] = convert_to_list(layer.start)
+            params["shape"] = convert_to_list(layer.shape)
+        return params
 
     def _get_unary_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IUnaryLayer

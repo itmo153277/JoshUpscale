@@ -4,8 +4,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
-#include <vector>
 
 #include "JoshUpscale/core/cuda.h"
 #include "JoshUpscale/core/tensorrt.h"
@@ -14,8 +14,8 @@ namespace JoshUpscale {
 
 namespace core {
 
-TensorRTBackend::TensorRTBackend(const std::vector<std::string> &inputNames,
-    const std::vector<std::string> &outputNames, std::span<std::byte> engine)
+TensorRTBackend::TensorRTBackend(std::span<std::string> inputNames,
+    std::span<std::string> outputNames, std::span<std::byte> engine)
     : m_Device{cuda::getDevice()}
     , m_InputBuffer{cuda::getPaddedSize(480ULL * 270ULL * 3)}
     , m_OutputBuffer{cuda::getPaddedSize(1920ULL * 1080ULL * 3)}
@@ -39,9 +39,11 @@ TensorRTBackend::TensorRTBackend(const std::vector<std::string> &inputNames,
 				}
 			}
 		}
+		m_Context->setTensorAddress(
+		    inputNames[0].c_str(), m_InputBufferFp.get());
+		m_Context->setTensorAddress(
+		    outputNames[0].c_str(), m_OutputBufferFp.get());
 		for (std::size_t i = 0; i < 2; ++i) {
-			m_BindingMaps[i][inputNames[0]] = m_InputBufferFp.get();
-			m_BindingMaps[i][outputNames[0]] = m_OutputBufferFp.get();
 			for (std::size_t j = 0; j < interBufs; ++j) {
 				void *ptr1 = m_InterBuffers[j + i * interBufs].get();
 				void *ptr2 = m_InterBuffers[j + (i ^ 1) * interBufs].get();

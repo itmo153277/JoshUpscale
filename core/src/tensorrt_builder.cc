@@ -27,12 +27,29 @@ template <>
 struct convert<::nvinfer1::Dims> {
 	static bool decode(const Node &node,
 	    ::nvinfer1::Dims &rhs) {  // NOLINT(runtime/references)
-		if (!node.IsSequence() || node.size() >= 8) {
+		if (!node.IsSequence() ||
+		    node.size() >=
+		        static_cast<std::size_t>(::nvinfer1::Dims::MAX_DIMS)) {
 			return false;
 		}
 		rhs.nbDims = static_cast<std::int32_t>(node.size());
 		for (std::size_t i = 0; i < node.size(); ++i) {
 			rhs.d[i] = node[i].as<std::int32_t>();
+		}
+		return true;
+	}
+};
+template <>
+struct convert<::nvinfer1::Permutation> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::Permutation &rhs) {  // NOLINT(runtime/references)
+		if (!node.IsSequence() ||
+		    node.size() !=
+		        static_cast<std::size_t>(::nvinfer1::Dims::MAX_DIMS)) {
+			return false;
+		}
+		for (std::size_t i = 0; i < node.size(); ++i) {
+			rhs.order[i] = node[i].as<std::int32_t>();
 		}
 		return true;
 	}
@@ -181,6 +198,242 @@ struct convert<::nvinfer1::ElementWiseOperation> {
 	}
 };
 
+template <>
+struct convert<::nvinfer1::InterpolationMode> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::InterpolationMode &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::InterpolationMode::k##x }
+		static const std::unordered_map<std::string,
+		    ::nvinfer1::InterpolationMode>
+		    enumMap = {
+		        ENUM_DEF(NEAREST),
+		        ENUM_DEF(LINEAR),
+		        ENUM_DEF(CUBIC),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::SampleMode> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::SampleMode &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::SampleMode::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::SampleMode>
+		    enumMap = {
+		        ENUM_DEF(STRICT_BOUNDS),
+		        ENUM_DEF(WRAP),
+		        ENUM_DEF(CLAMP),
+		        ENUM_DEF(FILL),
+		        ENUM_DEF(REFLECT),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::ScaleMode> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::ScaleMode &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::ScaleMode::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::ScaleMode>
+		    enumMap = {
+		        ENUM_DEF(UNIFORM),
+		        ENUM_DEF(CHANNEL),
+		        ENUM_DEF(ELEMENTWISE),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::PoolingType> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::PoolingType &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::PoolingType::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::PoolingType>
+		    enumMap = {
+		        ENUM_DEF(MAX),
+		        ENUM_DEF(AVERAGE),
+		        ENUM_DEF(MAX_AVERAGE_BLEND),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::ReduceOperation> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::ReduceOperation &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::ReduceOperation::k##x }
+		static const std::unordered_map<std::string,
+		    ::nvinfer1::ReduceOperation>
+		    enumMap = {
+		        ENUM_DEF(SUM),
+		        ENUM_DEF(PROD),
+		        ENUM_DEF(MAX),
+		        ENUM_DEF(MIN),
+		        ENUM_DEF(AVG),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::UnaryOperation> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::UnaryOperation &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::UnaryOperation::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::UnaryOperation>
+		    enumMap = {
+		        ENUM_DEF(EXP),
+		        ENUM_DEF(LOG),
+		        ENUM_DEF(SQRT),
+		        ENUM_DEF(RECIP),
+		        ENUM_DEF(ABS),
+		        ENUM_DEF(NEG),
+		        ENUM_DEF(SIN),
+		        ENUM_DEF(COS),
+		        ENUM_DEF(TAN),
+		        ENUM_DEF(SINH),
+		        ENUM_DEF(COSH),
+		        ENUM_DEF(ASIN),
+		        ENUM_DEF(ACOS),
+		        ENUM_DEF(ATAN),
+		        ENUM_DEF(ASINH),
+		        ENUM_DEF(ACOSH),
+		        ENUM_DEF(ATANH),
+		        ENUM_DEF(CEIL),
+		        ENUM_DEF(FLOOR),
+		        ENUM_DEF(ERF),
+		        ENUM_DEF(NOT),
+		        ENUM_DEF(SIGN),
+		        ENUM_DEF(ROUND),
+		        ENUM_DEF(ISINF),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::ResizeCoordinateTransformation> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::ResizeCoordinateTransformation
+	        &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::ResizeCoordinateTransformation::k##x }
+		static const std::unordered_map<std::string,
+		    ::nvinfer1::ResizeCoordinateTransformation>
+		    enumMap = {
+		        ENUM_DEF(ALIGN_CORNERS),
+		        ENUM_DEF(ASYMMETRIC),
+		        ENUM_DEF(HALF_PIXEL),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+template <>
+struct convert<::nvinfer1::ResizeSelector> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::ResizeSelector &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::ResizeSelector::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::ResizeSelector>
+		    enumMap = {
+		        ENUM_DEF(FORMULA),
+		        ENUM_DEF(UPPER),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
+struct convert<::nvinfer1::ResizeRoundMode> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::ResizeRoundMode &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::ResizeRoundMode::k##x }
+		static const std::unordered_map<std::string,
+		    ::nvinfer1::ResizeRoundMode>
+		    enumMap = {
+		        ENUM_DEF(HALF_UP),
+		        ENUM_DEF(HALF_DOWN),
+		        ENUM_DEF(FLOOR),
+		        ENUM_DEF(CEIL),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
 }  // namespace YAML
 
 namespace JoshUpscale {
@@ -307,7 +560,7 @@ private:
 			        convertDimensions({1, 3, 1080, 1920}))) {
 				return false;
 			}
-			constexpr std::size_t maxSize = 1ULL * 3ULL * 272ULL * 480ULL;
+			constexpr std::size_t maxSize = 3ULL * 272ULL * 480ULL;
 			for (std::int32_t i = 1; i < m_Network->getNbInputs(); ++i) {
 				if (getDimensionsSize(m_Network->getInput(i)->getDimensions()) >
 				    maxSize) {
@@ -423,6 +676,24 @@ private:
 		            &GraphDeserializer::addDeconvolution},
 		        {::nvinfer1::LayerType::kELEMENTWISE,
 		            &GraphDeserializer::addElementwise},
+		        {::nvinfer1::LayerType::kGRID_SAMPLE,
+		            &GraphDeserializer::addGridSample},
+		        {::nvinfer1::LayerType::kIDENTITY,
+		            &GraphDeserializer::addIdentity},
+		        {::nvinfer1::LayerType::kPOOLING,
+		            &GraphDeserializer::addPooling},
+		        {::nvinfer1::LayerType::kREDUCE,
+		            &GraphDeserializer::addReduce},
+		        {::nvinfer1::LayerType::kRESIZE,
+		            &GraphDeserializer::addResize},
+		        {::nvinfer1::LayerType::kSCALE,
+		            &GraphDeserializer::addScale},
+		        {::nvinfer1::LayerType::kSHUFFLE,
+		            &GraphDeserializer::addShuffle},
+		        {::nvinfer1::LayerType::kSLICE,
+		            &GraphDeserializer::addSlice},
+		        {::nvinfer1::LayerType::kUNARY,
+		            &GraphDeserializer::addUnary},
 			};
 		// clang-format on
 		auto layerType = config["type"].as<::nvinfer1::LayerType>();
@@ -526,6 +797,7 @@ private:
 		layer->setDilationNd(config["dilation_nd"].as<::nvinfer1::Dims>());
 		return layer;
 	}
+
 	::nvinfer1::ILayer *addElementwise(const ::YAML::Node &config) {
 		if (config["inputs"].size() != 2) {
 			throw std::runtime_error("Unsupported layer");
@@ -535,6 +807,145 @@ private:
 		auto op = config["op"].as<::nvinfer1::ElementWiseOperation>();
 		auto *layer =
 		    m_Network->addElementWise(*inputTensor1, *inputTensor2, op);
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addGridSample(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 2) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *grid = m_TensorMap[config["inputs"][2].as<std::string>()];
+		auto *layer = m_Network->addGridSample(*inputTensor, *grid);
+		layer->setAlignCorners(config["align_corners"].as<bool>());
+		layer->setInterpolationMode(
+		    config["interpolation_mode"].as<::nvinfer1::InterpolationMode>());
+		layer->setSampleMode(
+		    config["sample_mode"].as<::nvinfer1::SampleMode>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addIdentity(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addIdentity(*inputTensor);
+		layer->setOutputType(
+		    0, config["output_dtypes"][0].as<::nvinfer1::DataType>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addPooling(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addPoolingNd(*inputTensor,
+		    config["pooling_type"].as<::nvinfer1::PoolingType>(),
+		    config["window_size_nd"].as<::nvinfer1::Dims>());
+		layer->setPaddingMode(
+		    config["padding_mode"].as<::nvinfer1::PaddingMode>());
+		layer->setBlendFactor(config["blend_factor"].as<float>());
+		layer->setAverageCountExcludesPadding(
+		    config["average_count_excludes_padding"].as<bool>());
+		layer->setStrideNd(config["stride_nd"].as<::nvinfer1::Dims>());
+		layer->setPaddingNd(config["padding_nd"].as<::nvinfer1::Dims>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addReduce(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addReduce(*inputTensor,
+		    config["op"].as<::nvinfer1::ReduceOperation>(),
+		    config["axes"].as<std::uint8_t>(), config["keep_dims"].as<bool>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addResize(const ::YAML::Node &config) {
+		// TODO(me): support dynamic resize
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addResize(*inputTensor);
+		if (config["scales"]) {
+			auto scales = config["scales"].as<std::vector<float>>();
+			layer->setScales(
+			    scales.data(), static_cast<std::int32_t>(scales.size()));
+		} else if (config["shape"]) {
+			layer->setOutputDimensions(config["shape"].as<::nvinfer1::Dims>());
+		} else {
+			throw std::runtime_error("Unsupported layer");
+		}
+		layer->setResizeMode(
+		    config["resize_mode"].as<::nvinfer1::InterpolationMode>());
+		layer->setCoordinateTransformation(
+		    config["coordinate_transformation"]
+		        .as<::nvinfer1::ResizeCoordinateTransformation>());
+		layer->setSelectorForSinglePixel(config["selector_for_single_pixel"]
+		                                     .as<::nvinfer1::ResizeSelector>());
+		layer->setNearestRounding(
+		    config["nearest_rounding"].as<::nvinfer1::ResizeRoundMode>());
+		layer->setExcludeOutside(config["exclude_outside"].as<bool>());
+		layer->setCubicCoeff(config["cubic_coeff"].as<float>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addScale(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addScale(*inputTensor,
+		    config["mode"].as<::nvinfer1::ScaleMode>(),
+		    m_Weights.at(config["shift"].as<std::size_t>()).data,
+		    m_Weights.at(config["scale"].as<std::size_t>()).data,
+		    m_Weights.at(config["power"].as<std::size_t>()).data);
+		layer->setChannelAxis(config["channel_axis"].as<std::int32_t>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addShuffle(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addShuffle(*inputTensor);
+		layer->setFirstTranspose(
+		    config["first_transpose"].as<::nvinfer1::Permutation>());
+		layer->setSecondTranspose(
+		    config["second_transpose"].as<::nvinfer1::Permutation>());
+		if (config["reshape_dims"] && !config["reshape_dims"].IsNull()) {
+			layer->setReshapeDimensions(
+			    config["reshape_dims"].as<::nvinfer1::Dims>());
+		}
+		layer->setZeroIsPlaceholder(config["zero_is_placeholder"].as<bool>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addSlice(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addSlice(*inputTensor,
+		    config["start"].as<::nvinfer1::Dims>(),
+		    config["shape"].as<::nvinfer1::Dims>(),
+		    config["stride"].as<::nvinfer1::Dims>());
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addUnary(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 1) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *layer = m_Network->addUnary(
+		    *inputTensor, config["op"].as<::nvinfer1::UnaryOperation>());
 		return layer;
 	}
 };

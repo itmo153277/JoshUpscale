@@ -18,9 +18,8 @@ namespace core {
 
 class TensorRTBackend {
 public:
-	TensorRTBackend(const std::vector<std::string> &inputNames,
-	    const std::vector<std::string> &outputNames,
-	    std::span<std::byte> engine);
+	TensorRTBackend(std::span<std::string> inputNames,
+	    std::span<std::string> outputNames, std::span<std::byte> engine);
 
 	void processImage(const Tensor &inputImage, const Tensor &outputImage);
 

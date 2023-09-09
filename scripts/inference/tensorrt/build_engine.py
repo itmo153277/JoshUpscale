@@ -328,6 +328,8 @@ class GraphDeserializer:
             trt.ResizeRoundMode,
             config["nearest_rounding"]
         )
+        layer.exclude_outside = config["exclude_outside"]
+        layer.cubic_coeff = config["cubic_coeff"]
         return layer
 
     def _add_scale(self, config: Dict[str, Any]) -> trt.ILayer:
@@ -401,7 +403,7 @@ class GraphDeserializer:
             if self._quant_fp16 or self._quant_fp16:
                 LOG.info("Forced precision %s for %s",
                          config["precision"], layer.name)
-                # layer.precision = precision
+                layer.precision = precision
         assert layer.num_outputs == len(config["output_names"])
         for i, out_name, out_dtype, out_range in zip(
             range(layer.num_outputs),
