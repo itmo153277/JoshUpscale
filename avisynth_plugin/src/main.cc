@@ -12,8 +12,8 @@
 
 class JoshUpscalePlugin : public GenericVideoFilter {
 public:
-	JoshUpscalePlugin(PClip _child, IScriptEnvironment *env,
-	    const char *modelPath, const char *enginePath);
+	JoshUpscalePlugin(
+	    PClip _child, IScriptEnvironment *env, const char *modelPath);
 	~JoshUpscalePlugin();
 	PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env);
 
@@ -21,9 +21,8 @@ private:
 	std::unique_ptr<JoshUpscale::core::Runtime> m_Runtime;
 };
 
-// NOLINTNEXTLINE
-JoshUpscalePlugin::JoshUpscalePlugin(
-    PClip _child, IScriptEnvironment *env, const char *modelPath)
+JoshUpscalePlugin::JoshUpscalePlugin(PClip _child,  // NOLINT
+    IScriptEnvironment *env, const char *modelPath)
     : GenericVideoFilter(_child) {
 	if (!vi.IsRGB24()) {
 		env->ThrowError("JoshUpscale: only RGB24 format is supported");
@@ -64,8 +63,8 @@ PVideoFrame __stdcall JoshUpscalePlugin::GetFrame(
 	return dst;
 }
 
-AVSValue __cdecl Create_JoshUpscale(
-    AVSValue args, [[maybe_unused]] void *user_data, IScriptEnvironment *env) {
+AVSValue __cdecl Create_JoshUpscale(AVSValue args,  // NOLINT
+    [[maybe_unused]] void *user_data, IScriptEnvironment *env) {
 	return new JoshUpscalePlugin(args[0].AsClip(), env, args[1].AsString());
 }
 

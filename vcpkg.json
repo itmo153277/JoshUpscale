@@ -5,5 +5,32 @@
   "dependencies": [
     "yaml-cpp",
     "boost-iostreams"
+  ],
+  "features": {
+    "avisynth-plugin": {
+      "description": "AviSynth plugin",
+      "dependencies": [
+        "avisynthplus"
+      ],
+      "supports": "windows"
+    },
+    "obs-plugin": {
+      "description": "OBS plugin",
+      "dependencies": [
+        {
+          "name": "ffmpeg",
+          "default-features": false,
+          "features": [
+            "swscale"
+          ]
+        }
+      ]
+    }
+  },
+  "default-features": [
+    {
+      "name": "avisynth-plugin",
+      "platform": "windows"
+    }
   ]
 }
