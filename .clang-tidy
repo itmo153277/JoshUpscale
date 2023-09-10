@@ -3,6 +3,7 @@ Checks: |
   -readability-magic-numbers,
   -readability-identifier-length,
   -readability-inconsistent-declaration-parameter-name,
+  -readability-convert-member-functions-to-static,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   performance-*
