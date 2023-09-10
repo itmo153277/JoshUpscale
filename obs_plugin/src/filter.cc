@@ -42,21 +42,25 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 	::obs_source_t *parent = obs_filter_get_parent(m_Source);
 	m_ScaleContext.scale(frame, m_InputBuffer.get());
 	::obs_source_release_frame(parent, frame);
-	core::Image inputImage = {
-	    .ptr = m_InputBuffer.get(),
-	    .stride = static_cast<std::ptrdiff_t>(core::INPUT_WIDTH * 3),
-	    .width = core::INPUT_WIDTH,
-	    .height = core::INPUT_HEIGHT,
-	};
-	core::Image outputImage = {
-	    .ptr = m_OutputFrame->data[0],
-	    .stride = static_cast<std::ptrdiff_t>(m_OutputFrame->linesize[0]),
-	    .width = core::INPUT_WIDTH,
-	    .height = core::INPUT_HEIGHT,
-	};
-	// TODO(me): async processing
-	m_Runtime->processImage(inputImage, outputImage);
-	return m_OutputFrame.get();
+	try {
+		core::Image inputImage = {
+		    .ptr = m_InputBuffer.get(),
+		    .stride = static_cast<std::ptrdiff_t>(core::INPUT_WIDTH * 3),
+		    .width = core::INPUT_WIDTH,
+		    .height = core::INPUT_HEIGHT,
+		};
+		core::Image outputImage = {
+		    .ptr = m_OutputFrame->data[0],
+		    .stride = static_cast<std::ptrdiff_t>(m_OutputFrame->linesize[0]),
+		    .width = core::INPUT_WIDTH,
+		    .height = core::INPUT_HEIGHT,
+		};
+		// TODO(me): async processing
+		m_Runtime->processImage(inputImage, outputImage);
+		return m_OutputFrame.get();
+	} catch (...) {
+		return nullptr;
+	}
 }
 
 }  // namespace obs
