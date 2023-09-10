@@ -141,12 +141,12 @@ struct SWScaleContext {
 		if (m_Ctx == nullptr) {
 			throw std::bad_alloc();
 		}
-		int inStrides[MAX_AV_PLANES];
-		for (std::size_t i = 0; i < MAX_AV_PLANES; ++i) {
+		int inStrides[4];
+		for (std::size_t i = 0; i < 4; ++i) {
 			inStrides[i] = static_cast<int>(inputFrame->linesize[i]);
 		}
-		std::uint8_t *outBuffers[] = {
-		    reinterpret_cast<std::uint8_t *>(outBuffer), 0};
+		std::uint8_t *outBuffers[4] = {
+		    reinterpret_cast<std::uint8_t *>(outBuffer)};
 		int outStrides[] = {core::INPUT_WIDTH * 3, 0};
 		::sws_scale(m_Ctx, inputFrame->data, inStrides, 0, srcH, outBuffers,
 		    outStrides);
