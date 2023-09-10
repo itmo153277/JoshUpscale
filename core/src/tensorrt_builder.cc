@@ -532,14 +532,10 @@ struct GraphDeserializer {
 	}
 
 private:
-	struct WeightData {
-		std::vector<std::byte> storage;
-		::nvinfer1::Weights data;
-	};
-
 	::nvinfer1::INetworkDefinition *m_Network;
 	std::unordered_map<std::string, ::nvinfer1::ITensor *> m_TensorMap;
-	std::vector<WeightData> m_Weights;
+	std::vector<::nvinfer1::Weights> m_Weights;
+	std::vector<std::vector<std::byte>> m_WeightData;
 
 	bool validateNetwork() {
 		if (m_Network->getNbInputs() == 1) {
@@ -561,7 +557,7 @@ private:
 				return false;
 			}
 			constexpr std::size_t maxSize = 3ULL * 272ULL * 480ULL;
-			for (std::int32_t i = 1; i < m_Network->getNbInputs(); ++i) {
+			for (std::int32_t i = 2; i < m_Network->getNbInputs(); ++i) {
 				if (getDimensionsSize(m_Network->getInput(i)->getDimensions()) >
 				    maxSize) {
 					return false;
@@ -574,7 +570,7 @@ private:
 		        convertDimensions({1, 270, 480, 3}))) {
 			return false;
 		}
-		if (!dimensionsEqual(m_Network->getOutput(1)->getDimensions(),
+		if (!dimensionsEqual(m_Network->getOutput(0)->getDimensions(),
 		        convertDimensions({1, 1080, 1920, 3}))) {
 			return false;
 		}
@@ -602,29 +598,29 @@ private:
 			boost::iostreams::filtering_istream is;
 			is.push(boost::iostreams::gzip_decompressor());
 			is.push(weightFile);
-			is.exceptions(std::ios::badbit | std::ios::failbit);
-			while (!is.eof()) {
-				WeightData weights;
+			while (is) {
+				::nvinfer1::Weights weights;
 				std::uint32_t dataType;
 				std::uint32_t size;
 				is.read(reinterpret_cast<char *>(&dataType), sizeof(dataType));
 				is.read(reinterpret_cast<char *>(&size), sizeof(size));
 				switch (dataType) {
 				case 0:
-					weights.data.type = ::nvinfer1::DataType::kINT32;
+					weights.type = ::nvinfer1::DataType::kINT32;
 					break;
 				case 1:
-					weights.data.type = ::nvinfer1::DataType::kFLOAT;
+					weights.type = ::nvinfer1::DataType::kFLOAT;
 					break;
 				default:
 					throw new std::runtime_error("Unknown weight type");
 				}
-				weights.storage.resize(static_cast<std::size_t>(size) * 4);
-				is.read(reinterpret_cast<char *>(weights.storage.data()),
-				    static_cast<std::streamsize>(weights.storage.size()));
-				weights.data.count = static_cast<std::int64_t>(size);
-				weights.data.values = weights.storage.data();
-				m_Weights.emplace_back(std::move(weights));
+				auto &data = m_WeightData.emplace_back(
+				    static_cast<std::size_t>(size) * 4);
+				is.read(reinterpret_cast<char *>(data.data()),
+				    static_cast<std::streamsize>(data.size()));
+				weights.count = static_cast<std::int64_t>(size);
+				weights.values = data.data();
+				m_Weights.push_back(weights);
 			}
 		} catch (...) {
 			throw_with_nested_id(std::runtime_error("Failed to load weights"));
@@ -755,7 +751,7 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto shape = config["shape"].as<::nvinfer1::Dims>();
-		auto weights = m_Weights.at(config["weights"].as<std::size_t>()).data;
+		auto weights = m_Weights.at(config["weights"].as<std::size_t>());
 		auto *layer = m_Network->addConstant(shape, weights);
 		return layer;
 	}
@@ -765,8 +761,8 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
-		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>()).data;
-		auto bias = m_Weights.at(config["bias"].as<std::size_t>()).data;
+		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>());
+		auto bias = m_Weights.at(config["bias"].as<std::size_t>());
 		auto *layer = m_Network->addConvolutionNd(*inputTensor,
 		    config["num_output_maps"].as<int32_t>(),
 		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
@@ -784,8 +780,8 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
-		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>()).data;
-		auto bias = m_Weights.at(config["bias"].as<std::size_t>()).data;
+		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>());
+		auto bias = m_Weights.at(config["bias"].as<std::size_t>());
 		auto *layer = m_Network->addDeconvolutionNd(*inputTensor,
 		    config["num_output_maps"].as<int32_t>(),
 		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
@@ -803,7 +799,7 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto *inputTensor1 = m_TensorMap[config["inputs"][0].as<std::string>()];
-		auto *inputTensor2 = m_TensorMap[config["inputs"][2].as<std::string>()];
+		auto *inputTensor2 = m_TensorMap[config["inputs"][1].as<std::string>()];
 		auto op = config["op"].as<::nvinfer1::ElementWiseOperation>();
 		auto *layer =
 		    m_Network->addElementWise(*inputTensor1, *inputTensor2, op);
@@ -815,7 +811,7 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
-		auto *grid = m_TensorMap[config["inputs"][2].as<std::string>()];
+		auto *grid = m_TensorMap[config["inputs"][1].as<std::string>()];
 		auto *layer = m_Network->addGridSample(*inputTensor, *grid);
 		layer->setAlignCorners(config["align_corners"].as<bool>());
 		layer->setInterpolationMode(
@@ -902,9 +898,9 @@ private:
 		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
 		auto *layer = m_Network->addScale(*inputTensor,
 		    config["mode"].as<::nvinfer1::ScaleMode>(),
-		    m_Weights.at(config["shift"].as<std::size_t>()).data,
-		    m_Weights.at(config["scale"].as<std::size_t>()).data,
-		    m_Weights.at(config["power"].as<std::size_t>()).data);
+		    m_Weights.at(config["shift"].as<std::size_t>()),
+		    m_Weights.at(config["scale"].as<std::size_t>()),
+		    m_Weights.at(config["power"].as<std::size_t>()));
 		layer->setChannelAxis(config["channel_axis"].as<std::int32_t>());
 		return layer;
 	}
@@ -936,6 +932,7 @@ private:
 		    config["start"].as<::nvinfer1::Dims>(),
 		    config["shape"].as<::nvinfer1::Dims>(),
 		    config["stride"].as<::nvinfer1::Dims>());
+		layer->setMode(config["mode"].as<::nvinfer1::SampleMode>());
 		return layer;
 	}
 
@@ -987,7 +984,8 @@ std::vector<std::byte> buildTrtEngine(
 			    1 << static_cast<::nvinfer1::NetworkDefinitionCreationFlags>(
 			        ::nvinfer1::NetworkDefinitionCreationFlag::
 			            kEXPLICIT_BATCH)));
-			GraphDeserializer(network).deserialize(modelPath, modelConfig);
+			GraphDeserializer deserializer{network};
+			deserializer.deserialize(modelPath, modelConfig);
 			auto engine = trt::TrtPtr(
 			    builder->buildSerializedNetwork(*network, *builderConfig));
 			const std::byte *enginePtr =
