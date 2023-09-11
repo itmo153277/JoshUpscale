@@ -1,5 +1,8 @@
 find_package(FFMPEG REQUIRED)
 find_package(LibObs REQUIRED)
+if(NOT TARGET OBS::libobs)
+  add_library(OBS::libobs ALIAS libobs)
+endif()
 
 file(GLOB_RECURSE SRC src/*.c src/*.cc)
 file(GLOB_RECURSE HEADERS include/*.h)
@@ -21,6 +24,6 @@ target_include_directories(obs-joshupscale SYSTEM PRIVATE
 target_link_directories(obs-joshupscale PRIVATE ${FFMPEG_LIBRARY_DIRS})
 target_link_libraries(obs-joshupscale PRIVATE
   JoshUpscale
-  libobs
+  OBS::libobs
   ${FFMPEG_LIBRARIES}
 )

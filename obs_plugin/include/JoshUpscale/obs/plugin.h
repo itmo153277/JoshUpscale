@@ -6,7 +6,10 @@
 extern "C" {
 #endif
 
-#include <obs.h>
+#include <obs-module.h>
+
+extern const char *PLUGIN_NAME;
+extern const char *PLUGIN_VERSION;
 
 struct obs_source_info *getJoshUpscaleSourceInfo();
 

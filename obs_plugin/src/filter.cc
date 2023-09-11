@@ -5,10 +5,53 @@
 #include <JoshUpscale/core.h>
 
 #include <cstddef>
+#include <stdexcept>
 
 namespace JoshUpscale {
 
 namespace obs {
+
+namespace {
+
+inline ::AVPixelFormat convertFrameFormat(::video_format format) {
+	switch (format) {
+	case VIDEO_FORMAT_I444:
+		return AV_PIX_FMT_YUV444P;
+	case VIDEO_FORMAT_I420:
+		return AV_PIX_FMT_YUV420P;
+	case VIDEO_FORMAT_NV12:
+		return AV_PIX_FMT_NV12;
+	case VIDEO_FORMAT_YUY2:
+		return AV_PIX_FMT_YUYV422;
+	case VIDEO_FORMAT_UYVY:
+		return AV_PIX_FMT_UYVY422;
+	case VIDEO_FORMAT_YVYU:
+		return AV_PIX_FMT_YVYU422;
+	case VIDEO_FORMAT_RGBA:
+		return AV_PIX_FMT_RGBA;
+	case VIDEO_FORMAT_BGRA:
+	case VIDEO_FORMAT_BGRX:
+		return AV_PIX_FMT_BGRA;
+	case VIDEO_FORMAT_Y800:
+		return AV_PIX_FMT_GRAY8;
+	case VIDEO_FORMAT_BGR3:
+		return AV_PIX_FMT_BGR24;
+	case VIDEO_FORMAT_I422:
+		return AV_PIX_FMT_YUV422P;
+	case VIDEO_FORMAT_I40A:
+		return AV_PIX_FMT_YUVA420P;
+	case VIDEO_FORMAT_I42A:
+		return AV_PIX_FMT_YUVA422P;
+	case VIDEO_FORMAT_YUVA:
+		return AV_PIX_FMT_YUVA444P;
+	case VIDEO_FORMAT_NONE:
+	case VIDEO_FORMAT_AYUV:
+	default:
+		return AV_PIX_FMT_NONE;
+	}
+}
+
+}  // namespace
 
 ::obs_source_info *JoshUpscaleFilter::getSourceInfo() {
 	static struct Data {
@@ -18,8 +61,8 @@ namespace obs {
 			info.type = OBS_SOURCE_TYPE_FILTER;
 			info.output_flags = OBS_SOURCE_ASYNC_VIDEO;
 			info.get_name = Callback<&JoshUpscaleFilter::getName>::getPtr();
-			info.create = &JoshUpscaleFilter::create;
-			info.destroy = &JoshUpscaleFilter::destroy;
+			info.create = Callback<&JoshUpscaleFilter::create>::getPtr();
+			info.destroy = Callback<&JoshUpscaleFilter::destroy>::getPtr();
 			info.filter_video =
 			    Callback<&JoshUpscaleFilter::filterVideo>::getPtr();
 		}
@@ -29,20 +72,60 @@ namespace obs {
 
 JoshUpscaleFilter::JoshUpscaleFilter(::obs_source_t *source)
     : m_Source(source)
-    , m_InputBuffer(core::INPUT_WIDTH * core::OUTPUT_HEIGHT * 3)
+    , m_InputBuffer(core::INPUT_WIDTH * core::INPUT_HEIGHT * 3)
     , m_OutputFrame(core::OUTPUT_WIDTH, core::OUTPUT_HEIGHT) {
 	// TODO(me): Ability to select model
 	m_Runtime.reset(core::createRuntime(0, obs_module_file("model.yaml")));
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
+	if (m_SwsCtx != nullptr) {
+		::sws_freeContext(m_SwsCtx);
+	}
 }
 
-::obs_source_frame *JoshUpscaleFilter::filterVideo(::obs_source_frame *frame) {
-	::obs_source_t *parent = obs_filter_get_parent(m_Source);
-	m_ScaleContext.scale(frame, m_InputBuffer.get());
-	::obs_source_release_frame(parent, frame);
+const char *JoshUpscaleFilter::getName() noexcept {
+	return "JoshUpscale";
+}
+
+void *JoshUpscaleFilter::create(
+    [[maybe_unused]] ::obs_data_t *params, ::obs_source_t *source) noexcept {
 	try {
+		return new JoshUpscaleFilter(source);
+	} catch (...) {
+		return nullptr;
+	}
+}
+
+void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
+	int srcW = static_cast<int>(frame->width);
+	int srcH = static_cast<int>(frame->height);
+	::AVPixelFormat srcFormat = convertFrameFormat(frame->format);
+	int dstW = static_cast<int>(core::INPUT_WIDTH);
+	int dstH = static_cast<int>(core::INPUT_HEIGHT);
+	::AVPixelFormat dstFormat = AV_PIX_FMT_BGR24;
+	m_SwsCtx = ::sws_getCachedContext(m_SwsCtx, srcW, srcH, srcFormat, dstW,
+	    dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
+	if (m_SwsCtx == nullptr) {
+		throw std::runtime_error("SwsCtx failure");
+	}
+	int inStrides[4];
+	for (std::size_t i = 0; i < 4; ++i) {
+		inStrides[i] = static_cast<int>(frame->linesize[i]);
+	}
+	std::uint8_t *outBuffers[4] = {
+	    reinterpret_cast<std::uint8_t *>(m_InputBuffer.get())};
+	int outStrides[] = {core::INPUT_WIDTH * 3, 0};
+	::sws_scale(
+	    m_SwsCtx, frame->data, inStrides, 0, srcH, outBuffers, outStrides);
+}
+
+::obs_source_frame *JoshUpscaleFilter::filterVideo(
+    ::obs_source_frame *frame) noexcept {
+	try {
+		::obs_source_t *parent = obs_filter_get_parent(m_Source);
+		copyFrame(frame);
+		::obs_source_release_frame(parent, frame);
 		core::Image inputImage = {
 		    .ptr = m_InputBuffer.get(),
 		    .stride = static_cast<std::ptrdiff_t>(core::INPUT_WIDTH * 3),
@@ -52,8 +135,8 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 		core::Image outputImage = {
 		    .ptr = m_OutputFrame->data[0],
 		    .stride = static_cast<std::ptrdiff_t>(m_OutputFrame->linesize[0]),
-		    .width = core::INPUT_WIDTH,
-		    .height = core::INPUT_HEIGHT,
+		    .width = core::OUTPUT_WIDTH,
+		    .height = core::OUTPUT_HEIGHT,
 		};
 		// TODO(me): async processing
 		m_Runtime->processImage(inputImage, outputImage);
