@@ -97,6 +97,10 @@ void *JoshUpscaleFilter::create(
 	}
 }
 
+void JoshUpscaleFilter::destroy(void *data) noexcept {
+	delete reinterpret_cast<JoshUpscaleFilter *>(data);
+}
+
 void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	int srcW = static_cast<int>(frame->width);
 	int srcH = static_cast<int>(frame->height);

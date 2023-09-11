@@ -95,19 +95,20 @@ private:
 	template <auto Ptr>
 	struct Callback;
 
-	template <typename R, typename... T, R (JoshUpscaleFilter::*Ptr)(T...)>
+	template <typename R, typename... T,
+	    R (JoshUpscaleFilter::*Ptr)(T...) noexcept>
 	struct Callback<Ptr> {
-		static consteval R (*getPtr())(void *, T...) {
-			return [](void *self, T... params) -> R {
+		static consteval R (*getPtr() noexcept)(void *, T...) noexcept {
+			return [](void *self, T... params) noexcept -> R {
 				return (reinterpret_cast<JoshUpscaleFilter *>(self)->*Ptr)(
 				    params...);
 			};
 		}
 	};
 
-	template <typename R, typename... T, R (*Ptr)(T...)>
+	template <typename R, typename... T, R (*Ptr)(T...) noexcept>
 	struct Callback<Ptr> {
-		static consteval R (*getPtr())(T...) {
+		static consteval R (*getPtr() noexcept)(T...) noexcept {
 			return Ptr;
 		}
 	};
