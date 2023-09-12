@@ -570,6 +570,20 @@ class TakeOp(DatasetOp):
         return data.take(self.size, name=self.name)
 
 
+class SkipOp(DatasetOp):
+    """Skip op."""
+
+    def __init__(self, name: str, size: int) -> None:
+        """Create SkipOp."""
+        super().__init__(name)
+        self.size = size
+
+    def __call__(self, data: Any) -> Any:
+        """Take data."""
+        assert isinstance(data, tf.data.Dataset), "Type mismatch"
+        return data.skip(self.size, name=self.name)
+
+
 class OptionsOp(DatasetOp):
     """Options op."""
 
@@ -619,6 +633,7 @@ DATASET_OPS = {
     "CacheOp": CacheOp,
     "PrefetchOp": PrefetchOp,
     "TakeOp": TakeOp,
+    "SkipOp": TakeOp,
     "OptionsOp": OptionsOp,
 }
 

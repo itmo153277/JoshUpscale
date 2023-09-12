@@ -119,9 +119,10 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	}
 	std::uint8_t *outBuffers[4] = {
 	    reinterpret_cast<std::uint8_t *>(m_InputBuffer.get())};
-	int outStrides[] = {core::INPUT_WIDTH * 3, 0};
+	int outStrides[4] = {core::INPUT_WIDTH * 3};
 	::sws_scale(
 	    m_SwsCtx, frame->data, inStrides, 0, srcH, outBuffers, outStrides);
+	m_OutputFrame->timestamp = frame->timestamp;
 }
 
 ::obs_source_frame *JoshUpscaleFilter::filterVideo(
@@ -144,7 +145,7 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		};
 		// TODO(me): async processing
 		m_Runtime->processImage(inputImage, outputImage);
-		return m_OutputFrame.get();
+		return m_OutputFrame;
 	} catch (...) {
 		return nullptr;
 	}

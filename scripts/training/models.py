@@ -10,8 +10,9 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import schedules
 from tensorflow.keras import applications
 from tensorflow.keras import regularizers
+import tensorflow_model_optimization as tfmot
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
-    PreprocessLayer, PostprocessLayer, DenseWarpLayer
+    PreprocessLayer, PostprocessLayer, DenseWarpLayer, CUSTOM_LAYERS
 from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
 
 
@@ -1011,6 +1012,37 @@ def get_gan(
     return model
 
 
+def get_quant_model(input_model: keras.Model, name: str = "quant") -> keras.Model:
+    """Convert model to quantization aware one.
+
+    Parameters
+    ----------
+    input_model: keras.Model
+        Input model
+    name: str
+        Model name (unused)
+
+    Returns
+    -------
+    keras.Model
+        Quantization-aware model
+    """
+
+    # We skip quantization for our custom layers
+    def apply_quantization_annotation(layer):
+        for custom_layer in CUSTOM_LAYERS.values():
+            if isinstance(layer, custom_layer):
+                return layer
+        return tfmot.quantization.keras.quantize_annotate_layer(layer)
+
+    annotated_model = keras.models.clone_model(
+        input_model, clone_function=apply_quantization_annotation)
+    with tfmot.quantization.keras.quantize_scope(CUSTOM_LAYERS):
+        out_model = tfmot.quantization.keras.quantize_apply(annotated_model)
+    _ = name
+    return out_model
+
+
 MODELS = {
     "flow-resnet": get_flow_resnet,
     "flow-autoencoder": get_flow_autoencoder,
@@ -1021,6 +1053,7 @@ MODELS = {
     "frvsr": get_frvsr,
     "vgg": get_vgg,
     "gan": get_gan,
+    "quant": get_quant_model,
 }
 
 

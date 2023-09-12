@@ -1,5 +1,6 @@
 tensorflow==2.13.0
 tensorflow-addons==0.21.0
+tensorflow-model-optimization==0.7.5
 
 onnx==1.14.1
 onnxruntime==1.15.1

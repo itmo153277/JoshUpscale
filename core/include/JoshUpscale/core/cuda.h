@@ -150,7 +150,7 @@ void cudaCopy(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
 struct DeviceContext {
 	explicit DeviceContext(int device) {
 		cudaCheck(::cudaGetDevice(&m_Device));
-		::cudaSetDevice(device);
+		cudaCheck(::cudaSetDevice(device));
 	}
 	~DeviceContext() {
 		::cudaSetDevice(m_Device);

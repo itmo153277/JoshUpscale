@@ -65,6 +65,10 @@ struct OBSFrame : std::unique_ptr<::obs_source_frame, detail::OBSFrameDeleter> {
 	    : unique_ptr(alloc(width, height)) {
 	}
 
+	operator ::obs_source_frame *() const {
+		return get();
+	}
+
 private:
 	static ::obs_source_frame *alloc(std::size_t width, std::size_t height) {
 		auto *ptr = ::obs_source_frame_create(VIDEO_FORMAT_BGR3,
