@@ -44,8 +44,6 @@ inline ::AVPixelFormat convertFrameFormat(::video_format format) {
 		return AV_PIX_FMT_YUVA422P;
 	case VIDEO_FORMAT_YUVA:
 		return AV_PIX_FMT_YUVA444P;
-	case VIDEO_FORMAT_NONE:
-	case VIDEO_FORMAT_AYUV:
 	default:
 		return AV_PIX_FMT_NONE;
 	}
@@ -57,14 +55,15 @@ inline ::AVPixelFormat convertFrameFormat(::video_format format) {
 	static struct Data {
 		::obs_source_info info = {};
 		Data() {
+#define CALLBACK_DEF(name) (Callback<&JoshUpscaleFilter::name>::getPtr())
 			info.id = "joshupscale";
 			info.type = OBS_SOURCE_TYPE_FILTER;
 			info.output_flags = OBS_SOURCE_ASYNC_VIDEO;
-			info.get_name = Callback<&JoshUpscaleFilter::getName>::getPtr();
-			info.create = Callback<&JoshUpscaleFilter::create>::getPtr();
-			info.destroy = Callback<&JoshUpscaleFilter::destroy>::getPtr();
-			info.filter_video =
-			    Callback<&JoshUpscaleFilter::filterVideo>::getPtr();
+			info.get_name = CALLBACK_DEF(getName);
+			info.create = CALLBACK_DEF(create);
+			info.destroy = CALLBACK_DEF(destroy);
+			info.filter_video = CALLBACK_DEF(filterVideo);
+#undef CALLBACK_DEF
 		}
 	} data;
 	return &data.info;
@@ -74,7 +73,6 @@ JoshUpscaleFilter::JoshUpscaleFilter(::obs_source_t *source)
     : m_Source(source)
     , m_InputBuffer(core::INPUT_WIDTH * core::INPUT_HEIGHT * 3)
     , m_OutputFrame(core::OUTPUT_WIDTH, core::OUTPUT_HEIGHT) {
-	// TODO(me): Ability to select model
 	m_Runtime.reset(core::createRuntime(0, obs_module_file("model.yaml")));
 }
 
@@ -113,7 +111,22 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	if (m_SwsCtx == nullptr) {
 		throw std::runtime_error("SwsCtx failure");
 	}
-	int inStrides[4];
+	if (::format_is_yuv(frame->format)) {
+		float range_coef = frame->full_range ? (255.0F / 224.0F) : 1.0F;
+		int coef[4] = {
+		    static_cast<int>(65536 * frame->color_matrix[2] * range_coef),
+		    static_cast<int>(65536 * frame->color_matrix[9] * range_coef),
+		    static_cast<int>(65536 * -frame->color_matrix[5] * range_coef),
+		    static_cast<int>(65536 * -frame->color_matrix[6] * range_coef),
+		};
+		if (::sws_setColorspaceDetails(m_SwsCtx, coef,
+		        static_cast<int>(frame->full_range),
+		        ::sws_getCoefficients(SWS_CS_DEFAULT), 1, 0, 1 << 16,
+		        1 << 16) < 0) {
+			throw std::runtime_error("SwsCtx failure");
+		}
+	}
+	int inStrides[4] = {};
 	for (std::size_t i = 0; i < 4; ++i) {
 		inStrides[i] = static_cast<int>(frame->linesize[i]);
 	}
@@ -123,6 +136,9 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	::sws_scale(
 	    m_SwsCtx, frame->data, inStrides, 0, srcH, outBuffers, outStrides);
 	m_OutputFrame->timestamp = frame->timestamp;
+	m_OutputFrame->flip = frame->flip;
+	m_OutputFrame->full_range = true;
+	m_OutputFrame->refs = 2;
 }
 
 ::obs_source_frame *JoshUpscaleFilter::filterVideo(
@@ -130,7 +146,6 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	try {
 		::obs_source_t *parent = obs_filter_get_parent(m_Source);
 		copyFrame(frame);
-		::obs_source_release_frame(parent, frame);
 		core::Image inputImage = {
 		    .ptr = m_InputBuffer.get(),
 		    .stride = static_cast<std::ptrdiff_t>(core::INPUT_WIDTH * 3),
@@ -143,11 +158,11 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		    .width = core::OUTPUT_WIDTH,
 		    .height = core::OUTPUT_HEIGHT,
 		};
-		// TODO(me): async processing
 		m_Runtime->processImage(inputImage, outputImage);
+		::obs_source_release_frame(parent, frame);
 		return m_OutputFrame;
 	} catch (...) {
-		return nullptr;
+		return frame;
 	}
 }
 

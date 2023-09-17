@@ -63,6 +63,11 @@ struct OBSFrame : std::unique_ptr<::obs_source_frame, detail::OBSFrameDeleter> {
 
 	OBSFrame(std::size_t width, std::size_t height)
 	    : unique_ptr(alloc(width, height)) {
+		if (!::video_format_get_parameters(VIDEO_CS_SRGB, VIDEO_RANGE_FULL,
+		        get()->color_matrix, get()->color_range_min,
+		        get()->color_range_max)) {
+			throw std::bad_alloc();
+		}
 	}
 
 	operator ::obs_source_frame *() const {
