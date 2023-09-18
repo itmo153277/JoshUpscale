@@ -125,6 +125,9 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		        1 << 16) < 0) {
 			throw std::runtime_error("SwsCtx failure");
 		}
+		m_OutputFrame->full_range = true;
+	} else {
+		m_OutputFrame->full_range = frame->full_range;
 	}
 	int inStrides[4] = {};
 	for (std::size_t i = 0; i < 4; ++i) {
@@ -137,7 +140,6 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	    m_SwsCtx, frame->data, inStrides, 0, srcH, outBuffers, outStrides);
 	m_OutputFrame->timestamp = frame->timestamp;
 	m_OutputFrame->flip = frame->flip;
-	m_OutputFrame->full_range = true;
 	m_OutputFrame->refs = 2;
 }
 
