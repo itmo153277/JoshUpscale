@@ -1,6 +1,6 @@
 # Contributing guidelines
 
-Any contributions are welcome.
+Any contributions are welcome. Also, check out [TODO list](TODO.md).
 
 ## Code style
 
