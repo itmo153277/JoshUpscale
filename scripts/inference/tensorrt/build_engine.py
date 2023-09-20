@@ -475,7 +475,7 @@ def main(
     """
     with open(model_path, "rt", encoding="utf-8") as f:
         model = yaml.unsafe_load(f)
-    trt_logger = trt.Logger(trt.Logger.INFO)
+    trt_logger = trt.Logger(trt.Logger.VERBOSE)
     builder = trt.Builder(trt_logger)
     network = GraphDeserializer(
         quant_fp16=quant_fp16,
@@ -495,10 +495,10 @@ def main(
         config.set_flag(trt.BuilderFlag.INT8)
     config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
     config.set_flag(trt.BuilderFlag.REJECT_EMPTY_ALGORITHMS)
-    config.set_flag(trt.BuilderFlag.DIRECT_IO)
     if builder.num_DLA_cores > 0:
         config.default_device_type = trt.DeviceType.DLA
         config.set_flag(trt.BuilderFlag.GPU_FALLBACK)
+    config.builder_optimization_level = 5
     engine = builder.build_serialized_network(network, config)
     assert engine is not None
     with open(output_path, "wb") as f:

@@ -956,16 +956,17 @@ void prepareBuilderConfig(
 		builderConfig->setFlag(::nvinfer1::BuilderFlag::kFP16);
 	}
 	if (builder->platformHasFastInt8()) {
-		builderConfig->setFlag(::nvinfer1::BuilderFlag::kINT8);
+		// INT8 is disabled because of image quality
+		// builderConfig->setFlag(::nvinfer1::BuilderFlag::kINT8);
 	}
 	builderConfig->setFlag(
 	    ::nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
 	builderConfig->setFlag(::nvinfer1::BuilderFlag::kREJECT_EMPTY_ALGORITHMS);
-	builderConfig->setFlag(::nvinfer1::BuilderFlag::kDIRECT_IO);
 	if (builder->getNbDLACores() > 0) {
 		builderConfig->setDefaultDeviceType(::nvinfer1::DeviceType::kDLA);
 		builderConfig->setFlag(::nvinfer1::BuilderFlag::kGPU_FALLBACK);
 	}
+	builderConfig->setBuilderOptimizationLevel(5);
 }
 
 }  // namespace
