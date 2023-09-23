@@ -120,6 +120,13 @@ class Graph:
             )
         )
 
+    def create_value(self, name: str, value: Any) -> None:
+        """Create value."""
+        self._init_dict[name] = numpy_helper.from_array(
+            arr=np.array(value),
+            name=name
+        )
+
     def serialize(
         self,
         inputs: Union[None, List[onnx.ValueInfoProto]] = None,
