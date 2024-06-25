@@ -6,15 +6,12 @@
 
 #include <atomic>
 #include <cstdint>
-#include <exception>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
-#include "JoshUpscale/core/cuda.h"
 #include "JoshUpscale/core/logging.h"
 
 #define TENSORRT_VERSION \
@@ -199,10 +196,9 @@ public:
 	}
 };
 
-
 #if TENSORRT_VERSION >= 8501
 using InterpolationMode = ::nvinfer1::InterpolationMode;
-using SampleMode =::nvinfer1::SampleMode;
+using SampleMode = ::nvinfer1::SampleMode;
 #else
 using InterpolationMode = ::nvinfer1::ResizeMode;
 using SampleMode = ::nvinfer1::SliceMode;

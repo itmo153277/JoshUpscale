@@ -673,7 +673,7 @@ private:
 		static const std::unordered_map<::nvinfer1::LayerType,
 		    ::nvinfer1::ILayer *(GraphDeserializer::*) (const ::YAML::Node &)>
 		    layerDeserializers = {
-				{::nvinfer1::LayerType::kACTIVATION,
+		        {::nvinfer1::LayerType::kACTIVATION,
 		            &GraphDeserializer::addActivation},
 		        {::nvinfer1::LayerType::kCONCATENATION,
 		            &GraphDeserializer::addConcat},
@@ -705,7 +705,7 @@ private:
 		            &GraphDeserializer::addSlice},
 		        {::nvinfer1::LayerType::kUNARY,
 		            &GraphDeserializer::addUnary},
-			};
+		    };
 		// clang-format on
 		auto layerType = config["type"].as<::nvinfer1::LayerType>();
 		auto deserializerIter = layerDeserializers.find(layerType);

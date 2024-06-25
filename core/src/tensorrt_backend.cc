@@ -3,7 +3,6 @@
 #include "JoshUpscale/core/tensorrt_backend.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <span>
 #include <string>
 

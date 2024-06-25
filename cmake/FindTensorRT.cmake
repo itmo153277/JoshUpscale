@@ -145,7 +145,7 @@ function(add_tensorrt_lib LIB_NAME)
         "${TensorRT_BIN_DIR}/${LIB_NAME}.dll")
     endif()
   else()
-    set_property(TARGET TensorRT::${LIB_NAME} 
+    set_property(TARGET TensorRT::${LIB_NAME}
       PROPERTY IMPORTED_LOCATION
       "${TensorRT_${LIB_NAME}_LIBRARY}")
   endif()

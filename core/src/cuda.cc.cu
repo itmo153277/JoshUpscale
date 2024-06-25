@@ -2,9 +2,10 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstdint>
+#include <cstddef>
 
 #include "JoshUpscale/core/cuda.h"
+#include "JoshUpscale/core/tensor.h"
 
 namespace JoshUpscale {
 

@@ -75,10 +75,7 @@ inline logging::LogInterface logError(const char *tag) {
 }
 
 inline void logException(const char *tag) noexcept {
-	try {
-		logError(tag) << getExceptionString();
-	} catch (...) {
-	}
+	logError(tag) << getExceptionString();
 }
 
 #define LOG_INFO ::JoshUpscale::core::logInfo(FUNCTION_NAME)

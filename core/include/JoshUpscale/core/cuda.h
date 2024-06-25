@@ -5,12 +5,9 @@
 #include <cuda_runtime_api.h>
 
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <utility>
-
-#include "JoshUpscale/core/tensor.h"
 
 namespace JoshUpscale {
 
