@@ -89,22 +89,24 @@ struct convert<::nvinfer1::LayerType> {
 	{ #x, ::nvinfer1::LayerType::k##x }
 		static const std::unordered_map<std::string, ::nvinfer1::LayerType>
 		    enumMap = {
-		        ENUM_DEF(ACTIVATION),
-		        ENUM_DEF(CONCATENATION),
-		        ENUM_DEF(CONSTANT),
-		        ENUM_DEF(CONVOLUTION),
-		        ENUM_DEF(DECONVOLUTION),
-		        ENUM_DEF(ELEMENTWISE),
-		        ENUM_DEF(GATHER),
-		        ENUM_DEF(GRID_SAMPLE),
-		        ENUM_DEF(IDENTITY),
-		        ENUM_DEF(POOLING),
-		        ENUM_DEF(REDUCE),
-		        ENUM_DEF(RESIZE),
-		        ENUM_DEF(SCALE),
-		        ENUM_DEF(SHUFFLE),
-		        ENUM_DEF(SLICE),
-		        ENUM_DEF(UNARY),
+			    ENUM_DEF(ACTIVATION),
+			    ENUM_DEF(CONCATENATION),
+			    ENUM_DEF(CONSTANT),
+			    ENUM_DEF(CONVOLUTION),
+			    ENUM_DEF(DECONVOLUTION),
+			    ENUM_DEF(ELEMENTWISE),
+			    ENUM_DEF(GATHER),
+#if TENSORRT_VERSION >= 8501
+			    ENUM_DEF(GRID_SAMPLE),
+#endif
+			    ENUM_DEF(IDENTITY),
+			    ENUM_DEF(POOLING),
+			    ENUM_DEF(REDUCE),
+			    ENUM_DEF(RESIZE),
+			    ENUM_DEF(SCALE),
+			    ENUM_DEF(SHUFFLE),
+			    ENUM_DEF(SLICE),
+			    ENUM_DEF(UNARY),
 		    };
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
@@ -199,18 +201,21 @@ struct convert<::nvinfer1::ElementWiseOperation> {
 };
 
 template <>
-struct convert<::nvinfer1::InterpolationMode> {
+struct convert<::JoshUpscale::core::trt::InterpolationMode> {
 	static bool decode(const Node &node,
-	    ::nvinfer1::InterpolationMode &rhs) {  // NOLINT(runtime/references)
+	    ::JoshUpscale::core::trt::InterpolationMode
+	        &rhs) {  // NOLINT(runtime/references)
 		auto name = node.as<std::string>();
 #define ENUM_DEF(x) \
-	{ #x, ::nvinfer1::InterpolationMode::k##x }
+	{ #x, ::JoshUpscale::core::trt::InterpolationMode::k##x }
 		static const std::unordered_map<std::string,
-		    ::nvinfer1::InterpolationMode>
+		    ::JoshUpscale::core::trt::InterpolationMode>
 		    enumMap = {
-		        ENUM_DEF(NEAREST),
-		        ENUM_DEF(LINEAR),
-		        ENUM_DEF(CUBIC),
+			    ENUM_DEF(NEAREST),
+			    ENUM_DEF(LINEAR),
+#if TENSORRT_VERSION >= 8501
+			    ENUM_DEF(CUBIC),
+#endif
 		    };
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
@@ -223,19 +228,25 @@ struct convert<::nvinfer1::InterpolationMode> {
 };
 
 template <>
-struct convert<::nvinfer1::SampleMode> {
+struct convert<::JoshUpscale::core::trt::SampleMode> {
 	static bool decode(const Node &node,
-	    ::nvinfer1::SampleMode &rhs) {  // NOLINT(runtime/references)
+	    ::JoshUpscale::core::trt::SampleMode
+	        &rhs) {  // NOLINT(runtime/references)
 		auto name = node.as<std::string>();
 #define ENUM_DEF(x) \
-	{ #x, ::nvinfer1::SampleMode::k##x }
-		static const std::unordered_map<std::string, ::nvinfer1::SampleMode>
+	{ #x, ::JoshUpscale::core::trt::SampleMode::k##x }
+		static const std::unordered_map<std::string,
+		    ::JoshUpscale::core::trt::SampleMode>
 		    enumMap = {
-		        ENUM_DEF(STRICT_BOUNDS),
-		        ENUM_DEF(WRAP),
-		        ENUM_DEF(CLAMP),
-		        ENUM_DEF(FILL),
-		        ENUM_DEF(REFLECT),
+#if TENSORRT_VERSION >= 8501
+			    ENUM_DEF(STRICT_BOUNDS),
+#else
+			    {"STRICT_BOUNDS", ::nvinfer1::SliceMode::kDEFAULT},
+#endif
+			    ENUM_DEF(WRAP),
+			    ENUM_DEF(CLAMP),
+			    ENUM_DEF(FILL),
+			    ENUM_DEF(REFLECT),
 		    };
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
@@ -328,30 +339,32 @@ struct convert<::nvinfer1::UnaryOperation> {
 	{ #x, ::nvinfer1::UnaryOperation::k##x }
 		static const std::unordered_map<std::string, ::nvinfer1::UnaryOperation>
 		    enumMap = {
-		        ENUM_DEF(EXP),
-		        ENUM_DEF(LOG),
-		        ENUM_DEF(SQRT),
-		        ENUM_DEF(RECIP),
-		        ENUM_DEF(ABS),
-		        ENUM_DEF(NEG),
-		        ENUM_DEF(SIN),
-		        ENUM_DEF(COS),
-		        ENUM_DEF(TAN),
-		        ENUM_DEF(SINH),
-		        ENUM_DEF(COSH),
-		        ENUM_DEF(ASIN),
-		        ENUM_DEF(ACOS),
-		        ENUM_DEF(ATAN),
-		        ENUM_DEF(ASINH),
-		        ENUM_DEF(ACOSH),
-		        ENUM_DEF(ATANH),
-		        ENUM_DEF(CEIL),
-		        ENUM_DEF(FLOOR),
-		        ENUM_DEF(ERF),
-		        ENUM_DEF(NOT),
-		        ENUM_DEF(SIGN),
-		        ENUM_DEF(ROUND),
-		        ENUM_DEF(ISINF),
+			    ENUM_DEF(EXP),
+			    ENUM_DEF(LOG),
+			    ENUM_DEF(SQRT),
+			    ENUM_DEF(RECIP),
+			    ENUM_DEF(ABS),
+			    ENUM_DEF(NEG),
+			    ENUM_DEF(SIN),
+			    ENUM_DEF(COS),
+			    ENUM_DEF(TAN),
+			    ENUM_DEF(SINH),
+			    ENUM_DEF(COSH),
+			    ENUM_DEF(ASIN),
+			    ENUM_DEF(ACOS),
+			    ENUM_DEF(ATAN),
+			    ENUM_DEF(ASINH),
+			    ENUM_DEF(ACOSH),
+			    ENUM_DEF(ATANH),
+			    ENUM_DEF(CEIL),
+			    ENUM_DEF(FLOOR),
+			    ENUM_DEF(ERF),
+			    ENUM_DEF(NOT),
+			    ENUM_DEF(SIGN),
+			    ENUM_DEF(ROUND),
+#if TENSORRT_VESION >= 8601
+			    ENUM_DEF(ISINF),
+#endif
 		    };
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
@@ -672,8 +685,10 @@ private:
 		            &GraphDeserializer::addDeconvolution},
 		        {::nvinfer1::LayerType::kELEMENTWISE,
 		            &GraphDeserializer::addElementwise},
+#if TENSORRT_VERSION >= 8501
 		        {::nvinfer1::LayerType::kGRID_SAMPLE,
 		            &GraphDeserializer::addGridSample},
+#endif
 		        {::nvinfer1::LayerType::kIDENTITY,
 		            &GraphDeserializer::addIdentity},
 		        {::nvinfer1::LayerType::kPOOLING,
@@ -751,7 +766,7 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto shape = config["shape"].as<::nvinfer1::Dims>();
-		auto weights = m_Weights.at(config["weights"].as<std::size_t>());
+		auto &weights = m_Weights.at(config["weights"].as<std::size_t>());
 		auto *layer = m_Network->addConstant(shape, weights);
 		return layer;
 	}
@@ -761,8 +776,8 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
-		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>());
-		auto bias = m_Weights.at(config["bias"].as<std::size_t>());
+		auto &kernel = m_Weights.at(config["kernel"].as<std::size_t>());
+		auto &bias = m_Weights.at(config["bias"].as<std::size_t>());
 		auto *layer = m_Network->addConvolutionNd(*inputTensor,
 		    config["num_output_maps"].as<int32_t>(),
 		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
@@ -780,8 +795,8 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
-		auto kernel = m_Weights.at(config["kernel"].as<std::size_t>());
-		auto bias = m_Weights.at(config["bias"].as<std::size_t>());
+		auto &kernel = m_Weights.at(config["kernel"].as<std::size_t>());
+		auto &bias = m_Weights.at(config["bias"].as<std::size_t>());
 		auto *layer = m_Network->addDeconvolutionNd(*inputTensor,
 		    config["num_output_maps"].as<int32_t>(),
 		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
@@ -806,6 +821,7 @@ private:
 		return layer;
 	}
 
+#if TENSORRT_VERSION >= 8501
 	::nvinfer1::ILayer *addGridSample(const ::YAML::Node &config) {
 		if (config["inputs"].size() != 2) {
 			throw std::runtime_error("Unsupported layer");
@@ -815,11 +831,11 @@ private:
 		auto *layer = m_Network->addGridSample(*inputTensor, *grid);
 		layer->setAlignCorners(config["align_corners"].as<bool>());
 		layer->setInterpolationMode(
-		    config["interpolation_mode"].as<::nvinfer1::InterpolationMode>());
-		layer->setSampleMode(
-		    config["sample_mode"].as<::nvinfer1::SampleMode>());
+		    config["interpolation_mode"].as<trt::InterpolationMode>());
+		layer->setSampleMode(config["sample_mode"].as<trt::SampleMode>());
 		return layer;
 	}
+#endif
 
 	::nvinfer1::ILayer *addIdentity(const ::YAML::Node &config) {
 		if (config["inputs"].size() != 1) {
@@ -878,7 +894,7 @@ private:
 			throw std::runtime_error("Unsupported layer");
 		}
 		layer->setResizeMode(
-		    config["resize_mode"].as<::nvinfer1::InterpolationMode>());
+		    config["resize_mode"].as<trt::InterpolationMode>());
 		layer->setCoordinateTransformation(
 		    config["coordinate_transformation"]
 		        .as<::nvinfer1::ResizeCoordinateTransformation>());
@@ -886,8 +902,10 @@ private:
 		                                     .as<::nvinfer1::ResizeSelector>());
 		layer->setNearestRounding(
 		    config["nearest_rounding"].as<::nvinfer1::ResizeRoundMode>());
+#if TENSORRT_VERSION >= 8501
 		layer->setExcludeOutside(config["exclude_outside"].as<bool>());
 		layer->setCubicCoeff(config["cubic_coeff"].as<float>());
+#endif
 		return layer;
 	}
 
@@ -932,7 +950,7 @@ private:
 		    config["start"].as<::nvinfer1::Dims>(),
 		    config["shape"].as<::nvinfer1::Dims>(),
 		    config["stride"].as<::nvinfer1::Dims>());
-		layer->setMode(config["mode"].as<::nvinfer1::SampleMode>());
+		layer->setMode(config["mode"].as<trt::SampleMode>());
 		return layer;
 	}
 
@@ -950,7 +968,7 @@ private:
 void prepareBuilderConfig(
     ::nvinfer1::IBuilder *builder, ::nvinfer1::IBuilderConfig *builderConfig) {
 	builderConfig->setMemoryPoolLimit(
-	    ::nvinfer1::MemoryPoolType::kWORKSPACE, 2UL << 30);
+	    ::nvinfer1::MemoryPoolType::kWORKSPACE, 2ULL << 30);
 	builderConfig->setFlag(::nvinfer1::BuilderFlag::kSPARSE_WEIGHTS);
 	if (builder->platformHasFastFp16()) {
 		builderConfig->setFlag(::nvinfer1::BuilderFlag::kFP16);
@@ -966,7 +984,9 @@ void prepareBuilderConfig(
 		builderConfig->setDefaultDeviceType(::nvinfer1::DeviceType::kDLA);
 		builderConfig->setFlag(::nvinfer1::BuilderFlag::kGPU_FALLBACK);
 	}
+#if TENSORRT_VERSION >= 8601
 	builderConfig->setBuilderOptimizationLevel(5);
+#endif
 }
 
 }  // namespace

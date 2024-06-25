@@ -39,6 +39,7 @@ TensorRTBackend::TensorRTBackend(std::span<std::string> inputNames,
 				}
 			}
 		}
+#if TENSORRT_VERSION >= 8501
 		m_Context->setTensorAddress(
 		    inputNames[0].c_str(), m_InputBufferFp.get());
 		m_Context->setTensorAddress(
@@ -51,6 +52,23 @@ TensorRTBackend::TensorRTBackend(std::span<std::string> inputNames,
 				m_BindingMaps[i][outputNames[j + 1]] = ptr2;
 			}
 		}
+#else
+		for (std::size_t i = 0; i < 2; ++i) {
+			m_Bindings[i].resize(m_Engine->getNbBindings());
+			m_Bindings[i][m_Engine->getBindingIndex(inputNames[0].c_str())] =
+			    m_InputBufferFp.get();
+			m_Bindings[i][m_Engine->getBindingIndex(outputNames[0].c_str())] =
+			    m_OutputBufferFp.get();
+			for (std::size_t j = 0; j < interBufs; ++j) {
+				void *ptr1 = m_InterBuffers[j + i * interBufs].get();
+				void *ptr2 = m_InterBuffers[j + (i ^ 1) * interBufs].get();
+				m_Bindings[i][m_Engine->getBindingIndex(
+				    inputNames[j + 1].c_str())] = ptr1;
+				m_Bindings[i][m_Engine->getBindingIndex(
+				    outputNames[j + 1].c_str())] = ptr2;
+			}
+		}
+#endif
 	} catch (...) {
 		m_ErrorRecorder.rethrowException();
 	}
@@ -63,6 +81,7 @@ void TensorRTBackend::processImage(
 	try {
 		cuda::cudaCopy(inputImage, m_InputBuffer, m_Stream);
 		cuda::cudaCast(m_InputBuffer, m_InputBufferFp, m_Stream);
+#if TENSORRT_VERSION >= 8501
 		for (const auto &[tensorName, tensorAddr] :
 		    m_BindingMaps[m_BindingsIdx]) {
 			if (!m_Context->setTensorAddress(tensorName.c_str(), tensorAddr)) {
@@ -72,6 +91,12 @@ void TensorRTBackend::processImage(
 		if (!m_Context->enqueueV3(m_Stream)) {
 			throw trt::TrtException();
 		}
+#else
+		if (!m_Context->enqueueV2(
+		        m_Bindings[m_BindingsIdx].data(), m_Stream, nullptr)) {
+			throw trt::TrtException();
+		}
+#endif
 		cuda::cudaCast(m_OutputBufferFp, m_OutputBuffer, m_Stream);
 		cuda::cudaCopy(m_OutputBuffer, outputImage, m_Stream);
 		m_Stream.synchronize();

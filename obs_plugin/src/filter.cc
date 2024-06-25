@@ -145,8 +145,8 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 
 ::obs_source_frame *JoshUpscaleFilter::filterVideo(
     ::obs_source_frame *frame) noexcept {
+	::obs_source_t *parent = obs_filter_get_parent(m_Source);
 	try {
-		::obs_source_t *parent = obs_filter_get_parent(m_Source);
 		copyFrame(frame);
 		core::Image inputImage = {
 		    .ptr = m_InputBuffer.get(),
@@ -161,11 +161,11 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		    .height = core::OUTPUT_HEIGHT,
 		};
 		m_Runtime->processImage(inputImage, outputImage);
-		::obs_source_release_frame(parent, frame);
-		return m_OutputFrame;
 	} catch (...) {
 		return frame;
 	}
+	::obs_source_release_frame(parent, frame);
+	return m_OutputFrame;
 }
 
 }  // namespace obs

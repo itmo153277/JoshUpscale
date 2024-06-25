@@ -32,7 +32,11 @@ private:
 	cuda::CudaBuffer<float> m_InputBufferFp;
 	cuda::CudaBuffer<float> m_OutputBufferFp;
 	std::vector<cuda::CudaBuffer<float>> m_InterBuffers;
+#if TENSORRT_VERSION >= 8501
 	std::unordered_map<std::string, void *> m_BindingMaps[2];
+#else
+	std::vector<void *> m_Bindings[2];
+#endif
 	int m_BindingsIdx;
 	trt::TrtPtr<nvinfer1::ICudaEngine> m_Engine;
 	trt::TrtPtr<nvinfer1::IExecutionContext> m_Context;

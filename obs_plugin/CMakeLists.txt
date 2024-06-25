@@ -1,6 +1,7 @@
 find_package(FFMPEG REQUIRED)
-find_package(LibObs REQUIRED)
+find_package(libobs QUIET)
 if(NOT TARGET OBS::libobs)
+  find_package(LibObs REQUIRED)
   add_library(OBS::libobs ALIAS libobs)
 endif()
 

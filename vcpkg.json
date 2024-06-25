@@ -26,11 +26,5 @@
         }
       ]
     }
-  },
-  "default-features": [
-    {
-      "name": "avisynth-plugin",
-      "platform": "windows"
-    }
-  ]
+  }
 }

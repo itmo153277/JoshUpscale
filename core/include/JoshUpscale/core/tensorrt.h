@@ -17,6 +17,9 @@
 #include "JoshUpscale/core/cuda.h"
 #include "JoshUpscale/core/logging.h"
 
+#define TENSORRT_VERSION \
+	(NV_TENSORRT_MAJOR * 1000 + NV_TENSORRT_MINOR * 100 + NV_TENSORRT_PATCH)
+
 namespace JoshUpscale {
 
 namespace core {
@@ -195,6 +198,15 @@ public:
 		}
 	}
 };
+
+
+#if TENSORRT_VERSION >= 8501
+using InterpolationMode = ::nvinfer1::InterpolationMode;
+using SampleMode =::nvinfer1::SampleMode;
+#else
+using InterpolationMode = ::nvinfer1::ResizeMode;
+using SampleMode = ::nvinfer1::SliceMode;
+#endif
 
 }  // namespace trt
 
