@@ -166,6 +166,29 @@ struct convert<::nvinfer1::PaddingMode> {
 };
 
 template <>
+struct convert<::nvinfer1::GatherMode> {
+	static bool decode(const Node &node,
+	    ::nvinfer1::GatherMode &rhs) {  // NOLINT(runtime/references)
+		auto name = node.as<std::string>();
+#define ENUM_DEF(x) \
+	{ #x, ::nvinfer1::GatherMode::k##x }
+		static const std::unordered_map<std::string, ::nvinfer1::GatherMode>
+		    enumMap = {
+		        ENUM_DEF(DEFAULT),
+		        ENUM_DEF(ELEMENT),
+		        ENUM_DEF(ND),
+		    };
+#undef ENUM_DEF
+		auto iter = enumMap.find(name);
+		if (iter == enumMap.end()) {
+			return false;
+		}
+		rhs = iter->second;
+		return true;
+	}
+};
+
+template <>
 struct convert<::nvinfer1::ElementWiseOperation> {
 	static bool decode(const Node &node,
 	    ::nvinfer1::ElementWiseOperation &rhs) {  // NOLINT(runtime/references)
@@ -685,6 +708,8 @@ private:
 		            &GraphDeserializer::addDeconvolution},
 		        {::nvinfer1::LayerType::kELEMENTWISE,
 		            &GraphDeserializer::addElementwise},
+		        {::nvinfer1::LayerType::kGATHER,
+		            &GraphDeserializer::addGather},
 #if TENSORRT_VERSION >= 8501
 		        {::nvinfer1::LayerType::kGRID_SAMPLE,
 		            &GraphDeserializer::addGridSample},
@@ -756,7 +781,7 @@ private:
 			inputs.push_back(m_TensorMap[input.as<std::string>()]);
 		}
 		auto *layer = m_Network->addConcatenation(
-		    inputs.data(), static_cast<int32_t>(inputs.size()));
+		    inputs.data(), static_cast<std::int32_t>(inputs.size()));
 		layer->setAxis(config["axis"].as<std::int32_t>());
 		return layer;
 	}
@@ -779,11 +804,11 @@ private:
 		auto &kernel = m_Weights.at(config["kernel"].as<std::size_t>());
 		auto &bias = m_Weights.at(config["bias"].as<std::size_t>());
 		auto *layer = m_Network->addConvolutionNd(*inputTensor,
-		    config["num_output_maps"].as<int32_t>(),
+		    config["num_output_maps"].as<std::int32_t>(),
 		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
 		layer->setPaddingMode(
 		    config["padding_mode"].as<::nvinfer1::PaddingMode>());
-		layer->setNbGroups(config["num_groups"].as<int32_t>());
+		layer->setNbGroups(config["num_groups"].as<std::int32_t>());
 		layer->setStrideNd(config["stride_nd"].as<::nvinfer1::Dims>());
 		layer->setPaddingNd(config["padding_nd"].as<::nvinfer1::Dims>());
 		layer->setDilationNd(config["dilation_nd"].as<::nvinfer1::Dims>());
@@ -798,11 +823,11 @@ private:
 		auto &kernel = m_Weights.at(config["kernel"].as<std::size_t>());
 		auto &bias = m_Weights.at(config["bias"].as<std::size_t>());
 		auto *layer = m_Network->addDeconvolutionNd(*inputTensor,
-		    config["num_output_maps"].as<int32_t>(),
+		    config["num_output_maps"].as<std::int32_t>(),
 		    config["kernel_size_nd"].as<::nvinfer1::Dims>(), kernel, bias);
 		layer->setPaddingMode(
 		    config["padding_mode"].as<::nvinfer1::PaddingMode>());
-		layer->setNbGroups(config["num_groups"].as<int32_t>());
+		layer->setNbGroups(config["num_groups"].as<std::int32_t>());
 		layer->setStrideNd(config["stride_nd"].as<::nvinfer1::Dims>());
 		layer->setPaddingNd(config["padding_nd"].as<::nvinfer1::Dims>());
 		layer->setDilationNd(config["dilation_nd"].as<::nvinfer1::Dims>());
@@ -818,6 +843,20 @@ private:
 		auto op = config["op"].as<::nvinfer1::ElementWiseOperation>();
 		auto *layer =
 		    m_Network->addElementWise(*inputTensor1, *inputTensor2, op);
+		return layer;
+	}
+
+	::nvinfer1::ILayer *addGather(const ::YAML::Node &config) {
+		if (config["inputs"].size() != 2) {
+			throw std::runtime_error("Unsupported layer");
+		}
+		auto *inputTensor1 = m_TensorMap[config["inputs"][0].as<std::string>()];
+		auto *indices = m_TensorMap[config["inputs"][1].as<std::string>()];
+		auto mode = config["mode"].as<::nvinfer1::GatherMode>();
+		auto *layer = m_Network->addGatherV2(*inputTensor1, *indices, mode);
+		layer->setGatherAxis(config["axis"].as<std::int32_t>());
+		layer->setNbElementWiseDims(
+		    config["num_elementwise_dims"].as<std::int32_t>());
 		return layer;
 	}
 
@@ -873,7 +912,7 @@ private:
 		auto *inputTensor = m_TensorMap[config["inputs"][0].as<std::string>()];
 		auto *layer = m_Network->addReduce(*inputTensor,
 		    config["op"].as<::nvinfer1::ReduceOperation>(),
-		    config["axes"].as<std::uint8_t>(), config["keep_dims"].as<bool>());
+		    config["axes"].as<std::uint32_t>(), config["keep_dims"].as<bool>());
 		return layer;
 	}
 
