@@ -6,9 +6,7 @@
 #include <avisynth.h>
 
 #include <cstddef>
-#include <iostream>
 #include <memory>
-#include <string>
 
 class JoshUpscalePlugin : public GenericVideoFilter {
 public:

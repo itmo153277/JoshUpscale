@@ -48,7 +48,7 @@ if(ENABLE_LINT)
 endif()
 
 add_subdirectory(core)
-if(BUILD_AVISYNTTH_PLUGIN)
+if(BUILD_AVISYNTH_PLUGIN)
   add_subdirectory(avisynth_plugin)
 endif()
 if(BUILD_OBS_PLUGIN)
