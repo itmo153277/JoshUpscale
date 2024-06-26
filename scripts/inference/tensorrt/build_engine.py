@@ -176,6 +176,13 @@ class GraphDeserializer:
         layer.beta = config["beta"]
         return layer
 
+    def _add_cast(self, config: Dict[str, Any]) -> trt.ILayer:
+        assert len(config["inputs"]) == 1
+        input_tensor = self._tensors[config["inputs"][0]]
+        layer = self._network.add_cast(input_tensor, enum_from_string(
+            trt.DataType, config["to_type"]))
+        return layer
+
     def _add_concat(self, config: Dict[str, Any]) -> trt.ILayer:
         input_tensors = [
             self._tensors[x]
@@ -374,6 +381,7 @@ class GraphDeserializer:
     def _add_layer(self, config: Dict[str, Any]) -> trt.ILayer:
         layer_deserializers = {
             trt.LayerType.ACTIVATION: self._add_activation,
+            trt.LayerType.CAST: self._add_cast,
             trt.LayerType.CONCATENATION: self._add_concat,
             trt.LayerType.CONSTANT: self._add_constant,
             trt.LayerType.CONVOLUTION: self._add_convolution,
@@ -475,7 +483,7 @@ def main(
     """
     with open(model_path, "rt", encoding="utf-8") as f:
         model = yaml.unsafe_load(f)
-    trt_logger = trt.Logger(trt.Logger.VERBOSE)
+    trt_logger = trt.Logger(trt.Logger.INFO)
     builder = trt.Builder(trt_logger)
     network = GraphDeserializer(
         quant_fp16=quant_fp16,

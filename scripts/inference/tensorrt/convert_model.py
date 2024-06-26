@@ -76,6 +76,12 @@ class GraphSerializer:
         }
         return params
 
+    def _get_cast_params(self, layer: trt.ILayer) -> Dict[str, Any]:
+        layer.__class__ = trt.ICastLayer
+        return {
+            "to_type": layer.to_type.name,
+        }
+
     def _get_concat_params(self, layer: trt.ILayer) -> Dict[str, Any]:
         layer.__class__ = trt.IConcatenationLayer
         return {
@@ -242,6 +248,7 @@ class GraphSerializer:
         layer_serializers = {
             trt.LayerType.ACTIVATION: self._get_activation_params,
             trt.LayerType.CONCATENATION: self._get_concat_params,
+            trt.LayerType.CAST: self._get_cast_params,
             trt.LayerType.CONSTANT: self._get_constant_params,
             trt.LayerType.CONVOLUTION: self._get_convolution_params,
             trt.LayerType.DECONVOLUTION: self._get_deconvolution_params,
