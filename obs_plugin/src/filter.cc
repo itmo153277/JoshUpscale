@@ -112,14 +112,14 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		throw std::runtime_error("SwsCtx failure");
 	}
 	if (::format_is_yuv(frame->format)) {
-		float range_coef = frame->full_range ? (255.0F / 224.0F) : 1.0F;
-		int coef[4] = {
-		    static_cast<int>(65536 * frame->color_matrix[2] * range_coef),
-		    static_cast<int>(65536 * frame->color_matrix[9] * range_coef),
-		    static_cast<int>(65536 * -frame->color_matrix[5] * range_coef),
-		    static_cast<int>(65536 * -frame->color_matrix[6] * range_coef),
+		float rangeCoeff = frame->full_range ? (255.0F / 224.0F) : 1.0F;
+		int coeff[4] = {
+		    static_cast<int>(65536 * frame->color_matrix[2] * rangeCoeff),
+		    static_cast<int>(65536 * frame->color_matrix[9] * rangeCoeff),
+		    static_cast<int>(65536 * -frame->color_matrix[5] * rangeCoeff),
+		    static_cast<int>(65536 * -frame->color_matrix[6] * rangeCoeff),
 		};
-		if (::sws_setColorspaceDetails(m_SwsCtx, coef,
+		if (::sws_setColorspaceDetails(m_SwsCtx, coeff,
 		        static_cast<int>(frame->full_range),
 		        ::sws_getCoefficients(SWS_CS_DEFAULT), 1, 0, 1 << 16,
 		        1 << 16) < 0) {
