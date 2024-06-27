@@ -14,6 +14,7 @@ obs_source_info *getJoshUpscaleSourceInfo() {
 #ifdef _WIN32
 #include <Windows.h>
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 
@@ -34,7 +35,7 @@ namespace {
 	       "NVIDIA Video Effects";
 }
 
-[[maybe_unused]] void setDllDir(nullptr_t) {
+[[maybe_unused]] void setDllDir(std::nullptr_t) {
 	SetDllDirectoryW(NULL);
 }
 

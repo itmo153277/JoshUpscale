@@ -483,6 +483,73 @@ std::filesystem::path getEnginePath(const ::YAML::Node &modelConfig) {
 	       (modelConfig["name"].as<std::string>() + ".trt");
 }
 
+std::filesystem::path getTimingCachePath() {
+	return std::filesystem::temp_directory_path() / "JoshUpscale" /
+	       "timingCache.bin";
+}
+
+std::vector<std::byte> readTimingCacheFile() {
+	auto filePath = getTimingCachePath();
+	if (!std::filesystem::exists(filePath)) {
+		return {};
+	}
+	try {
+		std::ifstream inputFile(filePath,
+		    std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
+		inputFile.exceptions(std::ifstream::badbit | std::ifstream::failbit);
+		auto size = static_cast<std::size_t>(inputFile.tellg());
+		inputFile.seekg(0);
+		std::vector<std::byte> timingCache{size};
+		inputFile.read(reinterpret_cast<char *>(timingCache.data()),
+		    static_cast<std::streamsize>(size));
+		return timingCache;
+	} catch (...) {
+		throw_with_nested_id(
+		    std::runtime_error("Failed to load TensorRT timing cache"));
+	}
+}
+
+void saveTimingCache(::nvinfer1::IBuilderConfig *builderConfig) {
+	auto filePath = getTimingCachePath();
+	try {
+		std::filesystem::create_directories(filePath.parent_path());
+		trt::TrtPtr<::nvinfer1::ITimingCache> managedTimingCache{nullptr};
+		const ::nvinfer1::ITimingCache *timingCache =
+		    trt::throwIfNull(builderConfig->getTimingCache());
+		if (std::filesystem::exists(filePath)) {
+			auto oldTimingData = readTimingCacheFile();
+			managedTimingCache.reset(
+			    trt::throwIfNull(builderConfig->createTimingCache(
+			        reinterpret_cast<const void *>(oldTimingData.data()),
+			        oldTimingData.size())));
+			managedTimingCache->combine(*timingCache, true);
+			timingCache = managedTimingCache;
+		}
+		auto timingData = trt::TrtPtr(timingCache->serialize());
+		std::ofstream outputFile{
+		    filePath, std::ofstream::out | std::ofstream::binary};
+		outputFile.exceptions(std::ofstream::badbit | std::ofstream::failbit);
+		outputFile.write(reinterpret_cast<const char *>(timingData->data()),
+		    static_cast<std::streamsize>(timingData->size()));
+
+	} catch (...) {
+		throw_with_nested_id(
+		    std::runtime_error("Failed to save TensorRT timing cache"));
+	}
+}
+
+trt::TrtPtr<::nvinfer1::ITimingCache> loadTimingCache(
+    ::nvinfer1::IBuilderConfig *builderConfig) {
+	auto timingData = readTimingCacheFile();
+	auto timingCache = trt::TrtPtr(builderConfig->createTimingCache(
+	    reinterpret_cast<const char *>(timingData.data()), timingData.size()));
+	builderConfig->clearFlag(::nvinfer1::BuilderFlag::kDISABLE_TIMING_CACHE);
+	if (!builderConfig->setTimingCache(*timingCache, true)) {
+		throw trt::TrtException();
+	}
+	return timingCache;
+}
+
 std::vector<std::byte> readEngineFromFile(
     const std::filesystem::path &filePath) {
 	try {
@@ -1047,6 +1114,7 @@ std::vector<std::byte> buildTrtEngine(
 			builder->setErrorRecorder(&errorRecorder);
 			auto builderConfig = trt::TrtPtr(builder->createBuilderConfig());
 			prepareBuilderConfig(builder, builderConfig);
+			auto timingCache = loadTimingCache(builderConfig);
 			auto network = trt::TrtPtr(builder->createNetworkV2(
 			    1 << static_cast<::nvinfer1::NetworkDefinitionCreationFlags>(
 			        ::nvinfer1::NetworkDefinitionCreationFlag::
@@ -1055,6 +1123,7 @@ std::vector<std::byte> buildTrtEngine(
 			deserializer.deserialize(modelPath, modelConfig);
 			auto engine = trt::TrtPtr(
 			    builder->buildSerializedNetwork(*network, *builderConfig));
+			saveTimingCache(builderConfig);
 			const std::byte *enginePtr =
 			    reinterpret_cast<const std::byte *>(engine->data());
 			return {enginePtr, enginePtr + engine->size()};
