@@ -16,7 +16,6 @@ extern "C" {
 
 #include <cstddef>
 #include <memory>
-#include <utility>
 
 namespace JoshUpscale {
 

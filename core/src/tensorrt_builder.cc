@@ -531,7 +531,6 @@ void saveTimingCache(::nvinfer1::IBuilderConfig *builderConfig) {
 		outputFile.exceptions(std::ofstream::badbit | std::ofstream::failbit);
 		outputFile.write(reinterpret_cast<const char *>(timingData->data()),
 		    static_cast<std::streamsize>(timingData->size()));
-
 	} catch (...) {
 		throw_with_nested_id(
 		    std::runtime_error("Failed to save TensorRT timing cache"));
