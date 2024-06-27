@@ -22,9 +22,16 @@ target_include_directories(obs-joshupscale PRIVATE
 target_include_directories(obs-joshupscale SYSTEM PRIVATE
   ${FFMPEG_INCLUDE_DIRS}
 )
+option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
+if (USE_NVVFX)
+  target_compile_definitions(obs-joshupscale PRIVATE JOSHUPSCALE_NVVFX)
+endif()
 target_link_directories(obs-joshupscale PRIVATE ${FFMPEG_LIBRARY_DIRS})
 target_link_libraries(obs-joshupscale PRIVATE
   JoshUpscale
   OBS::libobs
   ${FFMPEG_LIBRARIES}
 )
+if (MSVC)
+  target_link_options(obs-joshupscale PRIVATE /DELAYLOAD:JoshUpscale.dll)
+endif()

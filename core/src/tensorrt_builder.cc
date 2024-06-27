@@ -1026,6 +1026,13 @@ void prepareBuilderConfig(
 #if TENSORRT_VERSION >= 8601
 	builderConfig->setBuilderOptimizationLevel(5);
 #endif
+	builderConfig->setTacticSources(
+	    (1 << static_cast<::nvinfer1::TacticSources>(
+	         ::nvinfer1::TacticSource::kEDGE_MASK_CONVOLUTIONS)) |
+	    (1 << static_cast<::nvinfer1::TacticSources>(
+	         ::nvinfer1::TacticSource::kCUBLAS)) |
+	    (1 << static_cast<::nvinfer1::TacticSources>(
+	         ::nvinfer1::TacticSource::kCUBLAS_LT)));
 }
 
 }  // namespace
