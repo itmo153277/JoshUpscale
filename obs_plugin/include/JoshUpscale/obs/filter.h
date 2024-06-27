@@ -9,6 +9,7 @@ extern "C" {
 #include <libavutil/avutil.h>
 #include <libswscale/swscale.h>
 #include <obs-module.h>
+#include <util/threading.h>
 }
 
 #include <JoshUpscale/core.h>
@@ -51,7 +52,9 @@ namespace detail {
 
 struct OBSFrameDeleter {
 	void operator()(::obs_source_frame *frame) {
-		::obs_source_frame_free(frame);
+		if (::os_atomic_dec_long(&frame->refs) == 0) {
+			::obs_source_frame_destroy(frame);
+		}
 	}
 };
 
@@ -82,6 +85,7 @@ private:
 		if (ptr == nullptr) {
 			throw std::bad_alloc();
 		}
+		ptr->refs = 1;
 		return ptr;
 	}
 };

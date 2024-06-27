@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <stdexcept>
+#include <thread>
 
 namespace JoshUpscale {
 
@@ -80,6 +81,16 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 	if (m_SwsCtx != nullptr) {
 		::sws_freeContext(m_SwsCtx);
 	}
+	// Ensure that injected frame is out
+	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
+	for (;;) {
+		auto *frame = ::obs_source_get_frame(parent);
+		::obs_source_release_frame(parent, frame);
+		if (frame != m_OutputFrame) {
+			break;
+		}
+		std::this_thread::yield();
+	}
 }
 
 const char *JoshUpscaleFilter::getName() noexcept {
@@ -140,12 +151,12 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	    m_SwsCtx, frame->data, inStrides, 0, srcH, outBuffers, outStrides);
 	m_OutputFrame->timestamp = frame->timestamp;
 	m_OutputFrame->flip = frame->flip;
-	m_OutputFrame->refs = 2;
+	::os_atomic_inc_long(&m_OutputFrame->refs);
 }
 
 ::obs_source_frame *JoshUpscaleFilter::filterVideo(
     ::obs_source_frame *frame) noexcept {
-	::obs_source_t *parent = obs_filter_get_parent(m_Source);
+	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
 	try {
 		copyFrame(frame);
 		core::Image inputImage = {
