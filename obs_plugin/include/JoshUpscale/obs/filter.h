@@ -51,9 +51,7 @@ namespace detail {
 
 struct OBSFrameDeleter {
 	void operator()(::obs_source_frame *frame) {
-		if (::os_atomic_dec_long(&frame->refs) == 0) {
-			::obs_source_frame_destroy(frame);
-		}
+		::obs_source_frame_destroy(frame);
 	}
 };
 
@@ -89,23 +87,55 @@ private:
 	}
 };
 
+namespace detail {
+
+struct OBSDeleter {
+	void operator()(void *data) {
+		::bfree(data);
+	}
+};
+
+}  // namespace detail
+
+template <class T>
+struct OBSPtr : std::unique_ptr<T, detail::OBSDeleter> {
+	using unique_ptr = std::unique_ptr<T, detail::OBSDeleter>;
+
+	explicit OBSPtr(T *val) : unique_ptr(val) {
+	}
+};
+
 struct JoshUpscaleFilter {
 	static ::obs_source_info *getSourceInfo();
 
 private:
-	explicit JoshUpscaleFilter(::obs_source_t *source);
+	JoshUpscaleFilter(::obs_data_t *settings, ::obs_source_t *source);
 	~JoshUpscaleFilter();
 
-	const char *getName() noexcept;
+	static const char *getName(void *typeData) noexcept;
 
-	static void *create(::obs_data_t *params, ::obs_source_t *source) noexcept;
+	static void *create(
+	    ::obs_data_t *settings, ::obs_source_t *source) noexcept;
 
 	static void destroy(void *data) noexcept;
 
+	void update(::obs_data_t *settings) noexcept;
+
 	::obs_source_frame *filterVideo(::obs_source_frame *frame) noexcept;
 
+	static ::obs_properties_t *getProperties(
+	    void *data, void *typeData) noexcept;
+
+	void addProperties(::obs_properties_t *props, void *typeData) noexcept;
+
+	static void getDefaults(void *typeData, ::obs_data_t *settings) noexcept;
+
 	template <auto Ptr>
-	struct Callback;
+	struct Callback {
+		static consteval decltype(Ptr) getPtr() noexcept {
+			return Ptr;
+		}
+	};
 
 	template <typename R, typename... T,
 	    R (JoshUpscaleFilter::*Ptr)(T...) noexcept>
@@ -118,13 +148,6 @@ private:
 		}
 	};
 
-	template <typename R, typename... T, R (*Ptr)(T...) noexcept>
-	struct Callback<Ptr> {
-		static consteval R (*getPtr() noexcept)(T...) noexcept {
-			return Ptr;
-		}
-	};
-
 	void copyFrame(::obs_source_frame *frame);
 
 	::obs_source_t *m_Source;
@@ -132,6 +155,7 @@ private:
 	AVBuffer m_InputBuffer;
 	OBSFrame m_OutputFrame;
 	::SwsContext *m_SwsCtx = nullptr;
+	int m_Model = -1;
 };
 
 }  // namespace obs

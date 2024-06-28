@@ -58,7 +58,9 @@ void preloadLibrariesWindows() {
 	LoadLibraryA("cublasLt64_11.dll");
 	LoadLibraryA("nvinfer_builder_resource.dll");
 #endif
-	std::filesystem::path mainLib = obs_module_file("JoshUpscale.dll");
+	auto mainLibPath =
+	    JoshUpscale::obs::OBSPtr(obs_module_file("JoshUpscale.dll"));
+	std::filesystem::path mainLib = mainLibPath.get();
 	DLL_DIRECTORY_COOKIE ptr = AddDllDirectory(
 	    std::filesystem::absolute(mainLib.parent_path()).c_str());
 	LoadLibraryExA("JoshUpscale.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS);

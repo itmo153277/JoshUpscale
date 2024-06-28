@@ -63,18 +63,22 @@ inline ::AVPixelFormat convertFrameFormat(::video_format format) {
 			info.get_name = CALLBACK_DEF(getName);
 			info.create = CALLBACK_DEF(create);
 			info.destroy = CALLBACK_DEF(destroy);
+			info.update = CALLBACK_DEF(update);
 			info.filter_video = CALLBACK_DEF(filterVideo);
+			info.get_properties2 = CALLBACK_DEF(getProperties);
+			info.get_defaults2 = CALLBACK_DEF(getDefaults);
 #undef CALLBACK_DEF
 		}
 	} data;
 	return &data.info;
 }
 
-JoshUpscaleFilter::JoshUpscaleFilter(::obs_source_t *source)
+JoshUpscaleFilter::JoshUpscaleFilter(
+    [[maybe_unused]] ::obs_data_t *settings, ::obs_source_t *source)
     : m_Source(source)
     , m_InputBuffer(core::INPUT_WIDTH * core::INPUT_HEIGHT * 3)
     , m_OutputFrame(core::OUTPUT_WIDTH, core::OUTPUT_HEIGHT) {
-	m_Runtime.reset(core::createRuntime(0, obs_module_file("model.yaml")));
+	update(settings);
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
@@ -93,14 +97,15 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 	}
 }
 
-const char *JoshUpscaleFilter::getName() noexcept {
+const char *JoshUpscaleFilter::getName(
+    [[maybe_unused]] void *typeData) noexcept {
 	return "JoshUpscale";
 }
 
 void *JoshUpscaleFilter::create(
-    [[maybe_unused]] ::obs_data_t *params, ::obs_source_t *source) noexcept {
+    ::obs_data_t *settings, ::obs_source_t *source) noexcept {
 	try {
-		return new JoshUpscaleFilter(source);
+		return new JoshUpscaleFilter(settings, source);
 	} catch (...) {
 		return nullptr;
 	}
@@ -108,6 +113,23 @@ void *JoshUpscaleFilter::create(
 
 void JoshUpscaleFilter::destroy(void *data) noexcept {
 	delete reinterpret_cast<JoshUpscaleFilter *>(data);
+}
+
+void JoshUpscaleFilter::update(
+    [[maybe_unused]] ::obs_data_t *settings) noexcept {
+	int newModel = static_cast<int>(::obs_data_get_int(settings, "model"));
+	if (newModel == m_Model || newModel < 0 || newModel > 3) {
+		return;
+	}
+	m_Model = newModel;
+	static const char *models[4] = {
+	    "model_fast.yaml",
+	    "model.yaml",
+	    "model_smooth.yaml",
+	    "model_adapt.yaml",
+	};
+	auto modelFile = OBSPtr(obs_module_file(models[m_Model]));
+	m_Runtime.reset(core::createRuntime(0, modelFile.get()));
 }
 
 void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
@@ -177,6 +199,42 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	}
 	::obs_source_release_frame(parent, frame);
 	return m_OutputFrame;
+}
+
+::obs_properties_t *JoshUpscaleFilter::getProperties(
+    void *data, void *typeData) noexcept {
+	::obs_properties_t *props = ::obs_properties_create();
+	if (data != nullptr) {
+		reinterpret_cast<JoshUpscaleFilter *>(data)->addProperties(
+		    props, typeData);
+	}
+	return props;
+}
+
+void JoshUpscaleFilter::addProperties(
+    ::obs_properties_t *props, [[maybe_unused]] void *typeData) noexcept {
+	::obs_property_t *backendProp = ::obs_properties_add_list(props, "backend",
+	    "Inference backend", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	::obs_property_list_add_int(backendProp, "TensorRT", 0);
+	::obs_property_set_enabled(backendProp, false);
+	::obs_property_t *modelProp = ::obs_properties_add_list(props, "model",
+	    "Model variant", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	::obs_property_list_add_int(modelProp, "0: Fast", 0);
+	::obs_property_list_add_int(modelProp, "1: Default", 1);
+	::obs_property_list_add_int(modelProp, "2: Smooth", 2);
+	::obs_property_list_add_int(modelProp, "3: Adaptive", 3);
+	::obs_property_t *quantizationProp =
+	    ::obs_properties_add_list(props, "quantization", "Quantization",
+	        OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	::obs_property_list_add_int(quantizationProp, "0: None", 0);
+	::obs_property_list_add_int(quantizationProp, "1: FP16", 1);
+	::obs_property_list_add_int(quantizationProp, "2: INT8", 2);
+}
+
+void JoshUpscaleFilter::getDefaults(
+    [[maybe_unused]] void *typeData, ::obs_data_t *settings) noexcept {
+	::obs_data_set_default_int(settings, "model", 3);
+	::obs_data_set_default_int(settings, "quantization", 1);
 }
 
 }  // namespace obs
