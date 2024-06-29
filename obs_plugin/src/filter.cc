@@ -5,6 +5,8 @@
 #include <JoshUpscale/core.h>
 
 #include <cstddef>
+#include <exception>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 
@@ -78,10 +80,16 @@ JoshUpscaleFilter::JoshUpscaleFilter(
     : m_Source(source)
     , m_InputBuffer(core::INPUT_WIDTH * core::INPUT_HEIGHT * 3)
     , m_OutputFrame(core::OUTPUT_WIDTH, core::OUTPUT_HEIGHT) {
+	m_WorkerThread = std::thread(&JoshUpscaleFilter::workerThread, this);
 	update(settings);
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
+	{
+		std::unique_lock<std::mutex> lock(m_Mutex);
+		m_Terminated = true;
+	}
+	m_Condition.notify_all();
 	if (m_SwsCtx != nullptr) {
 		::sws_freeContext(m_SwsCtx);
 	}
@@ -94,6 +102,9 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 			break;
 		}
 		std::this_thread::yield();
+	}
+	if (m_WorkerThread.joinable()) {
+		m_WorkerThread.join();
 	}
 }
 
@@ -112,24 +123,18 @@ void *JoshUpscaleFilter::create(
 }
 
 void JoshUpscaleFilter::destroy(void *data) noexcept {
+	blog(LOG_INFO, "[obs-joshupscale] Start shutdown");
 	delete reinterpret_cast<JoshUpscaleFilter *>(data);
+	blog(LOG_INFO, "[obs-joshupscale] Shutdown finished");
 }
 
-void JoshUpscaleFilter::update(
-    [[maybe_unused]] ::obs_data_t *settings) noexcept {
-	int newModel = static_cast<int>(::obs_data_get_int(settings, "model"));
-	if (newModel == m_Model || newModel < 0 || newModel > 3) {
-		return;
+void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
+	{
+		std::unique_lock lock(m_Mutex);
+		m_CurrentModel =
+		    static_cast<int>(::obs_data_get_int(settings, "model"));
 	}
-	m_Model = newModel;
-	static const char *models[4] = {
-	    "model_fast.yaml",
-	    "model.yaml",
-	    "model_smooth.yaml",
-	    "model_adapt.yaml",
-	};
-	auto modelFile = OBSPtr(obs_module_file(models[m_Model]));
-	m_Runtime.reset(core::createRuntime(0, modelFile.get()));
+	m_Condition.notify_all();
 }
 
 void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
@@ -176,8 +181,50 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	::os_atomic_inc_long(&m_OutputFrame->refs);
 }
 
+void JoshUpscaleFilter::workerThread() noexcept {
+	try {
+		int newModel = -1;
+		for (;;) {
+			{
+				std::unique_lock lock(m_Mutex);
+				m_LoadedModel = newModel;
+				m_Ready = true;
+				::obs_source_update_properties(m_Source);
+				m_Condition.wait(lock, [this] {
+					return m_Terminated || m_CurrentModel != m_LoadedModel;
+				});
+				if (m_Terminated) {
+					break;
+				}
+				newModel = m_CurrentModel;
+				m_Ready = false;
+				::obs_source_update_properties(m_Source);
+			}
+			static const char *models[4] = {
+			    "model_fast.yaml",
+			    "model.yaml",
+			    "model_smooth.yaml",
+			    "model_adapt.yaml",
+			};
+			blog(LOG_INFO, "[obs-joshupscale] Start building engine for %s",
+			    models[newModel]);
+			auto modelFile = OBSPtr(obs_module_file(models[newModel]));
+			m_Runtime.reset(core::createRuntime(0, modelFile.get()));
+			blog(LOG_INFO, "[obs-joshupscale] Engine build successful");
+		}
+	} catch (std::exception &e) {
+		blog(LOG_ERROR, "[obs-joshupscale] Worker failed: %s", e.what());
+		m_Error = true;
+		::obs_source_update_properties(m_Source);
+	}
+}
+
 ::obs_source_frame *JoshUpscaleFilter::filterVideo(
     ::obs_source_frame *frame) noexcept {
+	std::unique_lock lock(m_Mutex);
+	if (!m_Ready) {
+		return frame;
+	}
 	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
 	try {
 		copyFrame(frame);
@@ -213,6 +260,8 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 
 void JoshUpscaleFilter::addProperties(
     ::obs_properties_t *props, [[maybe_unused]] void *typeData) noexcept {
+	bool error = m_Error;
+	bool ready = m_Ready;
 	::obs_property_t *backendProp = ::obs_properties_add_list(props, "backend",
 	    "Inference backend", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	::obs_property_list_add_int(backendProp, "TensorRT", 0);
@@ -229,6 +278,25 @@ void JoshUpscaleFilter::addProperties(
 	::obs_property_list_add_int(quantizationProp, "0: None", 0);
 	::obs_property_list_add_int(quantizationProp, "1: FP16", 1);
 	::obs_property_list_add_int(quantizationProp, "2: INT8", 2);
+	if (error || !ready) {
+		::obs_property_set_enabled(modelProp, false);
+		::obs_property_set_enabled(quantizationProp, false);
+		::obs_property_t *statusProp =
+		    ::obs_properties_add_text(props, "status", nullptr, OBS_TEXT_INFO);
+		if (error) {
+			::obs_property_set_description(statusProp,
+			    "There was an error in the worker thread. Please check the "
+			    "logs "
+			    "for further details.");
+			::obs_property_text_set_info_type(statusProp, OBS_TEXT_INFO_ERROR);
+		} else if (!ready) {
+			::obs_property_set_description(statusProp,
+			    "Building the engine. It can take a few minutes. Please "
+			    "wait...");
+			::obs_property_text_set_info_type(
+			    statusProp, OBS_TEXT_INFO_WARNING);
+		}
+	}
 }
 
 void JoshUpscaleFilter::getDefaults(

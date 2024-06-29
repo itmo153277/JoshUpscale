@@ -16,6 +16,10 @@ extern "C" {
 
 #include <cstddef>
 #include <memory>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <condition_variable>
 
 namespace JoshUpscale {
 
@@ -150,12 +154,21 @@ private:
 
 	void copyFrame(::obs_source_frame *frame);
 
+	void workerThread() noexcept;
+
 	::obs_source_t *m_Source;
 	std::unique_ptr<core::Runtime> m_Runtime;
 	AVBuffer m_InputBuffer;
 	OBSFrame m_OutputFrame;
 	::SwsContext *m_SwsCtx = nullptr;
-	int m_Model = -1;
+	int m_CurrentModel = -1;
+	int m_LoadedModel = -1;
+	std::atomic<bool> m_Error = false;
+	std::atomic<bool> m_Ready = false;
+	mutable std::mutex m_Mutex;
+	std::thread m_WorkerThread;
+	std::condition_variable m_Condition;
+	bool m_Terminated = false;
 };
 
 }  // namespace obs

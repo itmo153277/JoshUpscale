@@ -12,6 +12,7 @@
 #include <fstream>
 #include <ios>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -1105,6 +1106,8 @@ void prepareBuilderConfig(
 
 std::vector<std::byte> buildTrtEngine(
     const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig) {
+	static std::mutex globalMutex;
+	std::unique_lock<std::mutex> lock(globalMutex);
 	try {
 		trt::Logger logger;
 		trt::ErrorRecorder errorRecorder;
