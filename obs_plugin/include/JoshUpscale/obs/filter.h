@@ -14,12 +14,12 @@ extern "C" {
 
 #include <JoshUpscale/core.h>
 
-#include <cstddef>
-#include <memory>
-#include <thread>
-#include <mutex>
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
+#include <memory>
+#include <mutex>
+#include <thread>
 
 namespace JoshUpscale {
 

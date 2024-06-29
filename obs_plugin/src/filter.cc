@@ -281,6 +281,7 @@ void JoshUpscaleFilter::addProperties(
 	if (error || !ready) {
 		::obs_property_set_enabled(modelProp, false);
 		::obs_property_set_enabled(quantizationProp, false);
+#if LIBOBS_API_MAJOR_VER >= 28
 		::obs_property_t *statusProp =
 		    ::obs_properties_add_text(props, "status", nullptr, OBS_TEXT_INFO);
 		if (error) {
@@ -296,6 +297,7 @@ void JoshUpscaleFilter::addProperties(
 			::obs_property_text_set_info_type(
 			    statusProp, OBS_TEXT_INFO_WARNING);
 		}
+#endif
 	}
 }
 
