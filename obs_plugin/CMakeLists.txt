@@ -23,7 +23,7 @@ target_include_directories(obs-joshupscale SYSTEM PRIVATE
   ${FFMPEG_INCLUDE_DIRS}
 )
 option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
-if (USE_NVVFX)
+if(USE_NVVFX)
   target_compile_definitions(obs-joshupscale PRIVATE JOSHUPSCALE_NVVFX)
 endif()
 target_link_directories(obs-joshupscale PRIVATE ${FFMPEG_LIBRARY_DIRS})
@@ -32,6 +32,44 @@ target_link_libraries(obs-joshupscale PRIVATE
   OBS::libobs
   ${FFMPEG_LIBRARIES}
 )
-if (MSVC)
+if(MSVC)
   target_link_options(obs-joshupscale PRIVATE /DELAYLOAD:JoshUpscale.dll)
+endif()
+
+if(BUILD_OBS_PLUGIN_INSTALLER)
+  find_program(ISCC_COMMAND "iscc"
+    HINTS "$ENV{ProgramFiles}/Inno Setup 6"
+    REQUIRED
+  )
+  add_custom_command(
+    OUTPUT obs-joshupscale-installer.iss
+    MAIN_DEPENDENCY install/obs-joshupscale-installer.iss.in
+    DEPENDS JoshUpscale obs-joshupscale
+    COMMAND ${CMAKE_COMMAND}
+      -DTEMPLATE_IN=${CMAKE_CURRENT_SOURCE_DIR}/install/obs-joshupscale-installer.iss.in
+      -DTEMPLATE_OUT=${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
+      -DPROJECT_VERSION=${PROJECT_VERSION}
+      -DDATA_PATH=${PROJECT_SOURCE_DIR}/data
+      -DLICENSE_PATH=${PROJECT_SOURCE_DIR}/LICENSE
+      -DCORE_PATH=$<TARGET_FILE:JoshUpscale>
+      -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
+      -DUSE_NVVFX=$<IF:$<BOOL:USE_NVVFX>,True,False>
+      -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
+  )
+  file(GLOB_RECURSE DATA ${PROJECT_SOURCE_DIR}/data/*)
+  if(NOT DATA)
+    message(FATAL_ERROR "No model data found. Please put data into ./data folder")
+  endif()
+  add_custom_command(
+    OUTPUT obs-joshupscale-installer.exe
+    COMMAND ${ISCC_COMMAND}
+      /Q "/O${CMAKE_CURRENT_BINARY_DIR}"
+      "${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss"
+    COMMENT "Building installer"
+    DEPENDS obs-joshupscale-installer.iss JoshUpscale obs-joshupscale ${DATA}
+  )
+  add_custom_target(obs-joshupscale-installer-target ALL
+    DEPENDS obs-joshupscale-installer.exe
+    SOURCES install/obs-joshupscale-installer.iss.in
+  )
 endif()
