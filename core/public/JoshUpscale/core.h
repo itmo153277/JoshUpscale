@@ -4,7 +4,6 @@
 
 #include <cstddef>
 #include <filesystem>
-#include <vector>
 
 #include "JoshUpscale/core/export.h"
 
