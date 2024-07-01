@@ -22,9 +22,19 @@ target_include_directories(obs-joshupscale PRIVATE
 target_include_directories(obs-joshupscale SYSTEM PRIVATE
   ${FFMPEG_INCLUDE_DIRS}
 )
-option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
-if(USE_NVVFX)
-  target_compile_definitions(obs-joshupscale PRIVATE JOSHUPSCALE_NVVFX)
+if (WIN32)
+  option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
+  if(USE_NVVFX)
+    find_package(CUDAToolkit 11 REQUIRED)
+    find_package(TensorRT 8.4 REQUIRED COMPONENTS nvinfer)
+    if(NOT CUDAToolkit_VERSION_MAJOR EQUAL 11)
+      message(FATAL_ERROR "Need CUDA 11 to use NVVFX, found ${CUDAToolkit_VERSION}")
+    endif()
+    if(NOT (TensorRT_VERSION_MAJOR EQUAL 8 AND TensorRT_VERSION_MINOR EQUAL 4))
+      message(FATAL_ERROR "Need TensorRT 8.4 to use NVVFX, found ${TensorRT_VERSION}")
+    endif()
+    target_compile_definitions(obs-joshupscale PRIVATE JOSHUPSCALE_NVVFX)
+  endif()
 endif()
 target_link_directories(obs-joshupscale PRIVATE ${FFMPEG_LIBRARY_DIRS})
 target_link_libraries(obs-joshupscale PRIVATE
