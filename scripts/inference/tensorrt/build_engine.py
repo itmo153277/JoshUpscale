@@ -14,7 +14,7 @@ import yaml
 import numpy as np
 import tensorrt as trt
 
-LOG = logging.getLogger("convert_model")
+LOG = logging.getLogger("build_engine")
 
 
 class HumanReadableSize:
@@ -457,8 +457,6 @@ def main(
     quant_int8: bool = False,
     quant_fp16: bool = False,
     workspace_size: Union[None, HumanReadableSize] = None,
-
-
 ) -> int:
     """
     Run CLI.
