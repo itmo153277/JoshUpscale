@@ -92,6 +92,27 @@ begin
     Result := ExpandConstant('{app}\data\obs-joshupscale')
 end;
 
+function GetTargetOBSPath: String;
+begin
+  if IsAdminInstallMode then
+    Result := ExpandConstant('{app}')
+  else
+    Result := GetOBSPath;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var OBSPath: String;
+begin
+  OBSPath := GetTargetOBSPath;
+  if FileExists(OBSPath + '\bin\64bit\JoshUpscale.dll') or
+    FileExists(OBSPath + '\bin\64bit\nvinfer.dll') or
+    FileExists(OBSPath + '\bin\64bit\nvinfer_builder_resource.dll') then
+  begin
+    Result := 'Previous installation detected. Remove old files before continuing';
+    Exit;
+  end;
+end;
+
 function InitializeSetup: Boolean;
 begin
   Result := False;
