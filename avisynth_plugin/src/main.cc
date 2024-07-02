@@ -5,7 +5,6 @@
 #include <JoshUpscale/core.h>
 #include <avisynth.h>
 
-#include <cassert>
 #include <cstddef>
 #include <memory>
 

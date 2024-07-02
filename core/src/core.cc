@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "JoshUpscale/core/cuda.h"
+#include "JoshUpscale/core/logging.h"
 #include "JoshUpscale/core/tensor.h"
 #include "JoshUpscale/core/tensorrt_backend.h"
 #include "JoshUpscale/core/tensorrt_builder.h"
@@ -39,9 +40,14 @@ struct TensorRTRuntime : Runtime {
 
 	void processImage(
 	    const Image &inputImage, const Image &outputImage) override {
-		Tensor inputTensor{inputImage};
-		Tensor outputTensor{outputImage};
-		m_Backend->processImage(inputTensor, outputTensor);
+		try {
+			Tensor inputTensor{inputImage};
+			Tensor outputTensor{outputImage};
+			m_Backend->processImage(inputTensor, outputTensor);
+		} catch (...) {
+			LOG_EXCEPTION;
+			throw;
+		}
 	}
 
 private:
@@ -50,13 +56,19 @@ private:
 
 Runtime *createRuntime(int deviceId, const std::filesystem::path &modelPath,
     Quantization quantization) {
-	::YAML::Node modelConfig;
-	{
-		std::ifstream file(modelPath);
-		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-		modelConfig = ::YAML::Load(file);
+	try {
+		::YAML::Node modelConfig;
+		{
+			std::ifstream file(modelPath);
+			file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+			modelConfig = ::YAML::Load(file);
+		}
+		return new TensorRTRuntime(
+		    deviceId, modelPath, modelConfig, quantization);
+	} catch (...) {
+		LOG_EXCEPTION;
+		throw;
 	}
-	return new TensorRTRuntime(deviceId, modelPath, modelConfig, quantization);
 }
 
 }  // namespace core
