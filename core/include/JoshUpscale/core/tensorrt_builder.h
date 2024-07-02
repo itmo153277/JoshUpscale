@@ -7,15 +7,18 @@
 #include <filesystem>
 #include <vector>
 
+#include "JoshUpscale/core.h"
+
 namespace JoshUpscale {
 
 namespace core {
 
-std::vector<std::byte> buildTrtEngine(
-    const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig);
+std::vector<std::byte> buildTrtEngine(const std::filesystem::path &modelPath,
+    const ::YAML::Node &modelConfig, Quantization quantization);
 
 std::vector<std::byte> buildTrtEngineCached(
-    const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig);
+    const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig,
+    Quantization quantization);
 
 }  // namespace core
 

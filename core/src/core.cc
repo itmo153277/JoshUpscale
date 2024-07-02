@@ -21,10 +21,11 @@ namespace core {
 
 struct TensorRTRuntime : Runtime {
 	explicit TensorRTRuntime(int deviceId,
-	    const std::filesystem::path &modelPath,
-	    const ::YAML::Node &modelConfig) {
+	    const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig,
+	    Quantization quantization) {
 		cuda::DeviceContext cudaCtx(deviceId);
-		auto engine = buildTrtEngineCached(modelPath, modelConfig);
+		auto engine =
+		    buildTrtEngineCached(modelPath, modelConfig, quantization);
 		std::vector<std::string> inputNames;
 		inputNames.reserve(modelConfig["inputs"].size());
 		for (const auto &input : modelConfig["inputs"]) {
@@ -47,14 +48,15 @@ private:
 	std::unique_ptr<TensorRTBackend> m_Backend = nullptr;
 };
 
-Runtime *createRuntime(int deviceId, const std::filesystem::path &modelPath) {
+Runtime *createRuntime(int deviceId, const std::filesystem::path &modelPath,
+    Quantization quantization) {
 	::YAML::Node modelConfig;
 	{
 		std::ifstream file(modelPath);
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		modelConfig = ::YAML::Load(file);
 	}
-	return new TensorRTRuntime(deviceId, modelPath, modelConfig);
+	return new TensorRTRuntime(deviceId, modelPath, modelConfig, quantization);
 }
 
 }  // namespace core

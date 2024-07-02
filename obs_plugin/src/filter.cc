@@ -133,6 +133,8 @@ void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
 		std::unique_lock lock(m_Mutex);
 		m_CurrentModel =
 		    static_cast<int>(::obs_data_get_int(settings, "model"));
+		m_CurrentQuant = static_cast<core::Quantization>(
+		    ::obs_data_get_int(settings, "quantization"));
 	}
 	m_Condition.notify_all();
 }
@@ -183,23 +185,25 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 
 void JoshUpscaleFilter::workerThread() noexcept {
 	try {
-		int newModel = -1;
+		int targetModel = -1;
+		core::Quantization targetQuant = core::Quantization::NONE;
 		for (;;) {
 			{
 				std::unique_lock lock(m_Mutex);
-				m_LoadedModel = newModel;
-				m_Ready = true;
-				::obs_source_update_properties(m_Source);
+				m_LoadedModel = targetModel;
+				m_LoadedQuant = targetQuant;
 				m_Condition.wait(lock, [this] {
-					return m_Terminated || m_CurrentModel != m_LoadedModel;
+					return m_Terminated || m_CurrentModel != m_LoadedModel ||
+					       m_CurrentQuant != m_LoadedQuant;
 				});
 				if (m_Terminated) {
 					break;
 				}
-				newModel = m_CurrentModel;
-				m_Ready = false;
-				::obs_source_update_properties(m_Source);
+				targetModel = m_CurrentModel;
+				targetQuant = m_CurrentQuant;
 			}
+			m_Ready = false;
+			::obs_source_update_properties(m_Source);
 			static const char *models[4] = {
 			    "model_fast.yaml",
 			    "model.yaml",
@@ -207,10 +211,13 @@ void JoshUpscaleFilter::workerThread() noexcept {
 			    "model_adapt.yaml",
 			};
 			blog(LOG_INFO, "[obs-joshupscale] Start building engine for %s",
-			    models[newModel]);
-			auto modelFile = OBSPtr(obs_module_file(models[newModel]));
-			m_Runtime.reset(core::createRuntime(0, modelFile.get()));
+			    models[targetModel]);
+			auto modelFile = OBSPtr(obs_module_file(models[targetModel]));
+			m_Runtime.reset(
+			    core::createRuntime(0, modelFile.get(), targetQuant));
 			blog(LOG_INFO, "[obs-joshupscale] Engine build successful");
+			m_Ready = true;
+			::obs_source_update_properties(m_Source);
 		}
 	} catch (std::exception &e) {
 		blog(LOG_ERROR, "[obs-joshupscale] Worker failed: %s", e.what());
@@ -287,8 +294,7 @@ void JoshUpscaleFilter::addProperties(
 		if (error) {
 			::obs_property_set_description(statusProp,
 			    "There was an error in the worker thread. Please check the "
-			    "logs "
-			    "for further details.");
+			    "logs for further details.");
 			::obs_property_text_set_info_type(statusProp, OBS_TEXT_INFO_ERROR);
 		} else if (!ready) {
 			::obs_property_set_description(statusProp,

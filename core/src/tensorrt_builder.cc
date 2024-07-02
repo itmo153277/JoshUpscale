@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "JoshUpscale/core.h"
 #include "JoshUpscale/core/exception.h"
 #include "JoshUpscale/core/tensorrt.h"
 
@@ -479,9 +480,12 @@ namespace core {
 
 namespace {
 
-std::filesystem::path getEnginePath(const ::YAML::Node &modelConfig) {
+std::filesystem::path getEnginePath(
+    const ::YAML::Node &modelConfig, Quantization quantization) {
+	static const char *quantSuffix[] = {"", "_fp16", "_int8"};
 	return std::filesystem::temp_directory_path() / "JoshUpscale" /
-	       (modelConfig["name"].as<std::string>() + ".trt");
+	       (modelConfig["name"].as<std::string>() +
+	           quantSuffix[static_cast<int>(quantization)] + ".trt");
 }
 
 std::filesystem::path getTimingCachePath() {
@@ -608,8 +612,9 @@ bool dimensionsEqual(::nvinfer1::Dims lhs, ::nvinfer1::Dims rhs) {
 }
 
 struct GraphDeserializer {
-	explicit GraphDeserializer(::nvinfer1::INetworkDefinition *network)
-	    : m_Network(network) {
+	explicit GraphDeserializer(
+	    ::nvinfer1::INetworkDefinition *network, Quantization quantization)
+	    : m_Network(network), m_Quantization(quantization) {
 	}
 
 	void deserialize(
@@ -636,6 +641,7 @@ struct GraphDeserializer {
 
 private:
 	::nvinfer1::INetworkDefinition *m_Network;
+	Quantization m_Quantization;
 	std::unordered_map<std::string, ::nvinfer1::ITensor *> m_TensorMap;
 	std::vector<::nvinfer1::Weights> m_Weights;
 	std::vector<std::vector<std::byte>> m_WeightData;
@@ -807,7 +813,8 @@ private:
 		auto *layer = (this->*deserializerIter->second)(config);
 		auto layerName = config["name"].as<std::string>();
 		layer->setName(layerName.c_str());
-		if (config["precision"].IsDefined()) {
+		if (config["precision"].IsDefined() &&
+		    m_Quantization != Quantization::NONE) {
 			auto precision = config["precision"].as<::nvinfer1::DataType>();
 			layer->setPrecision(precision);
 		}
@@ -1071,17 +1078,17 @@ private:
 	}
 };
 
-void prepareBuilderConfig(
-    ::nvinfer1::IBuilder *builder, ::nvinfer1::IBuilderConfig *builderConfig) {
+void prepareBuilderConfig(::nvinfer1::IBuilder *builder,
+    ::nvinfer1::IBuilderConfig *builderConfig, Quantization quantization) {
 	builderConfig->setMemoryPoolLimit(
 	    ::nvinfer1::MemoryPoolType::kWORKSPACE, 2ULL << 30);
 	builderConfig->setFlag(::nvinfer1::BuilderFlag::kSPARSE_WEIGHTS);
-	if (builder->platformHasFastFp16()) {
+	if (quantization == Quantization::FP16 ||
+	    quantization == Quantization::INT8) {
 		builderConfig->setFlag(::nvinfer1::BuilderFlag::kFP16);
 	}
-	if (builder->platformHasFastInt8()) {
-		// INT8 is disabled because of image quality
-		// builderConfig->setFlag(::nvinfer1::BuilderFlag::kINT8);
+	if (quantization == Quantization::INT8) {
+		builderConfig->setFlag(::nvinfer1::BuilderFlag::kINT8);
 	}
 	builderConfig->setFlag(
 	    ::nvinfer1::BuilderFlag::kPREFER_PRECISION_CONSTRAINTS);
@@ -1104,8 +1111,8 @@ void prepareBuilderConfig(
 
 }  // namespace
 
-std::vector<std::byte> buildTrtEngine(
-    const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig) {
+std::vector<std::byte> buildTrtEngine(const std::filesystem::path &modelPath,
+    const ::YAML::Node &modelConfig, Quantization quantization) {
 	static std::mutex globalMutex;
 	std::unique_lock<std::mutex> lock(globalMutex);
 	try {
@@ -1115,13 +1122,13 @@ std::vector<std::byte> buildTrtEngine(
 			auto builder = trt::TrtPtr(::nvinfer1::createInferBuilder(logger));
 			builder->setErrorRecorder(&errorRecorder);
 			auto builderConfig = trt::TrtPtr(builder->createBuilderConfig());
-			prepareBuilderConfig(builder, builderConfig);
+			prepareBuilderConfig(builder, builderConfig, quantization);
 			auto timingCache = loadTimingCache(builderConfig);
 			auto network = trt::TrtPtr(builder->createNetworkV2(
 			    1 << static_cast<::nvinfer1::NetworkDefinitionCreationFlags>(
 			        ::nvinfer1::NetworkDefinitionCreationFlag::
 			            kEXPLICIT_BATCH)));
-			GraphDeserializer deserializer{network};
+			GraphDeserializer deserializer{network, quantization};
 			deserializer.deserialize(modelPath, modelConfig);
 			auto engine = trt::TrtPtr(
 			    builder->buildSerializedNetwork(*network, *builderConfig));
@@ -1139,12 +1146,14 @@ std::vector<std::byte> buildTrtEngine(
 }
 
 std::vector<std::byte> buildTrtEngineCached(
-    const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig) {
-	auto filePath = getEnginePath(modelConfig);
+    const std::filesystem::path &modelPath, const ::YAML::Node &modelConfig,
+    Quantization quantization) {
+	auto filePath = getEnginePath(modelConfig, quantization);
 	if (std::filesystem::exists(filePath)) {
 		return readEngineFromFile(filePath);
 	}
-	std::vector<std::byte> engine = buildTrtEngine(modelPath, modelConfig);
+	std::vector<std::byte> engine =
+	    buildTrtEngine(modelPath, modelConfig, quantization);
 	saveEngine(engine, filePath);
 	return engine;
 }

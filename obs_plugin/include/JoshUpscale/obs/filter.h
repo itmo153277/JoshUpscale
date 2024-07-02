@@ -163,6 +163,8 @@ private:
 	::SwsContext *m_SwsCtx = nullptr;
 	int m_CurrentModel = -1;
 	int m_LoadedModel = -1;
+	core::Quantization m_CurrentQuant = core::Quantization::NONE;
+	core::Quantization m_LoadedQuant = core::Quantization::NONE;
 	std::atomic<bool> m_Error = false;
 	std::atomic<bool> m_Ready = false;
 	mutable std::mutex m_Mutex;
