@@ -59,9 +59,11 @@ struct CudaDeleter {
 template <typename T>
 struct CudaBuffer : std::unique_ptr<T, detail::CudaDeleter<T>> {
 	using unique_ptr = std::unique_ptr<T, detail::CudaDeleter<T>>;
+	using unique_ptr::get;
 
 	explicit CudaBuffer(std::size_t size)
 	    : unique_ptr(alloc(size)), m_Size(size) {
+		cudaCheck(::cudaMemset(get(), 0, getByteSize()));
 	}
 
 	// Non-copyable, default-movable
