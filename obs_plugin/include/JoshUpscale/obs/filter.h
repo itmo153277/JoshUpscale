@@ -20,6 +20,7 @@ extern "C" {
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <utility>
 
 namespace JoshUpscale {
 
@@ -109,6 +110,18 @@ struct OBSPtr : std::unique_ptr<T, detail::OBSDeleter> {
 	}
 };
 
+template <typename T>
+struct Defer {
+	T m_DeferFn;
+	explicit Defer(T &&fn) : m_DeferFn(std::move(fn)) {
+	}
+	Defer(const Defer &) = delete;
+	Defer(Defer &&) noexcept = delete;
+	~Defer() {
+		m_DeferFn();
+	}
+};
+
 struct JoshUpscaleFilter {
 	static ::obs_source_info *getSourceInfo();
 
@@ -157,7 +170,7 @@ private:
 	void workerThread() noexcept;
 
 	::obs_source_t *m_Source;
-	std::unique_ptr<core::Runtime> m_Runtime;
+	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
 	AVBuffer m_InputBuffer;
 	OBSFrame m_OutputFrame;
 	::SwsContext *m_SwsCtx = nullptr;
@@ -167,6 +180,7 @@ private:
 	core::Quantization m_LoadedQuant = core::Quantization::NONE;
 	std::atomic<bool> m_Error = false;
 	std::atomic<bool> m_Ready = false;
+	std::atomic<bool> m_Busy = false;
 	mutable std::mutex m_Mutex;
 	std::thread m_WorkerThread;
 	std::condition_variable m_Condition;

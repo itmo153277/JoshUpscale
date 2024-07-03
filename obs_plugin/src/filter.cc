@@ -180,7 +180,6 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	    m_SwsCtx, frame->data, inStrides, 0, srcH, outBuffers, outStrides);
 	m_OutputFrame->timestamp = frame->timestamp;
 	m_OutputFrame->flip = frame->flip;
-	::os_atomic_inc_long(&m_OutputFrame->refs);
 }
 
 void JoshUpscaleFilter::workerThread() noexcept {
@@ -204,6 +203,10 @@ void JoshUpscaleFilter::workerThread() noexcept {
 			}
 			m_Ready = false;
 			::obs_source_update_properties(m_Source);
+			while (m_Busy.exchange(true)) {
+				std::this_thread::yield();
+			}
+			m_Runtime = nullptr;
 			static const char *models[4] = {
 			    "model_fast.yaml",
 			    "model.yaml",
@@ -215,6 +218,7 @@ void JoshUpscaleFilter::workerThread() noexcept {
 			auto modelFile = OBSPtr(obs_module_file(models[targetModel]));
 			m_Runtime.reset(
 			    core::createRuntime(0, modelFile.get(), targetQuant));
+			m_Busy = false;
 			blog(LOG_INFO, "[obs-joshupscale] Engine build successful");
 			m_Ready = true;
 			::obs_source_update_properties(m_Source);
@@ -229,7 +233,11 @@ void JoshUpscaleFilter::workerThread() noexcept {
 ::obs_source_frame *JoshUpscaleFilter::filterVideo(
     ::obs_source_frame *frame) noexcept {
 	std::unique_lock lock(m_Mutex);
-	if (!m_Ready) {
+	if (m_Busy.exchange(true)) {
+		return frame;
+	}
+	auto busyDefer = Defer([this]() { m_Busy = false; });
+	if (!m_Runtime) {
 		return frame;
 	}
 	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
@@ -252,6 +260,7 @@ void JoshUpscaleFilter::workerThread() noexcept {
 		return frame;
 	}
 	::obs_source_release_frame(parent, frame);
+	::os_atomic_inc_long(&m_OutputFrame->refs);
 	return m_OutputFrame;
 }
 

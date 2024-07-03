@@ -65,6 +65,8 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
       -DUSE_NVVFX=$<IF:$<BOOL:USE_NVVFX>,True,False>
       -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
+    COMMAND ${CMAKE_COMMAND}
+      -E touch ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
   )
   file(GLOB_RECURSE DATA ${PROJECT_SOURCE_DIR}/data/*)
   if(NOT DATA)
