@@ -60,11 +60,11 @@ void printException(
 }
 
 void printException(std::ostream &os, const std::exception &e) {
-	try {
-		printException(
-		    os, e, dynamic_cast<const ExceptionWithIdBase &>(e).type_info());
-	} catch (std::bad_cast &) {
+	const auto *typedExc = dynamic_cast<const ExceptionWithIdBase *>(&e);
+	if (typedExc == nullptr) {
 		printException(os, e, typeid(e));
+	} else {
+		printException(os, e, typedExc->type_info());
 	}
 }
 

@@ -67,8 +67,8 @@ inline ::AVPixelFormat convertFrameFormat(::video_format format) {
 			info.destroy = CALLBACK_DEF(destroy);
 			info.update = CALLBACK_DEF(update);
 			info.filter_video = CALLBACK_DEF(filterVideo);
-			info.get_properties2 = CALLBACK_DEF(getProperties);
 			info.get_defaults2 = CALLBACK_DEF(getDefaults);
+			info.get_properties2 = CALLBACK_DEF(getProperties);
 #undef CALLBACK_DEF
 		}
 	} data;
@@ -152,15 +152,13 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		throw std::runtime_error("SwsCtx failure");
 	}
 	if (::format_is_yuv(frame->format)) {
-		float rangeCoeff = frame->full_range ? (255.0F / 224.0F) : 1.0F;
 		int coeff[4] = {
-		    static_cast<int>(65536 * frame->color_matrix[2] * rangeCoeff),
-		    static_cast<int>(65536 * frame->color_matrix[9] * rangeCoeff),
-		    static_cast<int>(65536 * -frame->color_matrix[5] * rangeCoeff),
-		    static_cast<int>(65536 * -frame->color_matrix[6] * rangeCoeff),
+		    static_cast<int>(65536 * frame->color_matrix[2]),
+		    static_cast<int>(65536 * frame->color_matrix[9]),
+		    static_cast<int>(65536 * -frame->color_matrix[5]),
+		    static_cast<int>(65536 * -frame->color_matrix[6]),
 		};
-		if (::sws_setColorspaceDetails(m_SwsCtx, coeff,
-		        static_cast<int>(frame->full_range),
+		if (::sws_setColorspaceDetails(m_SwsCtx, coeff, 1,
 		        ::sws_getCoefficients(SWS_CS_DEFAULT), 1, 0, 1 << 16,
 		        1 << 16) < 0) {
 			throw std::runtime_error("SwsCtx failure");

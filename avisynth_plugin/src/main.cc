@@ -16,8 +16,8 @@ namespace avisynth {
 
 namespace {
 
-constexpr int MAX_BACKTRACK_SIZE = 32;
-constexpr std::size_t CACHE_SIZE = 64;
+constexpr int MAX_BACKTRACK_SIZE = 16;
+constexpr std::size_t CACHE_SIZE = 32;
 
 class JoshUpscaleFilter : public GenericVideoFilter {
 public:
@@ -29,10 +29,11 @@ public:
 
 private:
 	std::unique_ptr<core::Runtime> m_Runtime;
-	int m_NextFrame = 0;
+	int m_NextFrame = -MAX_BACKTRACK_SIZE;
 	bool m_StopBacktrackWarning = false;
 	std::vector<PVideoFrame> m_Cache;
 	std::size_t m_CacheShift = 0;
+	std::size_t m_DontCache = MAX_BACKTRACK_SIZE;
 };
 
 JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
@@ -49,7 +50,7 @@ JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
 	vi.width = core::OUTPUT_WIDTH;
 	vi.height = core::OUTPUT_HEIGHT;
 	m_Runtime.reset(core::createRuntime(0, modelPath, quantization));
-	m_Cache.reserve(MAX_BACKTRACK_SIZE);
+	m_Cache.reserve(CACHE_SIZE);
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
@@ -58,7 +59,7 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
     int n, IScriptEnvironment *env) {
 	if (n < m_NextFrame) {
-		std::size_t offset = static_cast<std::size_t>(m_NextFrame - n);
+		auto offset = static_cast<std::size_t>(m_NextFrame - n);
 		if (offset <= m_Cache.size()) {
 			return m_Cache[(m_Cache.size() - offset + m_CacheShift) %
 			               CACHE_SIZE];
@@ -66,9 +67,10 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 		std::clog << "[JoshUpscaleAvisynth] WARNING: Resetting stream"
 		          << std::endl;
 		// Redo all frames
-		m_NextFrame = 0;
+		m_NextFrame = n - MAX_BACKTRACK_SIZE;
 		m_Cache.clear();
 		m_CacheShift = 0;
+		m_DontCache = MAX_BACKTRACK_SIZE;
 	}
 	if (n > m_NextFrame) {
 		if (m_NextFrame + MAX_BACKTRACK_SIZE < n) {
@@ -76,7 +78,7 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 		}
 		if (!m_StopBacktrackWarning) {
 			std::clog
-			    << "[JoshUpscaleAvisynth] WARNING: Backtracking stream from "
+			    << "[JoshUpscaleAvisynth] INFO: Backtracking stream from "
 			    << m_NextFrame << " to " << n << std::endl;
 			m_StopBacktrackWarning = true;
 		}
@@ -88,7 +90,7 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 		    "JoshUpscale: expected frame %d, got %d", m_NextFrame, n);
 	}
 	m_StopBacktrackWarning = false;
-	PVideoFrame src = child->GetFrame(n, env);
+	PVideoFrame src = child->GetFrame(n >= 0 ? n : -n, env);
 	PVideoFrame dst = env->NewVideoFrameP(vi, &src);
 	core::Image inputImage = {
 	    .ptr = const_cast<BYTE *>(
@@ -109,9 +111,10 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 	};
 	m_Runtime->processImage(inputImage, outputImage);
 	m_NextFrame = n + 1;
-	if (m_Cache.size() == CACHE_SIZE) {
-		m_Cache[m_CacheShift] = dst;
-		++m_CacheShift;
+	if (m_DontCache > 0) {
+		--m_DontCache;
+	} else if (m_Cache.size() == CACHE_SIZE) {
+		m_Cache[m_CacheShift++] = dst;
 		m_CacheShift %= CACHE_SIZE;
 	} else {
 		m_Cache.push_back(dst);

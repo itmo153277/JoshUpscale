@@ -196,14 +196,6 @@ public:
 	}
 };
 
-#if TENSORRT_VERSION >= 8501
-using InterpolationMode = ::nvinfer1::InterpolationMode;
-using SampleMode = ::nvinfer1::SampleMode;
-#else
-using InterpolationMode = ::nvinfer1::ResizeMode;
-using SampleMode = ::nvinfer1::SliceMode;
-#endif
-
 }  // namespace trt
 
 }  // namespace core

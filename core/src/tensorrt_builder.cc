@@ -23,6 +23,14 @@
 #include "JoshUpscale/core/exception.h"
 #include "JoshUpscale/core/tensorrt.h"
 
+#if TENSORRT_VERSION >= 8501
+using InterpolationMode = ::nvinfer1::InterpolationMode;
+using SampleMode = ::nvinfer1::SampleMode;
+#else
+using InterpolationMode = ::nvinfer1::ResizeMode;
+using SampleMode = ::nvinfer1::SliceMode;
+#endif
+
 namespace YAML {
 
 template <>
@@ -226,15 +234,13 @@ struct convert<::nvinfer1::ElementWiseOperation> {
 };
 
 template <>
-struct convert<::JoshUpscale::core::trt::InterpolationMode> {
+struct convert<InterpolationMode> {
 	static bool decode(const Node &node,
-	    ::JoshUpscale::core::trt::InterpolationMode
-	        &rhs) {  // NOLINT(runtime/references)
+	    InterpolationMode &rhs) {  // NOLINT(runtime/references)
 		auto name = node.as<std::string>();
 #define ENUM_DEF(x) \
-	{ #x, ::JoshUpscale::core::trt::InterpolationMode::k##x }
-		static const std::unordered_map<std::string,
-		    ::JoshUpscale::core::trt::InterpolationMode>
+	{ #x, InterpolationMode::k##x }
+		static const std::unordered_map<std::string, InterpolationMode>
 		    enumMap = {
 			    ENUM_DEF(NEAREST),
 			    ENUM_DEF(LINEAR),
@@ -253,26 +259,23 @@ struct convert<::JoshUpscale::core::trt::InterpolationMode> {
 };
 
 template <>
-struct convert<::JoshUpscale::core::trt::SampleMode> {
+struct convert<SampleMode> {
 	static bool decode(const Node &node,
-	    ::JoshUpscale::core::trt::SampleMode
-	        &rhs) {  // NOLINT(runtime/references)
+	    SampleMode &rhs) {  // NOLINT(runtime/references)
 		auto name = node.as<std::string>();
 #define ENUM_DEF(x) \
-	{ #x, ::JoshUpscale::core::trt::SampleMode::k##x }
-		static const std::unordered_map<std::string,
-		    ::JoshUpscale::core::trt::SampleMode>
-		    enumMap = {
+	{ #x, SampleMode::k##x }
+		static const std::unordered_map<std::string, SampleMode> enumMap = {
 #if TENSORRT_VERSION >= 8501
-			    ENUM_DEF(STRICT_BOUNDS),
+			ENUM_DEF(STRICT_BOUNDS),
 #else
-			    {"STRICT_BOUNDS", ::nvinfer1::SliceMode::kDEFAULT},
+			{"STRICT_BOUNDS", ::nvinfer1::SliceMode::kDEFAULT},
 #endif
-			    ENUM_DEF(WRAP),
-			    ENUM_DEF(CLAMP),
-			    ENUM_DEF(FILL),
-			    ENUM_DEF(REFLECT),
-		    };
+			ENUM_DEF(WRAP),
+			ENUM_DEF(CLAMP),
+			ENUM_DEF(FILL),
+			ENUM_DEF(REFLECT),
+		};
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
 		if (iter == enumMap.end()) {
@@ -944,8 +947,8 @@ private:
 		auto *layer = m_Network->addGridSample(*inputTensor, *grid);
 		layer->setAlignCorners(config["align_corners"].as<bool>());
 		layer->setInterpolationMode(
-		    config["interpolation_mode"].as<trt::InterpolationMode>());
-		layer->setSampleMode(config["sample_mode"].as<trt::SampleMode>());
+		    config["interpolation_mode"].as<InterpolationMode>());
+		layer->setSampleMode(config["sample_mode"].as<SampleMode>());
 		return layer;
 	}
 #endif
@@ -1006,8 +1009,7 @@ private:
 		} else {
 			throw std::runtime_error("Unsupported layer");
 		}
-		layer->setResizeMode(
-		    config["resize_mode"].as<trt::InterpolationMode>());
+		layer->setResizeMode(config["resize_mode"].as<InterpolationMode>());
 		layer->setCoordinateTransformation(
 		    config["coordinate_transformation"]
 		        .as<::nvinfer1::ResizeCoordinateTransformation>());
@@ -1063,7 +1065,7 @@ private:
 		    config["start"].as<::nvinfer1::Dims>(),
 		    config["shape"].as<::nvinfer1::Dims>(),
 		    config["stride"].as<::nvinfer1::Dims>());
-		layer->setMode(config["mode"].as<trt::SampleMode>());
+		layer->setMode(config["mode"].as<SampleMode>());
 		return layer;
 	}
 
