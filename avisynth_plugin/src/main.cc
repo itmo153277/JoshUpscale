@@ -17,7 +17,7 @@ namespace avisynth {
 namespace {
 
 constexpr int MAX_BACKTRACK_SIZE = 16;
-constexpr std::size_t CACHE_SIZE = 32;
+constexpr std::size_t CACHE_SIZE = 16;
 
 class JoshUpscaleFilter : public GenericVideoFilter {
 public:
@@ -34,6 +34,8 @@ private:
 	std::vector<PVideoFrame> m_Cache;
 	std::size_t m_CacheShift = 0;
 	std::size_t m_DontCache = MAX_BACKTRACK_SIZE;
+
+	void resetStream(int n);
 };
 
 JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
@@ -56,6 +58,14 @@ JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
 JoshUpscaleFilter::~JoshUpscaleFilter() {
 }
 
+void JoshUpscaleFilter::resetStream(int n) {
+	std::clog << "[JoshUpscaleAvisynth] WARNING: Resetting stream" << std::endl;
+	m_NextFrame = n - MAX_BACKTRACK_SIZE;
+	m_Cache.clear();
+	m_CacheShift = 0;
+	m_DontCache = MAX_BACKTRACK_SIZE;
+}
+
 PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
     int n, IScriptEnvironment *env) {
 	if (n < m_NextFrame) {
@@ -64,22 +74,15 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 			return m_Cache[(m_Cache.size() - offset + m_CacheShift) %
 			               CACHE_SIZE];
 		}
-		std::clog << "[JoshUpscaleAvisynth] WARNING: Resetting stream"
-		          << std::endl;
-		// Redo all frames
-		m_NextFrame = n - MAX_BACKTRACK_SIZE;
-		m_Cache.clear();
-		m_CacheShift = 0;
-		m_DontCache = MAX_BACKTRACK_SIZE;
+		resetStream(n);
 	}
 	if (n > m_NextFrame) {
 		if (m_NextFrame + MAX_BACKTRACK_SIZE < n) {
-			m_NextFrame = n - MAX_BACKTRACK_SIZE;
+			resetStream(n);
 		}
 		if (!m_StopBacktrackWarning) {
-			std::clog
-			    << "[JoshUpscaleAvisynth] INFO: Backtracking stream from "
-			    << m_NextFrame << " to " << n << std::endl;
+			std::clog << "[JoshUpscaleAvisynth] INFO: Backtracking stream from "
+			          << m_NextFrame << " to " << n << std::endl;
 			m_StopBacktrackWarning = true;
 		}
 		// Backtrack to our frame
@@ -169,7 +172,7 @@ const AVS_Linkage *AVS_linkage = nullptr;
 extern "C" __declspec(dllexport) const char *__stdcall AvisynthPluginInit3(
     IScriptEnvironment *env, const AVS_Linkage *const vectors) {
 	AVS_linkage = vectors;
-	env->AddFunction("JoshUpscale", "[clip]c[modelPath]s[quant]i",
+	env->AddFunction("JoshUpscale", "[clip]c[model_path]s[quant]i",
 	    &JoshUpscale::avisynth::CreateFilter, nullptr);
 	return "JoshUpscale plugin";
 }
