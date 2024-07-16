@@ -51,6 +51,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     HINTS "$ENV{ProgramFiles}/Inno Setup 6"
     REQUIRED
   )
+  set(OBS_PLUGIN_REQUIRED_DLLS "" CACHE STRING "Required dlls for OBS plugin")
   add_custom_command(
     OUTPUT obs-joshupscale-installer.iss
     MAIN_DEPENDENCY install/obs-joshupscale-installer.iss.in
@@ -64,9 +65,10 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DCORE_PATH=$<TARGET_FILE:JoshUpscale>
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
       -DUSE_NVVFX=$<IF:$<BOOL:USE_NVVFX>,True,False>
+      -DREQUIRED_DLLS=${OBS_PLUGIN_REQUIRED_DLLS}
       -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
     COMMAND ${CMAKE_COMMAND}
-      -E touch ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
+      -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
   )
   file(GLOB_RECURSE DATA ${PROJECT_SOURCE_DIR}/data/*)
   if(NOT DATA)

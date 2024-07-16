@@ -4,7 +4,13 @@
   "version-semver": "1.0.0",
   "dependencies": [
     "yaml-cpp",
-    "boost-iostreams"
+    {
+      "name": "boost-iostreams",
+      "default-features": false,
+      "features": [
+        "zlib"
+      ]
+    }
   ],
   "features": {
     "avisynth-plugin": {

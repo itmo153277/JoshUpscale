@@ -37,7 +37,9 @@ Source: "@DATA_PATH@\*"; DestDir: "{code:GetDataPath}"; Flags: ignoreversion rec
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 [Code]
-const useNvVfx = @USE_NVVFX@;
+const
+  UseNvVfx = @USE_NVVFX@;
+  RequiredObsDlls = '@REQUIRED_DLLS@';
 
 function GetNvVfxPath: String;
 begin
@@ -100,15 +102,67 @@ begin
     Result := GetOBSPath;
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+function CheckOldInstall: Boolean;
 var OBSPath: String;
 begin
   OBSPath := GetTargetOBSPath;
+  Result := True;
   if FileExists(OBSPath + '\bin\64bit\JoshUpscale.dll') or
     FileExists(OBSPath + '\bin\64bit\nvinfer.dll') or
     FileExists(OBSPath + '\bin\64bit\nvinfer_builder_resource.dll') then
+    Exit;
+  Result := False;
+end;
+
+function SplitStr(s: String; const Delim: String): TArrayOfString;
+var i, p, c: Integer;
+begin
+  c := 0;
+  while Length(s) > 0 do
+  begin
+    SetArrayLength(Result, c + 1);
+    p := Pos(Delim, s);
+    if p = 0 then
+    begin
+      Result[c] := s;
+      Break;
+    end;
+    Result[c] := Copy(s, 1, p - 1);
+    s := Copy(s, p + 1, Length(s) - p);
+    c := c + 1;
+  end;
+end;
+
+function CheckRequiredDlls: Boolean;
+var
+  OBSPath: String;
+  DllList: TArrayOfString;
+  i: Integer;
+begin
+  OBSPath := GetTargetOBSPath;
+  if not DirExists(OBSPath) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  Result := False;
+  DllList := SplitStr(RequiredObsDlls, ':');
+  for i := 0 to Length(DllList) - 1 do
+    if not FileExists(OBSPath + '\bin\64bit\' + DllList[i]) then
+      Exit;
+  Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  if CheckOldInstall then
   begin
     Result := 'Previous installation detected. Remove old files before continuing';
+    Exit;
+  end;
+  if not CheckRequiredDlls then
+  begin
+    Result := 'OBS version mismatch';
     Exit;
   end;
 end;
@@ -116,7 +170,7 @@ end;
 function InitializeSetup: Boolean;
 begin
   Result := False;
-  if useNvVfx and not IsNvVfxInstalled then
+  if UseNvVfx and not IsNvVfxInstalled then
   begin
     MsgBox('You must install NVIDIA Video Effects SDK first', mbCriticalError, MB_OK);
     Exit;
