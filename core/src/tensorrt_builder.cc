@@ -483,17 +483,22 @@ namespace core {
 
 namespace {
 
+std::string getTensorRTPrefix() {
+	return "trt_" + std::to_string(getInferLibVersion());
+}
+
 std::filesystem::path getEnginePath(
     const ::YAML::Node &modelConfig, Quantization quantization) {
 	static const char *quantSuffix[] = {"", "_fp16", "_int8"};
 	return std::filesystem::temp_directory_path() / "JoshUpscale" /
+	       getTensorRTPrefix() /
 	       (modelConfig["name"].as<std::string>() +
 	           quantSuffix[static_cast<int>(quantization)] + ".trt");
 }
 
 std::filesystem::path getTimingCachePath() {
 	return std::filesystem::temp_directory_path() / "JoshUpscale" /
-	       "timingCache.bin";
+	       getTensorRTPrefix() / "timingCache.bin";
 }
 
 std::vector<std::byte> readTimingCacheFile() {
