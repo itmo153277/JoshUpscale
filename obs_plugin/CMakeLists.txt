@@ -3,6 +3,7 @@ find_package(libobs QUIET)
 if(NOT TARGET OBS::libobs)
   find_package(LibObs REQUIRED)
   add_library(OBS::libobs ALIAS libobs)
+  set(libobs_VERSION ${LibObs_VERSION})
 endif()
 
 file(GLOB_RECURSE SRC src/*.c src/*.cc)
@@ -66,6 +67,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
       -DUSE_NVVFX=$<IF:$<BOOL:USE_NVVFX>,True,False>
       -DREQUIRED_DLLS=${OBS_PLUGIN_REQUIRED_DLLS}
+      -DMIN_OBS_VERSION=$<IF:$<VERSION_LESS:${libobs_VERSION},28.0.0>,0,28>
       -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
     COMMAND ${CMAKE_COMMAND}
       -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss

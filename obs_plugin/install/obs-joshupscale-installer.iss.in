@@ -40,6 +40,7 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 const
   UseNvVfx = @USE_NVVFX@;
   RequiredObsDlls = '@REQUIRED_DLLS@';
+  MinObsVersion = @MIN_OBS_VERSION@;
 
 function GetNvVfxPath: String;
 begin
@@ -115,7 +116,7 @@ begin
 end;
 
 function SplitStr(s: String; const Delim: String): TArrayOfString;
-var i, p, c: Integer;
+var p, c: Integer;
 begin
   c := 0;
   while Length(s) > 0 do
@@ -138,6 +139,7 @@ var
   OBSPath: String;
   DllList: TArrayOfString;
   i: Integer;
+  MajorVer, MinorVer, RevVer, BuildVer: Word;
 begin
   OBSPath := GetTargetOBSPath;
   if not DirExists(OBSPath) then
@@ -150,6 +152,10 @@ begin
   for i := 0 to Length(DllList) - 1 do
     if not FileExists(OBSPath + '\bin\64bit\' + DllList[i]) then
       Exit;
+  if not GetVersionComponents(OBSPath + '\bin\64bit\obs.dll', MajorVer, MinorVer, RevVer, BuildVer) then
+    Exit;
+  if MajorVer < MinObsVersion then
+    Exit;
   Result := True;
 end;
 
