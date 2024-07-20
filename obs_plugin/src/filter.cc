@@ -76,7 +76,7 @@ inline ::AVPixelFormat convertFrameFormat(::video_format format) {
 }
 
 JoshUpscaleFilter::JoshUpscaleFilter(
-    [[maybe_unused]] ::obs_data_t *settings, ::obs_source_t *source)
+    ::obs_data_t *settings, ::obs_source_t *source)
     : m_Source(source)
     , m_InputBuffer(core::INPUT_WIDTH * core::INPUT_HEIGHT * 3)
     , m_OutputFrame(core::OUTPUT_WIDTH, core::OUTPUT_HEIGHT) {

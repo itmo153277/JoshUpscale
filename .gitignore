@@ -7,4 +7,5 @@
 __pycache__
 .ipynb*
 
-/data
+/obs_plugin/data/*
+!/obs_plugin/data/locale

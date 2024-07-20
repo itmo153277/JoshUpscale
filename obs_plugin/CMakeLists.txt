@@ -72,8 +72,9 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     COMMAND ${CMAKE_COMMAND}
       -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
   )
-  file(GLOB_RECURSE DATA ${PROJECT_SOURCE_DIR}/data/*)
-  if(NOT DATA)
+  file(GLOB_RECURSE DATA data/*)
+  file(GLOB_RECURSE DATA_MODELS data/*.yaml)
+  if(NOT DATA_MODELS)
     message(FATAL_ERROR "No model data found. Please put data into ./data folder")
   endif()
   add_custom_command(
