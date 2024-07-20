@@ -61,7 +61,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DTEMPLATE_IN=${CMAKE_CURRENT_SOURCE_DIR}/install/obs-joshupscale-installer.iss.in
       -DTEMPLATE_OUT=${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
       -DPROJECT_VERSION=${PROJECT_VERSION}
-      -DDATA_PATH=${PROJECT_SOURCE_DIR}/data
+      -DDATA_PATH=${CMAKE_CURRENT_SOURCE_DIR}/data
       -DLICENSE_PATH=${PROJECT_SOURCE_DIR}/LICENSE
       -DCORE_PATH=$<TARGET_FILE:JoshUpscale>
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
@@ -73,7 +73,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
   )
   file(GLOB_RECURSE DATA data/*)
-  file(GLOB_RECURSE DATA_MODELS data/*.yaml)
+  file(GLOB_RECURSE DATA_MODELS data/*.yaml data/*.bin)
   if(NOT DATA_MODELS)
     message(FATAL_ERROR "No model data found. Please put data into ./data folder")
   endif()
@@ -85,8 +85,11 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     COMMENT "Building installer"
     DEPENDS obs-joshupscale-installer.iss JoshUpscale obs-joshupscale ${DATA}
   )
+  foreach(F IN LISTS DATA_MODELS)
+    list(REMOVE_ITEM DATA ${F})
+  endforeach()
   add_custom_target(obs-joshupscale-installer-target ALL
     DEPENDS obs-joshupscale-installer.exe
-    SOURCES install/obs-joshupscale-installer.iss.in
+    SOURCES install/obs-joshupscale-installer.iss.in ${DATA}
   )
 endif()

@@ -110,7 +110,7 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 
 const char *JoshUpscaleFilter::getName(
     [[maybe_unused]] void *typeData) noexcept {
-	return "JoshUpscale";
+	return ::obs_module_text("Name");
 }
 
 void *JoshUpscaleFilter::create(
@@ -123,9 +123,9 @@ void *JoshUpscaleFilter::create(
 }
 
 void JoshUpscaleFilter::destroy(void *data) noexcept {
-	blog(LOG_INFO, "[obs-joshupscale] Start shutdown");
+	::blog(LOG_INFO, "[obs-joshupscale] Start shutdown");
 	delete reinterpret_cast<JoshUpscaleFilter *>(data);
-	blog(LOG_INFO, "[obs-joshupscale] Shutdown finished");
+	::blog(LOG_INFO, "[obs-joshupscale] Shutdown finished");
 }
 
 void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
@@ -213,18 +213,18 @@ void JoshUpscaleFilter::workerThread() noexcept {
 			    "model_smooth.yaml",
 			    "model_adapt.yaml",
 			};
-			blog(LOG_INFO, "[obs-joshupscale] Start building engine for %s",
+			::blog(LOG_INFO, "[obs-joshupscale] Start building engine for %s",
 			    models[targetModel]);
 			auto modelFile = OBSPtr(obs_module_file(models[targetModel]));
 			m_Runtime.reset(
 			    core::createRuntime(0, modelFile.get(), targetQuant));
 			m_Busy = false;
-			blog(LOG_INFO, "[obs-joshupscale] Engine build successful");
+			::blog(LOG_INFO, "[obs-joshupscale] Engine build successful");
 			m_Ready = true;
 			::obs_source_update_properties(m_Source);
 		}
 	} catch (std::exception &e) {
-		blog(LOG_ERROR, "[obs-joshupscale] Worker failed: %s", e.what());
+		::blog(LOG_ERROR, "[obs-joshupscale] Worker failed: %s", e.what());
 		m_Error = true;
 		::obs_source_update_properties(m_Source);
 	}
@@ -279,18 +279,20 @@ void JoshUpscaleFilter::addProperties(
 	bool error = m_Error;
 	bool ready = m_Ready;
 	::obs_property_t *backendProp = ::obs_properties_add_list(props, "backend",
-	    "Inference backend", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	    ::obs_module_text("InferenceBackend"), OBS_COMBO_TYPE_LIST,
+	    OBS_COMBO_FORMAT_INT);
 	::obs_property_list_add_int(backendProp, "TensorRT", 0);
 	::obs_property_set_enabled(backendProp, false);
 	::obs_property_t *modelProp = ::obs_properties_add_list(props, "model",
-	    "Model variant", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	    ::obs_module_text("ModelVariant"), OBS_COMBO_TYPE_LIST,
+	    OBS_COMBO_FORMAT_INT);
 	::obs_property_list_add_int(modelProp, "0: Fast", 0);
 	::obs_property_list_add_int(modelProp, "1: Default", 1);
 	::obs_property_list_add_int(modelProp, "2: Smooth", 2);
 	::obs_property_list_add_int(modelProp, "3: Adaptive", 3);
-	::obs_property_t *quantizationProp =
-	    ::obs_properties_add_list(props, "quantization", "Quantization",
-	        OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	::obs_property_t *quantizationProp = ::obs_properties_add_list(props,
+	    "quantization", ::obs_module_text("Quantization"), OBS_COMBO_TYPE_LIST,
+	    OBS_COMBO_FORMAT_INT);
 	::obs_property_list_add_int(quantizationProp, "0: None", 0);
 	::obs_property_list_add_int(quantizationProp, "1: FP16", 1);
 	::obs_property_list_add_int(quantizationProp, "2: INT8", 2);
@@ -301,14 +303,12 @@ void JoshUpscaleFilter::addProperties(
 		::obs_property_t *statusProp =
 		    ::obs_properties_add_text(props, "status", nullptr, OBS_TEXT_INFO);
 		if (error) {
-			::obs_property_set_description(statusProp,
-			    "There was an error in the worker thread. Please check the "
-			    "logs for further details.");
+			::obs_property_set_description(
+			    statusProp, ::obs_module_text("WorkerError"));
 			::obs_property_text_set_info_type(statusProp, OBS_TEXT_INFO_ERROR);
 		} else if (!ready) {
-			::obs_property_set_description(statusProp,
-			    "Building the engine. It can take a few minutes. Please "
-			    "wait...");
+			::obs_property_set_description(
+			    statusProp, ::obs_module_text("Building"));
 			::obs_property_text_set_info_type(
 			    statusProp, OBS_TEXT_INFO_WARNING);
 		}

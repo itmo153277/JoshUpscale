@@ -484,7 +484,7 @@ namespace core {
 namespace {
 
 std::string getTensorRTPrefix() {
-	return "trt_" + std::to_string(getInferLibVersion());
+	return "trt_" + std::to_string(::getInferLibVersion());
 }
 
 std::filesystem::path getEnginePath(
