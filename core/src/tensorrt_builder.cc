@@ -672,10 +672,10 @@ private:
 				}
 			}
 			if (!dimensionsEqual(m_Network->getInput(1)->getDimensions(),
-			        convertDimensions({1, 3, 1080, 1920}))) {
+			        convertDimensions({1, 3, 1440, 1920}))) {
 				return false;
 			}
-			constexpr std::size_t maxSize = 3ULL * 272ULL * 480ULL;
+			constexpr std::size_t maxSize = 3ULL * 360ULL * 480ULL;
 			for (std::int32_t i = 2; i < m_Network->getNbInputs(); ++i) {
 				if (getDimensionsSize(m_Network->getInput(i)->getDimensions()) >
 				    maxSize) {
@@ -686,11 +686,11 @@ private:
 			return false;
 		}
 		if (!dimensionsEqual(m_Network->getInput(0)->getDimensions(),
-		        convertDimensions({1, 270, 480, 3}))) {
+		        convertDimensions({1, 360, 480, 3}))) {
 			return false;
 		}
 		if (!dimensionsEqual(m_Network->getOutput(0)->getDimensions(),
-		        convertDimensions({1, 1080, 1920, 3}))) {
+		        convertDimensions({1, 1440, 1920, 3}))) {
 			return false;
 		}
 		for (std::int32_t i = 0; i < m_Network->getNbInputs(); ++i) {
