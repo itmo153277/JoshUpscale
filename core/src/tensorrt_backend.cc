@@ -16,10 +16,10 @@ namespace core {
 TensorRTBackend::TensorRTBackend(std::span<std::string> inputNames,
     std::span<std::string> outputNames, std::span<std::byte> engine)
     : m_Device{cuda::getDevice()}
-    , m_InputBuffer{cuda::getPaddedSize(480ULL * 270ULL * 3)}
-    , m_OutputBuffer{cuda::getPaddedSize(1920ULL * 1080ULL * 3)}
-    , m_InputBufferFp{cuda::getPaddedSize(480ULL * 270ULL * 3)}
-    , m_OutputBufferFp{cuda::getPaddedSize(1920ULL * 1080ULL * 3)}
+    , m_InputBuffer{cuda::getPaddedSize(480ULL * 360ULL * 3)}
+    , m_OutputBuffer{cuda::getPaddedSize(1920ULL * 1440ULL * 3)}
+    , m_InputBufferFp{cuda::getPaddedSize(480ULL * 360ULL * 3)}
+    , m_OutputBufferFp{cuda::getPaddedSize(1920ULL * 1440ULL * 3)}
     , m_BindingsIdx{0}
     , m_Engine{nullptr}
     , m_Context{nullptr} {
@@ -32,9 +32,9 @@ TensorRTBackend::TensorRTBackend(std::span<std::string> inputNames,
 		auto interBufs = outputNames.size() - 1;
 		if (interBufs > 0) {
 			for (std::size_t i = 0; i < 2; ++i) {
-				m_InterBuffers.emplace_back(1920ULL * 1080ULL * 3ULL);
+				m_InterBuffers.emplace_back(1920ULL * 1440ULL * 3ULL);
 				for (std::size_t j = 0; j < interBufs - 1; ++j) {
-					m_InterBuffers.emplace_back(480ULL * 272ULL * 3ULL);
+					m_InterBuffers.emplace_back(480ULL * 360ULL * 3ULL);
 				}
 			}
 		}
