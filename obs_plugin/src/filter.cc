@@ -90,8 +90,11 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 		m_Terminated = true;
 	}
 	m_Condition.notify_all();
-	if (m_SwsCtx != nullptr) {
-		::sws_freeContext(m_SwsCtx);
+	if (m_SwsCtxDecode != nullptr) {
+		::sws_freeContext(m_SwsCtxDecode);
+	}
+	if (m_SwsCtxScale != nullptr) {
+		::sws_freeContext(m_SwsCtxScale);
 	}
 	// Ensure that injected frame is out
 	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
@@ -135,6 +138,14 @@ void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
 		    static_cast<int>(::obs_data_get_int(settings, "model"));
 		m_CurrentQuant = static_cast<core::Quantization>(
 		    ::obs_data_get_int(settings, "quantization"));
+		m_NextCropLeft =
+		    static_cast<int>(::obs_data_get_int(settings, "crop_left"));
+		m_NextCropTop =
+		    static_cast<int>(::obs_data_get_int(settings, "crop_top"));
+		m_NextCropRight =
+		    static_cast<int>(::obs_data_get_int(settings, "crop_right"));
+		m_NextCropBottom =
+		    static_cast<int>(::obs_data_get_int(settings, "crop_bottom"));
 	}
 	m_Condition.notify_all();
 }
@@ -143,12 +154,25 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	int srcW = static_cast<int>(frame->width);
 	int srcH = static_cast<int>(frame->height);
 	::AVPixelFormat srcFormat = convertFrameFormat(frame->format);
+	int cropW = srcW - m_CropLeft - m_CropRight;
+	int cropH = srcH - m_CropTop - m_CropBottom;
 	int dstW = static_cast<int>(core::INPUT_WIDTH);
 	int dstH = static_cast<int>(core::INPUT_HEIGHT);
 	::AVPixelFormat dstFormat = AV_PIX_FMT_BGR24;
-	m_SwsCtx = ::sws_getCachedContext(m_SwsCtx, srcW, srcH, srcFormat, dstW,
-	    dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
-	if (m_SwsCtx == nullptr) {
+	if (cropW <= 0 || cropH <= 0) {
+		throw std::invalid_argument("Inalid crop");
+	}
+	m_CroppedFrame.realloc(static_cast<std::size_t>(srcW),
+	    static_cast<std::size_t>(srcH), m_CropLeft, m_CropTop, m_CropRight,
+	    m_CropBottom);
+	m_SwsCtxDecode = ::sws_getCachedContext(m_SwsCtxDecode, srcW, srcH,
+	    srcFormat, srcW, srcH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
+	if (m_SwsCtxDecode == nullptr) {
+		throw std::runtime_error("SwsCtx failure");
+	}
+	m_SwsCtxScale = ::sws_getCachedContext(m_SwsCtxScale, cropW, cropH,
+	    dstFormat, dstW, dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
+	if (m_SwsCtxScale == nullptr) {
 		throw std::runtime_error("SwsCtx failure");
 	}
 	if (::format_is_yuv(frame->format)) {
@@ -159,7 +183,7 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		    static_cast<int>(65536 * -frame->color_matrix[5] * rangeCoeff),
 		    static_cast<int>(65536 * -frame->color_matrix[6] * rangeCoeff),
 		};
-		if (::sws_setColorspaceDetails(m_SwsCtx, coeff,
+		if (::sws_setColorspaceDetails(m_SwsCtxDecode, coeff,
 		        static_cast<int>(frame->full_range),
 		        ::sws_getCoefficients(SWS_CS_DEFAULT), 1, 0, 1 << 16,
 		        1 << 16) < 0) {
@@ -176,8 +200,16 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	std::uint8_t *outBuffers[4] = {
 	    reinterpret_cast<std::uint8_t *>(m_InputBuffer.get())};
 	int outStrides[4] = {core::INPUT_WIDTH * 3};
-	::sws_scale(
-	    m_SwsCtx, frame->data, inStrides, 0, srcH, outBuffers, outStrides);
+	if (::sws_scale(m_SwsCtxDecode, frame->data, inStrides, 0, srcH,
+	        m_CroppedFrame.getInputPlanes(),
+	        m_CroppedFrame.getStrides()) <= 0) {
+		throw std::runtime_error("SwsCtx failure");
+	}
+	if (::sws_scale(m_SwsCtxScale, m_CroppedFrame.getOutputPlanes(),
+	        m_CroppedFrame.getStrides(), 0, cropH, outBuffers,
+	        outStrides) <= 0) {
+		throw std::runtime_error("SwsCtx failure");
+	}
 	m_OutputFrame->timestamp = frame->timestamp;
 	m_OutputFrame->flip = frame->flip;
 }
@@ -193,19 +225,32 @@ void JoshUpscaleFilter::workerThread() noexcept {
 				m_LoadedQuant = targetQuant;
 				m_Condition.wait(lock, [this] {
 					return m_Terminated || m_CurrentModel != m_LoadedModel ||
-					       m_CurrentQuant != m_LoadedQuant;
+					       m_CurrentQuant != m_LoadedQuant ||
+					       m_CropLeft != m_NextCropLeft ||
+					       m_CropTop != m_NextCropTop ||
+					       m_CropRight != m_NextCropRight ||
+					       m_CropBottom != m_NextCropBottom;
 				});
 				if (m_Terminated) {
 					break;
+				}
+				while (m_Busy.exchange(true)) {
+					std::this_thread::yield();
+				}
+				m_CropLeft = m_NextCropLeft;
+				m_CropTop = m_NextCropTop;
+				m_CropRight = m_NextCropRight;
+				m_CropBottom = m_NextCropBottom;
+				if (m_LoadedModel == m_CurrentModel &&
+				    m_LoadedQuant == m_CurrentQuant) {
+					m_Busy = false;
+					continue;
 				}
 				targetModel = m_CurrentModel;
 				targetQuant = m_CurrentQuant;
 			}
 			m_Ready = false;
 			::obs_source_update_properties(m_Source);
-			while (m_Busy.exchange(true)) {
-				std::this_thread::yield();
-			}
 			m_Runtime = nullptr;
 			static const char *models[4] = {
 			    "model_fast.yaml",
@@ -296,6 +341,14 @@ void JoshUpscaleFilter::addProperties(
 	::obs_property_list_add_int(quantizationProp, "0: None", 0);
 	::obs_property_list_add_int(quantizationProp, "1: FP16", 1);
 	::obs_property_list_add_int(quantizationProp, "2: INT8", 2);
+	::obs_properties_add_int(
+	    props, "crop_left", ::obs_module_text("CropLeft"), -1024, 1024, 1);
+	::obs_properties_add_int(
+	    props, "crop_top", ::obs_module_text("CropTop"), -1024, 1024, 1);
+	::obs_properties_add_int(
+	    props, "crop_right", ::obs_module_text("CropRight"), -1024, 1024, 1);
+	::obs_properties_add_int(
+	    props, "crop_bottom", ::obs_module_text("CropBottom"), -1024, 1024, 1);
 	if (error || !ready) {
 		::obs_property_set_enabled(modelProp, false);
 		::obs_property_set_enabled(quantizationProp, false);
@@ -319,7 +372,11 @@ void JoshUpscaleFilter::addProperties(
 void JoshUpscaleFilter::getDefaults(
     [[maybe_unused]] void *typeData, ::obs_data_t *settings) noexcept {
 	::obs_data_set_default_int(settings, "model", 3);
-	::obs_data_set_default_int(settings, "quantization", 1);
+	::obs_data_set_default_int(settings, "quantization", 2);
+	::obs_data_set_default_int(settings, "crop_left", 0);
+	::obs_data_set_default_int(settings, "crop_top", 0);
+	::obs_data_set_default_int(settings, "crop_right", 0);
+	::obs_data_set_default_int(settings, "crop_bottom", 0);
 }
 
 }  // namespace obs

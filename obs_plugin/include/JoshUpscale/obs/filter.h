@@ -18,6 +18,7 @@ extern "C" {
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -41,6 +42,8 @@ struct AVDeleter {
 struct AVBuffer : std::unique_ptr<void, detail::AVDeleter> {
 	using unique_ptr = std::unique_ptr<void, detail::AVDeleter>;
 
+	explicit AVBuffer(std::nullptr_t) : unique_ptr(nullptr) {
+	}
 	explicit AVBuffer(std::size_t size) : unique_ptr(alloc(size)) {
 	}
 
@@ -50,8 +53,101 @@ private:
 		if (ptr == nullptr) {
 			throw std::bad_alloc();
 		}
+		std::memset(ptr, 0, size);
 		return ptr;
 	}
+};
+
+struct CroppedFrame {
+	CroppedFrame()
+	    : m_Width(0)
+	    , m_Height(0)
+	    , m_CropLeft(0)
+	    , m_CropTop(0)
+	    , m_CropRight(0)
+	    , m_CropBottom(0)
+	    , m_Buffer(nullptr) {
+	}
+	CroppedFrame(std::size_t width, std::size_t height, int left, int top,
+	    int right, int bottom)
+	    : m_Width(width)
+	    , m_Height(height)
+	    , m_CropLeft(left)
+	    , m_CropTop(top)
+	    , m_CropRight(right)
+	    , m_CropBottom(bottom)
+	    , m_Buffer(getBufferSize(width, height, left, top, right, bottom)) {
+		m_Strides[0] = static_cast<int>(getSize(width, left, right) * 3);
+		m_InputPlanes[0] = reinterpret_cast<std::uint8_t *>(m_Buffer.get());
+		if (left < 0) {
+			m_InputPlanes[0] =
+			    m_InputPlanes[0] - static_cast<ptrdiff_t>(left * 3);
+		}
+		if (top < 0) {
+			m_InputPlanes[0] =
+			    m_InputPlanes[0] - static_cast<ptrdiff_t>(top * m_Strides[0]);
+		}
+		m_OutputPlanes[0] = reinterpret_cast<std::uint8_t *>(m_Buffer.get());
+		if (left > 0) {
+			m_OutputPlanes[0] =
+			    m_OutputPlanes[0] + static_cast<ptrdiff_t>(left * 3);
+		}
+		if (top > 0) {
+			m_OutputPlanes[0] =
+			    m_OutputPlanes[0] + static_cast<ptrdiff_t>(top * m_Strides[0]);
+		}
+	}
+	CroppedFrame(const CroppedFrame &) = delete;
+	CroppedFrame(CroppedFrame &&) noexcept = default;
+	CroppedFrame &operator=(const CroppedFrame &) = delete;
+	CroppedFrame &operator=(CroppedFrame &&) noexcept = default;
+
+	void realloc(std::size_t width, std::size_t height, int left, int top,
+	    int right, int bottom) {
+		if (width != m_Width || height != m_Height || left != m_CropLeft ||
+		    top != m_CropTop || right != m_CropRight ||
+		    bottom != m_CropBottom) {
+			*this = CroppedFrame(width, height, left, top, right, bottom);
+		}
+	}
+
+	const int *getStrides() const {
+		return m_Strides;
+	}
+
+	std::uint8_t **getInputPlanes() {
+		return m_InputPlanes;
+	}
+	const std::uint8_t *const *getOutputPlanes() const {
+		return m_OutputPlanes;
+	}
+
+private:
+	static std::size_t getSize(std::size_t base, int begin, int end) {
+		std::size_t size = base;
+		if (begin < 0) {
+			size += static_cast<std::size_t>(-begin);
+		}
+		if (end < 0) {
+			size += static_cast<std::size_t>(-end);
+		}
+		return size;
+	}
+	static std::size_t getBufferSize(std::size_t width, std::size_t height,
+	    int left, int top, int right, int bottom) {
+		return getSize(width, left, right) * getSize(height, top, bottom) * 3;
+	}
+
+	std::size_t m_Width;
+	std::size_t m_Height;
+	int m_CropLeft;
+	int m_CropTop;
+	int m_CropRight;
+	int m_CropBottom;
+	int m_Strides[4] = {};
+	std::uint8_t *m_InputPlanes[4] = {};
+	std::uint8_t *m_OutputPlanes[4] = {};
+	AVBuffer m_Buffer;
 };
 
 namespace detail {
@@ -175,9 +271,19 @@ private:
 	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
 	AVBuffer m_InputBuffer;
 	OBSFrame m_OutputFrame;
-	::SwsContext *m_SwsCtx = nullptr;
+	::SwsContext *m_SwsCtxDecode = nullptr;
+	::SwsContext *m_SwsCtxScale = nullptr;
+	CroppedFrame m_CroppedFrame;
 	int m_CurrentModel = -1;
 	int m_LoadedModel = -1;
+	int m_CropLeft = 0;
+	int m_CropTop = 0;
+	int m_CropRight = 0;
+	int m_CropBottom = 0;
+	int m_NextCropLeft = 0;
+	int m_NextCropTop = 0;
+	int m_NextCropRight = 0;
+	int m_NextCropBottom = 0;
 	core::Quantization m_CurrentQuant = core::Quantization::NONE;
 	core::Quantization m_LoadedQuant = core::Quantization::NONE;
 	std::atomic<bool> m_Error = false;
