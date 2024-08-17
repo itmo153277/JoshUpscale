@@ -162,18 +162,30 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	if (cropW <= 0 || cropH <= 0) {
 		throw std::invalid_argument("Inalid crop");
 	}
-	m_CroppedFrame.realloc(static_cast<std::size_t>(srcW),
-	    static_cast<std::size_t>(srcH), m_CropLeft, m_CropTop, m_CropRight,
-	    m_CropBottom);
-	m_SwsCtxDecode = ::sws_getCachedContext(m_SwsCtxDecode, srcW, srcH,
-	    srcFormat, srcW, srcH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
-	if (m_SwsCtxDecode == nullptr) {
-		throw std::runtime_error("SwsCtx failure");
-	}
-	m_SwsCtxScale = ::sws_getCachedContext(m_SwsCtxScale, cropW, cropH,
-	    dstFormat, dstW, dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
-	if (m_SwsCtxScale == nullptr) {
-		throw std::runtime_error("SwsCtx failure");
+	bool noCrop = m_CropLeft == 0 && m_CropTop == 0 && m_CropRight == 0 &&
+	              m_CropBottom == 0;
+	if (noCrop) {
+		m_SwsCtxDecode =
+		    ::sws_getCachedContext(m_SwsCtxDecode, srcW, srcH, srcFormat, dstW,
+		        dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
+		if (m_SwsCtxDecode == nullptr) {
+			throw std::runtime_error("SwsCtx failure");
+		}
+	} else {
+		m_CroppedFrame.realloc(static_cast<std::size_t>(srcW),
+		    static_cast<std::size_t>(srcH), m_CropLeft, m_CropTop, m_CropRight,
+		    m_CropBottom);
+		m_SwsCtxDecode = ::sws_getCachedContext(m_SwsCtxDecode, srcW, srcH,
+		    srcFormat, srcW, srcH, dstFormat, 0, nullptr, nullptr, nullptr);
+		if (m_SwsCtxDecode == nullptr) {
+			throw std::runtime_error("SwsCtx failure");
+		}
+		m_SwsCtxScale =
+		    ::sws_getCachedContext(m_SwsCtxScale, cropW, cropH, dstFormat, dstW,
+		        dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
+		if (m_SwsCtxScale == nullptr) {
+			throw std::runtime_error("SwsCtx failure");
+		}
 	}
 	if (::format_is_yuv(frame->format)) {
 		float rangeCoeff = frame->full_range ? (255.0F / 224.0F) : 1.0F;
@@ -200,15 +212,22 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	std::uint8_t *outBuffers[4] = {
 	    reinterpret_cast<std::uint8_t *>(m_InputBuffer.get())};
 	int outStrides[4] = {core::INPUT_WIDTH * 3};
-	if (::sws_scale(m_SwsCtxDecode, frame->data, inStrides, 0, srcH,
-	        m_CroppedFrame.getInputPlanes(),
-	        m_CroppedFrame.getStrides()) <= 0) {
-		throw std::runtime_error("SwsCtx failure");
-	}
-	if (::sws_scale(m_SwsCtxScale, m_CroppedFrame.getOutputPlanes(),
-	        m_CroppedFrame.getStrides(), 0, cropH, outBuffers,
-	        outStrides) <= 0) {
-		throw std::runtime_error("SwsCtx failure");
+	if (noCrop) {
+		if (::sws_scale(m_SwsCtxDecode, frame->data, inStrides, 0, srcH,
+		        outBuffers, outStrides) != dstH) {
+			throw std::runtime_error("SwsCtx failure");
+		}
+	} else {
+		if (::sws_scale(m_SwsCtxDecode, frame->data, inStrides, 0, srcH,
+		        m_CroppedFrame.getInputPlanes(),
+		        m_CroppedFrame.getStrides()) != srcH) {
+			throw std::runtime_error("SwsCtx failure");
+		}
+		if (::sws_scale(m_SwsCtxScale, m_CroppedFrame.getOutputPlanes(),
+		        m_CroppedFrame.getStrides(), 0, cropH, outBuffers,
+		        outStrides) != dstH) {
+			throw std::runtime_error("SwsCtx failure");
+		}
 	}
 	m_OutputFrame->timestamp = frame->timestamp;
 	m_OutputFrame->flip = frame->flip;
