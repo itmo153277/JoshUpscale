@@ -141,6 +141,7 @@ struct convert<::nvinfer1::ActivationType> {
 		        ENUM_DEF(RELU),
 		        ENUM_DEF(TANH),
 		        ENUM_DEF(LEAKY_RELU),
+		        ENUM_DEF(CLIP),
 		    };
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
