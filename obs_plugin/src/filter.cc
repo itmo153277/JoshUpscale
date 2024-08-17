@@ -268,9 +268,13 @@ void JoshUpscaleFilter::workerThread() noexcept {
 				targetModel = m_CurrentModel;
 				targetQuant = m_CurrentQuant;
 			}
+			m_Runtime = nullptr;
+			if (targetModel == -1) {
+				m_Busy = false;
+				continue;
+			}
 			m_Ready = false;
 			::obs_source_update_properties(m_Source);
-			m_Runtime = nullptr;
 			static const char *models[4] = {
 			    "model_fast.yaml",
 			    "model.yaml",
