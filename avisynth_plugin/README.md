@@ -2,8 +2,8 @@
 
 ## Usage
 
-<!-- clip JoshUpscale(clip "clip", string "model", int "quant" = 1)  -->
-<code><span style="font-size:1.12em">*clip* **JoshUpscale**(*clip* **"clip"**, *string* **"model_path"**, *int* **"quant"** = 1)</span></code>
+<!-- clip JoshUpscale(clip "clip", string "model", int "quant" = 2)  -->
+<code><span style="font-size:1.12em">*clip* **JoshUpscale**(*clip* **"clip"**, *string* **"model_path"**, *int* **"quant"** = 3)</span></code>
 
 Parameters:
 
@@ -15,7 +15,7 @@ Parameters:
   Quantization type. Accepted values:
   - 0: no quantization (float32)
   - 1: float16 quantization
-  - 2: int16 (+float16) quantization
+  - 2: int8 (+float16) quantization
 
 Output:
 - *clip*  

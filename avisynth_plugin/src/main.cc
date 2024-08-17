@@ -151,7 +151,7 @@ AVSValue __cdecl CreateFilter(AVSValue args,  // NOLINT
     [[maybe_unused]] void *user_data, IScriptEnvironment *env) {
 	PClip clip = args[0].AsClip();
 	const char *model = args[1].AsString();
-	int quant = args[2].AsInt(static_cast<int>(core::Quantization::FP16));
+	int quant = args[2].AsInt(static_cast<int>(core::Quantization::INT8));
 	if (quant != static_cast<int>(core::Quantization::NONE) &&
 	    quant != static_cast<int>(core::Quantization::FP16) &&
 	    quant != static_cast<int>(core::Quantization::INT8)) {
