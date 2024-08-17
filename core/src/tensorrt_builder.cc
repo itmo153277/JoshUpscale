@@ -3,11 +3,12 @@
 #include <NvInfer.h>
 #include <yaml-cpp/yaml.h>
 
+#include <algorithm>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -99,24 +100,24 @@ struct convert<::nvinfer1::LayerType> {
 	{ #x, ::nvinfer1::LayerType::k##x }
 		static const std::unordered_map<std::string, ::nvinfer1::LayerType>
 		    enumMap = {
-			    ENUM_DEF(ACTIVATION),
-			    ENUM_DEF(CONCATENATION),
-			    ENUM_DEF(CONSTANT),
-			    ENUM_DEF(CONVOLUTION),
-			    ENUM_DEF(DECONVOLUTION),
-			    ENUM_DEF(ELEMENTWISE),
-			    ENUM_DEF(GATHER),
+		        ENUM_DEF(ACTIVATION),
+		        ENUM_DEF(CONCATENATION),
+		        ENUM_DEF(CONSTANT),
+		        ENUM_DEF(CONVOLUTION),
+		        ENUM_DEF(DECONVOLUTION),
+		        ENUM_DEF(ELEMENTWISE),
+		        ENUM_DEF(GATHER),
 #if TENSORRT_VERSION >= 8501
-			    ENUM_DEF(GRID_SAMPLE),
+		        ENUM_DEF(GRID_SAMPLE),
 #endif
-			    ENUM_DEF(IDENTITY),
-			    ENUM_DEF(POOLING),
-			    ENUM_DEF(REDUCE),
-			    ENUM_DEF(RESIZE),
-			    ENUM_DEF(SCALE),
-			    ENUM_DEF(SHUFFLE),
-			    ENUM_DEF(SLICE),
-			    ENUM_DEF(UNARY),
+		        ENUM_DEF(IDENTITY),
+		        ENUM_DEF(POOLING),
+		        ENUM_DEF(REDUCE),
+		        ENUM_DEF(RESIZE),
+		        ENUM_DEF(SCALE),
+		        ENUM_DEF(SHUFFLE),
+		        ENUM_DEF(SLICE),
+		        ENUM_DEF(UNARY),
 		    };
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
@@ -242,10 +243,10 @@ struct convert<InterpolationMode> {
 	{ #x, InterpolationMode::k##x }
 		static const std::unordered_map<std::string, InterpolationMode>
 		    enumMap = {
-			    ENUM_DEF(NEAREST),
-			    ENUM_DEF(LINEAR),
+		        ENUM_DEF(NEAREST),
+		        ENUM_DEF(LINEAR),
 #if TENSORRT_VERSION >= 8501
-			    ENUM_DEF(CUBIC),
+		        ENUM_DEF(CUBIC),
 #endif
 		    };
 #undef ENUM_DEF
@@ -267,14 +268,14 @@ struct convert<SampleMode> {
 	{ #x, SampleMode::k##x }
 		static const std::unordered_map<std::string, SampleMode> enumMap = {
 #if TENSORRT_VERSION >= 8501
-			ENUM_DEF(STRICT_BOUNDS),
+		    ENUM_DEF(STRICT_BOUNDS),
 #else
-			{"STRICT_BOUNDS", ::nvinfer1::SliceMode::kDEFAULT},
+		    {"STRICT_BOUNDS", ::nvinfer1::SliceMode::kDEFAULT},
 #endif
-			ENUM_DEF(WRAP),
-			ENUM_DEF(CLAMP),
-			ENUM_DEF(FILL),
-			ENUM_DEF(REFLECT),
+		    ENUM_DEF(WRAP),
+		    ENUM_DEF(CLAMP),
+		    ENUM_DEF(FILL),
+		    ENUM_DEF(REFLECT),
 		};
 #undef ENUM_DEF
 		auto iter = enumMap.find(name);
@@ -367,31 +368,31 @@ struct convert<::nvinfer1::UnaryOperation> {
 	{ #x, ::nvinfer1::UnaryOperation::k##x }
 		static const std::unordered_map<std::string, ::nvinfer1::UnaryOperation>
 		    enumMap = {
-			    ENUM_DEF(EXP),
-			    ENUM_DEF(LOG),
-			    ENUM_DEF(SQRT),
-			    ENUM_DEF(RECIP),
-			    ENUM_DEF(ABS),
-			    ENUM_DEF(NEG),
-			    ENUM_DEF(SIN),
-			    ENUM_DEF(COS),
-			    ENUM_DEF(TAN),
-			    ENUM_DEF(SINH),
-			    ENUM_DEF(COSH),
-			    ENUM_DEF(ASIN),
-			    ENUM_DEF(ACOS),
-			    ENUM_DEF(ATAN),
-			    ENUM_DEF(ASINH),
-			    ENUM_DEF(ACOSH),
-			    ENUM_DEF(ATANH),
-			    ENUM_DEF(CEIL),
-			    ENUM_DEF(FLOOR),
-			    ENUM_DEF(ERF),
-			    ENUM_DEF(NOT),
-			    ENUM_DEF(SIGN),
-			    ENUM_DEF(ROUND),
+		        ENUM_DEF(EXP),
+		        ENUM_DEF(LOG),
+		        ENUM_DEF(SQRT),
+		        ENUM_DEF(RECIP),
+		        ENUM_DEF(ABS),
+		        ENUM_DEF(NEG),
+		        ENUM_DEF(SIN),
+		        ENUM_DEF(COS),
+		        ENUM_DEF(TAN),
+		        ENUM_DEF(SINH),
+		        ENUM_DEF(COSH),
+		        ENUM_DEF(ASIN),
+		        ENUM_DEF(ACOS),
+		        ENUM_DEF(ATAN),
+		        ENUM_DEF(ASINH),
+		        ENUM_DEF(ACOSH),
+		        ENUM_DEF(ATANH),
+		        ENUM_DEF(CEIL),
+		        ENUM_DEF(FLOOR),
+		        ENUM_DEF(ERF),
+		        ENUM_DEF(NOT),
+		        ENUM_DEF(SIGN),
+		        ENUM_DEF(ROUND),
 #if TENSORRT_VESION >= 8601
-			    ENUM_DEF(ISINF),
+		        ENUM_DEF(ISINF),
 #endif
 		    };
 #undef ENUM_DEF

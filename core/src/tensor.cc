@@ -9,6 +9,8 @@
 
 #ifdef _MSC_VER
 #include <malloc.h>
+#else
+#include <cstdlib>
 #endif
 
 namespace JoshUpscale {
@@ -31,9 +33,9 @@ void *alignedAlloc(std::size_t alignment, std::size_t size) {
 
 void alignedFree(void *ptr) {
 #if defined(_MSC_VER)
-	return _aligned_free(ptr);
+	_aligned_free(ptr);
 #else
-	return std::free(ptr);
+	std::free(ptr);
 #endif
 }
 

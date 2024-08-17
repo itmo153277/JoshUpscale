@@ -2,7 +2,6 @@
 
 #include "JoshUpscale/core/exception.h"
 
-#include <cstddef>
 #include <exception>
 #include <iostream>
 #include <sstream>
@@ -14,6 +13,8 @@
 
 #include <cstdlib>
 #include <memory>
+#elif defined(_MSC_VER)
+#include <cstddef>
 #endif
 
 namespace JoshUpscale {
