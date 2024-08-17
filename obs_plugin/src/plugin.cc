@@ -4,7 +4,7 @@
 
 #include "JoshUpscale/obs/filter.h"
 
-const char *PLUGIN_NAME = "obs-joshupscale";
+const char *PLUGIN_NAME = "obs-joshupscale-ps2";
 const char *PLUGIN_VERSION = "1.0.0";
 
 obs_source_info *getJoshUpscaleSourceInfo() {
@@ -59,11 +59,11 @@ void preloadLibrariesWindows() {
 	LoadLibraryA("nvinfer_builder_resource.dll");
 #endif
 	auto mainLibPath =
-	    JoshUpscale::obs::OBSPtr(obs_module_file("JoshUpscale.dll"));
+	    JoshUpscale::obs::OBSPtr(obs_module_file("JoshUpscalePS2.dll"));
 	std::filesystem::path mainLib = mainLibPath.get();
 	DLL_DIRECTORY_COOKIE ptr = AddDllDirectory(
 	    std::filesystem::absolute(mainLib.parent_path()).c_str());
-	LoadLibraryExA("JoshUpscale.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS);
+	LoadLibraryExA("JoshUpscalePS2.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS);
 	RemoveDllDirectory(ptr);
 	setDllDir(nullptr);
 }
