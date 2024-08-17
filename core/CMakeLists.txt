@@ -32,3 +32,7 @@ target_link_libraries(JoshUpscale PRIVATE
   CUDA::cudart
   TensorRT::nvinfer
 )
+
+set_target_properties(JoshUpscale PROPERTIES
+  OUTPUT_NAME JoshUpscalePS2
+)

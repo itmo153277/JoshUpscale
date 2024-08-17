@@ -59,7 +59,7 @@ inline ::AVPixelFormat convertFrameFormat(::video_format format) {
 		::obs_source_info info = {};
 		Data() {
 #define CALLBACK_DEF(name) (Callback<&JoshUpscaleFilter::name>::getPtr())
-			info.id = "joshupscale";
+			info.id = "joshupscale-ps2";
 			info.type = OBS_SOURCE_TYPE_FILTER;
 			info.output_flags = OBS_SOURCE_ASYNC_VIDEO;
 			info.get_name = CALLBACK_DEF(getName);
@@ -126,9 +126,9 @@ void *JoshUpscaleFilter::create(
 }
 
 void JoshUpscaleFilter::destroy(void *data) noexcept {
-	::blog(LOG_INFO, "[obs-joshupscale] Start shutdown");
+	::blog(LOG_INFO, "[obs-joshupscale-ps2] Start shutdown");
 	delete reinterpret_cast<JoshUpscaleFilter *>(data);
-	::blog(LOG_INFO, "[obs-joshupscale] Shutdown finished");
+	::blog(LOG_INFO, "[obs-joshupscale-ps2] Shutdown finished");
 }
 
 void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
@@ -281,18 +281,18 @@ void JoshUpscaleFilter::workerThread() noexcept {
 			    "model_smooth.yaml",
 			    "model_adapt.yaml",
 			};
-			::blog(LOG_INFO, "[obs-joshupscale] Start building engine for %s",
+			::blog(LOG_INFO, "[obs-joshupscale-ps2] Start building engine for %s",
 			    models[targetModel]);
 			auto modelFile = OBSPtr(obs_module_file(models[targetModel]));
 			m_Runtime.reset(
 			    core::createRuntime(0, modelFile.get(), targetQuant));
 			m_Busy = false;
-			::blog(LOG_INFO, "[obs-joshupscale] Engine build successful");
+			::blog(LOG_INFO, "[obs-joshupscale-ps2] Engine build successful");
 			m_Ready = true;
 			::obs_source_update_properties(m_Source);
 		}
 	} catch (std::exception &e) {
-		::blog(LOG_ERROR, "[obs-joshupscale] Worker failed: %s", e.what());
+		::blog(LOG_ERROR, "[obs-joshupscale-ps2] Worker failed: %s", e.what());
 		m_Error = true;
 		::obs_source_update_properties(m_Source);
 	}
@@ -354,9 +354,6 @@ void JoshUpscaleFilter::addProperties(
 	::obs_property_t *modelProp = ::obs_properties_add_list(props, "model",
 	    ::obs_module_text("ModelVariant"), OBS_COMBO_TYPE_LIST,
 	    OBS_COMBO_FORMAT_INT);
-	::obs_property_list_add_int(modelProp, "0: Fast", 0);
-	::obs_property_list_add_int(modelProp, "1: Default", 1);
-	::obs_property_list_add_int(modelProp, "2: Smooth", 2);
 	::obs_property_list_add_int(modelProp, "3: Adaptive", 3);
 	::obs_property_t *quantizationProp = ::obs_properties_add_list(props,
 	    "quantization", ::obs_module_text("Quantization"), OBS_COMBO_TYPE_LIST,

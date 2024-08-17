@@ -44,7 +44,7 @@ target_link_libraries(obs-joshupscale PRIVATE
   ${FFMPEG_LIBRARIES}
 )
 if(MSVC)
-  target_link_options(obs-joshupscale PRIVATE /DELAYLOAD:JoshUpscale.dll)
+  target_link_options(obs-joshupscale PRIVATE /DELAYLOAD:JoshUpscalePS2.dll)
 endif()
 
 if(BUILD_OBS_PLUGIN_INSTALLER)
@@ -93,3 +93,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     SOURCES install/obs-joshupscale-installer.iss.in ${DATA}
   )
 endif()
+
+set_target_properties(obs-joshupscale PROPERTIES
+  OUTPUT_NAME obs-joshupscale-ps2
+)
