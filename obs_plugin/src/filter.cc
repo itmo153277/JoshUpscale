@@ -167,7 +167,7 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	if (noCrop) {
 		m_SwsCtxDecode =
 		    ::sws_getCachedContext(m_SwsCtxDecode, srcW, srcH, srcFormat, dstW,
-		        dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
+		        dstH, dstFormat, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
 		if (m_SwsCtxDecode == nullptr) {
 			throw std::runtime_error("SwsCtx failure");
 		}
@@ -182,7 +182,7 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		}
 		m_SwsCtxScale =
 		    ::sws_getCachedContext(m_SwsCtxScale, cropW, cropH, dstFormat, dstW,
-		        dstH, dstFormat, SWS_POINT, nullptr, nullptr, nullptr);
+		        dstH, dstFormat, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
 		if (m_SwsCtxScale == nullptr) {
 			throw std::runtime_error("SwsCtx failure");
 		}
