@@ -3,7 +3,7 @@
 ## Usage
 
 <!-- clip JoshUpscale(clip "clip", string "model", int "quant" = 2)  -->
-<code><span style="font-size:1.12em">*clip* **JoshUpscale**(*clip* **"clip"**, *string* **"model_path"**, *int* **"quant"** = 3)</span></code>
+<code><span style="font-size:1.12em">*clip* **JoshUpscale**(*clip* **"clip"**, *string* **"model_path"**, *int* **"quant"** = 2)</span></code>
 
 Parameters:
 
@@ -11,7 +11,7 @@ Parameters:
   Input clip. Must be in RGB24 format, 480x270
 - *string* model_path  
   Path to the `yaml` model file
-- *int* quant = 1  
+- *int* quant = 2  
   Quantization type. Accepted values:
   - 0: no quantization (float32)
   - 1: float16 quantization
