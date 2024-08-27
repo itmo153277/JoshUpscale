@@ -284,6 +284,8 @@ private:
 	int m_NextCropTop = 0;
 	int m_NextCropRight = 0;
 	int m_NextCropBottom = 0;
+	int m_Scaling = SWS_FAST_BILINEAR;
+	int m_NextScaling = SWS_FAST_BILINEAR;
 	core::Quantization m_CurrentQuant = core::Quantization::NONE;
 	core::Quantization m_LoadedQuant = core::Quantization::NONE;
 	std::atomic<bool> m_Error = false;

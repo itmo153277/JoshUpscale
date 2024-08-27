@@ -146,6 +146,8 @@ void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
 		    static_cast<int>(::obs_data_get_int(settings, "crop_right"));
 		m_NextCropBottom =
 		    static_cast<int>(::obs_data_get_int(settings, "crop_bottom"));
+		m_NextScaling =
+		    static_cast<int>(::obs_data_get_int(settings, "downscale"));
 	}
 	m_Condition.notify_all();
 }
@@ -167,7 +169,7 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 	if (noCrop) {
 		m_SwsCtxDecode =
 		    ::sws_getCachedContext(m_SwsCtxDecode, srcW, srcH, srcFormat, dstW,
-		        dstH, dstFormat, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+		        dstH, dstFormat, m_Scaling, nullptr, nullptr, nullptr);
 		if (m_SwsCtxDecode == nullptr) {
 			throw std::runtime_error("SwsCtx failure");
 		}
@@ -182,7 +184,7 @@ void JoshUpscaleFilter::copyFrame(::obs_source_frame *frame) {
 		}
 		m_SwsCtxScale =
 		    ::sws_getCachedContext(m_SwsCtxScale, cropW, cropH, dstFormat, dstW,
-		        dstH, dstFormat, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+		        dstH, dstFormat, m_Scaling, nullptr, nullptr, nullptr);
 		if (m_SwsCtxScale == nullptr) {
 			throw std::runtime_error("SwsCtx failure");
 		}
@@ -248,7 +250,8 @@ void JoshUpscaleFilter::workerThread() noexcept {
 					       m_CropLeft != m_NextCropLeft ||
 					       m_CropTop != m_NextCropTop ||
 					       m_CropRight != m_NextCropRight ||
-					       m_CropBottom != m_NextCropBottom;
+					       m_CropBottom != m_NextCropBottom ||
+					       m_Scaling != m_NextScaling;
 				});
 				if (m_Terminated) {
 					break;
@@ -260,6 +263,7 @@ void JoshUpscaleFilter::workerThread() noexcept {
 				m_CropTop = m_NextCropTop;
 				m_CropRight = m_NextCropRight;
 				m_CropBottom = m_NextCropBottom;
+				m_Scaling = m_NextScaling;
 				if (m_LoadedModel == m_CurrentModel &&
 				    m_LoadedQuant == m_CurrentQuant) {
 					m_Busy = false;
@@ -281,7 +285,8 @@ void JoshUpscaleFilter::workerThread() noexcept {
 			    "model_smooth.yaml",
 			    "model_adapt.yaml",
 			};
-			::blog(LOG_INFO, "[obs-joshupscale-ps2] Start building engine for %s",
+			::blog(LOG_INFO,
+			    "[obs-joshupscale-ps2] Start building engine for %s",
 			    models[targetModel]);
 			auto modelFile = OBSPtr(obs_module_file(models[targetModel]));
 			m_Runtime.reset(
@@ -369,6 +374,23 @@ void JoshUpscaleFilter::addProperties(
 	    props, "crop_right", ::obs_module_text("CropRight"), -1024, 1024, 1);
 	::obs_properties_add_int(
 	    props, "crop_bottom", ::obs_module_text("CropBottom"), -1024, 1024, 1);
+	::obs_property_t *downscaleProp = ::obs_properties_add_list(props,
+	    "downscale", ::obs_module_text("Downscale"), OBS_COMBO_TYPE_LIST,
+	    OBS_COMBO_FORMAT_INT);
+	::obs_property_list_add_int(downscaleProp, "Nearest neighbor", SWS_POINT);
+	::obs_property_list_add_int(downscaleProp, "Averaging area", SWS_AREA);
+	::obs_property_list_add_int(
+	    downscaleProp, "Fast bilinear", SWS_FAST_BILINEAR);
+	::obs_property_list_add_int(downscaleProp, "Bilinear", SWS_BILINEAR);
+	::obs_property_list_add_int(downscaleProp, "Bicubic", SWS_BICUBIC);
+	::obs_property_list_add_int(downscaleProp, "??", SWS_X);
+	::obs_property_list_add_int(
+	    downscaleProp, "Bicubic-bilinear", SWS_BICUBLIN);
+	::obs_property_list_add_int(downscaleProp, "Gaussian", SWS_GAUSS);
+	::obs_property_list_add_int(downscaleProp, "Sinc", SWS_SINC);
+	::obs_property_list_add_int(downscaleProp, "Lanczos", SWS_LANCZOS);
+	::obs_property_list_add_int(
+	    downscaleProp, "Natural bicubic spline", SWS_SPLINE);
 	if (error || !ready) {
 		::obs_property_set_enabled(modelProp, false);
 		::obs_property_set_enabled(quantizationProp, false);
@@ -397,6 +419,7 @@ void JoshUpscaleFilter::getDefaults(
 	::obs_data_set_default_int(settings, "crop_top", 0);
 	::obs_data_set_default_int(settings, "crop_right", 0);
 	::obs_data_set_default_int(settings, "crop_bottom", 0);
+	::obs_data_set_default_int(settings, "downscale", SWS_FAST_BILINEAR);
 }
 
 }  // namespace obs
