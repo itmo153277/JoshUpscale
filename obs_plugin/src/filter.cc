@@ -137,6 +137,7 @@ void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
 		    static_cast<int>(::obs_data_get_int(settings, "crop_right"));
 		m_NextCropBottom =
 		    static_cast<int>(::obs_data_get_int(settings, "crop_bottom"));
+		m_NextLimitFps = ::obs_data_get_bool(settings, "limit_fps");
 	}
 	m_Condition.notify_all();
 }
@@ -239,7 +240,8 @@ void JoshUpscaleFilter::workerThread() noexcept {
 					       m_CropLeft != m_NextCropLeft ||
 					       m_CropTop != m_NextCropTop ||
 					       m_CropRight != m_NextCropRight ||
-					       m_CropBottom != m_NextCropBottom;
+					       m_CropBottom != m_NextCropBottom ||
+					       m_LimitFps != m_NextLimitFps;
 				});
 				if (m_Terminated) {
 					break;
@@ -251,6 +253,7 @@ void JoshUpscaleFilter::workerThread() noexcept {
 				m_CropTop = m_NextCropTop;
 				m_CropRight = m_NextCropRight;
 				m_CropBottom = m_NextCropBottom;
+				m_LimitFps = m_NextLimitFps;
 				if (m_LoadedModel == m_CurrentModel &&
 				    m_LoadedQuant == m_CurrentQuant) {
 					m_Busy = false;
@@ -300,6 +303,14 @@ void JoshUpscaleFilter::workerThread() noexcept {
 		return frame;
 	}
 	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
+	if (m_LimitFps) {
+		constexpr std::uint64_t kMinPtsWindow = 33000000ULL;
+		if (frame->timestamp - m_LastPts < kMinPtsWindow) {
+			::obs_source_release_frame(parent, frame);
+			return nullptr;
+		}
+		m_LastPts = frame->timestamp;
+	}
 	try {
 		copyFrame(frame);
 		core::Image inputImage = {
@@ -375,6 +386,8 @@ void JoshUpscaleFilter::addProperties(
 	    props, "crop_right", ::obs_module_text("CropRight"), -1024, 1024, 1);
 	::obs_properties_add_int(
 	    props, "crop_bottom", ::obs_module_text("CropBottom"), -1024, 1024, 1);
+	::obs_properties_add_bool(
+	    props, "limit_fps", ::obs_module_text("LimitFps"));
 	if (error || !ready) {
 		::obs_property_set_enabled(modelProp, false);
 		::obs_property_set_enabled(quantizationProp, false);
@@ -403,6 +416,7 @@ void JoshUpscaleFilter::getDefaults(
 	::obs_data_set_default_int(settings, "crop_top", 0);
 	::obs_data_set_default_int(settings, "crop_right", 0);
 	::obs_data_set_default_int(settings, "crop_bottom", 0);
+	::obs_data_set_default_bool(settings, "limit_fps", false);
 }
 
 }  // namespace obs
