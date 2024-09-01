@@ -66,6 +66,7 @@ inline ::AVPixelFormat convertFrameFormat(::video_format format) {
 			info.create = CALLBACK_DEF(create);
 			info.destroy = CALLBACK_DEF(destroy);
 			info.update = CALLBACK_DEF(update);
+			info.filter_remove = CALLBACK_DEF(filterRemove);
 			info.filter_video = CALLBACK_DEF(filterVideo);
 			info.get_defaults2 = CALLBACK_DEF(getDefaults);
 			info.get_properties2 = CALLBACK_DEF(getProperties);
@@ -95,16 +96,6 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 	}
 	if (m_SwsCtxScale != nullptr) {
 		::sws_freeContext(m_SwsCtxScale);
-	}
-	// Ensure that injected frame is out
-	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
-	for (;;) {
-		auto *frame = ::obs_source_get_frame(parent);
-		::obs_source_release_frame(parent, frame);
-		if (frame != m_OutputFrame) {
-			break;
-		}
-		std::this_thread::yield();
 	}
 	if (m_WorkerThread.joinable()) {
 		m_WorkerThread.join();
@@ -330,6 +321,18 @@ void JoshUpscaleFilter::workerThread() noexcept {
 	::obs_source_release_frame(parent, frame);
 	::os_atomic_inc_long(&m_OutputFrame->refs);
 	return m_OutputFrame;
+}
+
+void JoshUpscaleFilter::filterRemove(obs_source_t *source) noexcept {
+	// Ensure that injected frame is out
+	for (;;) {
+		auto *frame = ::obs_source_get_frame(source);
+		::obs_source_release_frame(source, frame);
+		if (frame != m_OutputFrame) {
+			break;
+		}
+		std::this_thread::yield();
+	}
 }
 
 ::obs_properties_t *JoshUpscaleFilter::getProperties(

@@ -238,6 +238,8 @@ private:
 
 	::obs_source_frame *filterVideo(::obs_source_frame *frame) noexcept;
 
+	void filterRemove(obs_source_t *source) noexcept;
+
 	static ::obs_properties_t *getProperties(
 	    void *data, void *typeData) noexcept;
 
