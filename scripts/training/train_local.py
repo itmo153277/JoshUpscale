@@ -154,6 +154,9 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
             early_stopping=config["train"].get("early_stopping", 0),
             profile=profile,
         )
+        if "unrolled_steps_per_execution" in config["train"]:
+            train_model.unrolled_steps_per_execution = \
+                config["train"]["unrolled_steps_per_execution"]
         train_model.fit(
             train_ds,
             validation_data=val_ds,
