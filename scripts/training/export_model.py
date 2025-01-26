@@ -6,6 +6,7 @@
 import sys
 import argparse
 import numpy as np
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers
@@ -14,7 +15,7 @@ import onnx
 import tf2onnx
 from onnxsim import simplify
 
-keras.__internal__.enable_unsafe_deserialization()
+keras.config.enable_unsafe_deserialization()
 
 
 def parse_args() -> argparse.Namespace:
@@ -108,7 +109,7 @@ def wrap_model(model: keras.Model, name: str = "final") -> keras.Model:
         for output in [outputs["output_raw"]] + outputs["last_frames"]
     ]
     outputs = [
-        layers.Layer(name=x, dtype=output.dtype)(output)
+        layers.Identity(name=x, dtype=output.dtype)(output)
         for x, output in zip(
             ["output", "output_raw"] +
             [f"out_frame_{i}" for i in range(len(model.outputs) - 2)], outputs
@@ -142,6 +143,10 @@ def create_onnx_model(model: keras.Model, opset: int = 12,
     """
     model_proto, _ = tf2onnx.convert.from_keras(
         model=model,
+        input_signature=[
+            tf.TensorSpec(shape=x.shape, dtype=x.dtype, name=x.name)
+            for x in model.inputs
+        ],
         opset=opset,
     )
     model_proto, check = simplify(model_proto, overwrite_input_shapes={

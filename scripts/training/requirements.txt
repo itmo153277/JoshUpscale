@@ -1,14 +1,12 @@
-tensorflow==2.13.0
-tensorflow-addons==0.21.0
-tensorflow-model-optimization==0.7.5
+tensorflow==2.18.0
 
 onnx==1.14.1
 onnxruntime==1.15.1
 onnx-simplifier==0.4.33
-tf2onnx==1.15.1
+tf2onnx==1.16.1
 
 imageio
 opencv-python-headless
 matplotlib
-numpy
+numpy<2
 pyyaml

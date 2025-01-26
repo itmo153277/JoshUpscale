@@ -10,7 +10,6 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import schedules
 from tensorflow.keras import applications
 from tensorflow.keras import regularizers
-import tensorflow_model_optimization as tfmot
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
     PreprocessLayer, PostprocessLayer, DenseWarpLayer, CUSTOM_LAYERS
 from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
@@ -147,7 +146,17 @@ def get_layer_deep(model: keras.Model, name: str) -> layers.Layer:
     """
     current = model
     for seg in name.split("."):
-        current = current.get_layer(seg)
+        if hasattr(current, "get_layer"):
+            current = current.get_layer(seg)
+        elif isinstance(current, dict) and seg in current:
+            current = current[seg]
+        elif isinstance(current, list):
+            current = current[int(seg)]
+        elif hasattr(current, seg):
+            current = getattr(current, seg)
+        else:
+            raise KeyError(f"Layer not foundL {name}")
+
     return current
 
 
@@ -173,7 +182,7 @@ def add_regularization(model: keras.Model,
 
         for w in weights:
             with K.name_scope(get_scoped_name(w.name, "reg")):
-                model.add_loss(lambda: reg(w))
+                model.losses.append(lambda: reg(w))
 
 
 def res_block(inp: tf.Tensor, num_filters: int,
@@ -750,9 +759,10 @@ def get_inference_model(
     output = PostprocessLayer(
         name="postprocess",
     )(output_raw)
-    pre_warp = layers.Layer(name="pre_warp", dtype="float32")(pre_warp)
-    output_raw = layers.Layer(name="output_raw", dtype="float32")(output_raw)
-    output = layers.Layer(name="output", dtype=frame_dtype)(output)
+    pre_warp = layers.Identity(name="pre_warp", dtype="float32")(pre_warp)
+    output_raw = layers.Identity(
+        name="output_raw", dtype="float32")(output_raw)
+    output = layers.Identity(name="output", dtype=frame_dtype)(output)
     outputs = {}
     if not skip_processing:
         outputs["output"] = output
@@ -1012,37 +1022,6 @@ def get_gan(
     return model
 
 
-def get_quant_model(input_model: keras.Model, name: str = "quant") -> keras.Model:
-    """Convert model to quantization aware one.
-
-    Parameters
-    ----------
-    input_model: keras.Model
-        Input model
-    name: str
-        Model name (unused)
-
-    Returns
-    -------
-    keras.Model
-        Quantization-aware model
-    """
-
-    # We skip quantization for our custom layers
-    def apply_quantization_annotation(layer):
-        for custom_layer in CUSTOM_LAYERS.values():
-            if isinstance(layer, custom_layer):
-                return layer
-        return tfmot.quantization.keras.quantize_annotate_layer(layer)
-
-    annotated_model = keras.models.clone_model(
-        input_model, clone_function=apply_quantization_annotation)
-    with tfmot.quantization.keras.quantize_scope(CUSTOM_LAYERS):
-        out_model = tfmot.quantization.keras.quantize_apply(annotated_model)
-    _ = name
-    return out_model
-
-
 MODELS = {
     "flow-resnet": get_flow_resnet,
     "flow-autoencoder": get_flow_autoencoder,
@@ -1053,7 +1032,6 @@ MODELS = {
     "frvsr": get_frvsr,
     "vgg": get_vgg,
     "gan": get_gan,
-    "quant": get_quant_model,
 }
 
 

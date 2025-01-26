@@ -22,11 +22,11 @@ class ExponentialMovingAvg(keras.metrics.Metric):
         """
         super().__init__(**kwargs)
         self.decay = decay
-        self._value = self.add_weight(
+        self._value = self.add_variable(
             name="value",
-            initializer='zeros',
-            aggregation=tf.VariableAggregation.MEAN,
-            synchronization=tf.VariableSynchronization.ON_WRITE,
+            shape=(),
+            initializer="zeros",
+            aggregation="mean",
         )
 
     def update_state(self, value: tf.Tensor) -> Union[None, tf.Operation]:
@@ -93,12 +93,12 @@ class CounterMetric(keras.metrics.Metric):
             keras.metrics.Metric args
         """
         super().__init__(**kwargs)
-        self._value = self.add_weight(
+        self._value = self.add_variable(
             name="value",
+            shape=(),
             dtype=tf.int64,
-            initializer='zeros',
-            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
-            synchronization=tf.VariableSynchronization.NONE,
+            initializer="zeros",
+            aggregation="only_first_replica",
         )
 
     def update_state(self) -> Union[None, tf.Operation]:

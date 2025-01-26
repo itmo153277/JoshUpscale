@@ -2,12 +2,9 @@
 
 """Custom layers."""
 
-import warnings
 from typing import Any, Dict, Sequence
 import tensorflow as tf
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    import tensorflow_addons as tfa
+from tfa.dense_image_warp import dense_image_warp
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers
 
@@ -97,7 +94,7 @@ class DenseWarpLayer(layers.Layer):
             Warped tensor (N, H, W, C)
         """
         assert len(inputs) == 2
-        return tfa.image.dense_image_warp(inputs[0], inputs[1])
+        return dense_image_warp(inputs[0], inputs[1])
 
 
 class SpaceToDepth(layers.Layer):
