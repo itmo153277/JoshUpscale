@@ -109,13 +109,13 @@ def get_callbacks(
             ))
         if monitor_metric is not None:
             callbacks.append(keras.callbacks.ModelCheckpoint(
-                f"{checkpoint_dir}/best.chkp",
+                f"{checkpoint_dir}/best.weights.h5",
                 monitor=monitor_metric,
                 save_best_only=True,
                 save_weights_only=True
             ))
         callbacks.append(keras.callbacks.ModelCheckpoint(
-            f"{checkpoint_dir}/latest.chkp",
+            f"{checkpoint_dir}/latest.weights.h5",
             save_best_only=False,
             save_weights_only=True
         ))
