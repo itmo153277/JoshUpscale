@@ -165,7 +165,7 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
             **{k: config["train"][k]
                for k in config["train"]
                if k not in ["model", "output_dir", "monitor_metric",
-                            "early_stopping"]}
+                            "early_stopping", "unrolled_steps_per_execution"]}
         )
     for model_name, export_config in config.get("export", {}).items():
         LOG.info("Exporting model %s", model_name)
