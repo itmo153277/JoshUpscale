@@ -124,7 +124,7 @@ class FRVSRModelSingle(keras.Model):
             self.loss_tr,
             self.gen_outputs_loss_tr,
             self.target_warp_loss_tr,
-        ] + self.compiled_metrics.metrics
+        ]
 
     def compile(self, learning_rate: Any = 0.0005, **kwargs) -> None:
         """Compile model.
@@ -243,7 +243,7 @@ class FRVSRModel(JoshUpscaleModel):
             self.loss_tr,
             self.gen_outputs_loss_tr,
             self.target_warp_loss_tr,
-        ] + self.compiled_metrics.metrics
+        ]
 
     def compile(self, learning_rate: Any = 0.0005, **kwargs) -> None:
         """Compile model.
@@ -465,7 +465,7 @@ class GANModel(JoshUpscaleModel):
             self.discr_real_acc_tr,
             self.discr_fake_acc_tr,
             self.discr_steps_tr,
-        ] + self.compiled_metrics.metrics
+        ]
 
     def test_step(self, data):
         """Test step."""
