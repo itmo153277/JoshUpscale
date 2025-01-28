@@ -13,7 +13,7 @@ import tensorflow as tf
 from tensorflow import keras
 from models import create_models
 from dataset import create_train_dataset, create_val_dataset
-from keras_callbacks import PlayCallback, TensorBoard
+from keras_callbacks import PlayCallback, TensorBoard, ProgressBar
 
 
 LOG = logging.getLogger("train_local")
@@ -75,6 +75,8 @@ def init(gpus: Union[List[str], None] = None,
                 keras.mixed_precision.set_global_policy("mixed_float16")
     if xla:
         tf.config.optimizer.set_jit("autoclustering")
+    else:
+        tf.config.optimizer.set_jit(False)
     if random_seed is not None:
         keras.utils.set_random_seed(random_seed)
     strategy = tf.distribute.get_strategy()
@@ -131,6 +133,7 @@ def get_callbacks(
             patience=early_stopping,
             verbose=1,
         ))
+    callbacks.append(ProgressBar())
     return callbacks
 
 

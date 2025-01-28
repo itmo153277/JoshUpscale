@@ -315,6 +315,7 @@ class FRVSRModel(JoshUpscaleModel):
 
         class InternalLayer(layers.Layer):
             """Internal layer."""
+
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.generator_model = generator_model
@@ -479,7 +480,13 @@ class GANModel(JoshUpscaleModel):
 
     def test_step(self, data):
         """Test step."""
-        result = super().test_step(data)
+        x, y, sample_weight = keras.utils.unpack_x_y_sample_weight(data)
+        y_pred = self(x, training=False)
+        self.compute_loss(x, y, y_pred, sample_weight=sample_weight)
+
+        result = self.compute_metrics(
+            x, y, y_pred, sample_weight=sample_weight)
+
         # Remove discr_steps from validation metrics
         del result["discr_steps"]
         del result["t_balance1"]
@@ -548,26 +555,36 @@ class GANModel(JoshUpscaleModel):
             gen_loss.append(self.loss_config["pp_loss"] * pp_loss)
 
         if self.loss_config["t_balance2_threshold"] is not None:
+            # Stop generator training if fake accuracy too low
             t_balance2_cond = tf.sign(
                 self.t_balance2_avg.result() -
                 self.loss_config["t_balance2_threshold"]
             ) / 2 + 0.5
+            if self.loss_config["t_balance1_threshold"] is not None:
+                # Force generator training if discriminator training
+                # has stopped
+                t_balance2_cond = tf.math.maximum(t_balance2_cond, tf.sign(
+                    self.t_balance1_avg.result() -
+                    self.loss_config["t_balance1_threshold"]
+                ) / 2 + 0.5)
         else:
             t_balance2_cond = 1
 
-        adv_loss = -tf.math.log(fake_output[-1] + 1e-5)
+        adv_loss = -tf.math.log(tf.clip_by_value(fake_output[-1], 1e-3, 1.0))
         adv_loss = tf.math.reduce_mean(adv_loss)
         if self.loss_config["adv_loss"] > 0:
             gen_loss.append(
                 self.loss_config["adv_loss"] * t_balance2_cond * adv_loss)
 
-        discr_fake_loss = -tf.math.log(1 - fake_output[-1] + 1e-5)
+        discr_fake_loss = \
+            -tf.math.log(tf.clip_by_value(1 - fake_output[-1], 1e-3, 1.0))
         discr_fake_loss = tf.math.reduce_mean(discr_fake_loss)
         if self.loss_config["discr_fake_loss"] > 0:
             discr_loss.append(
                 self.loss_config["discr_fake_loss"] * discr_fake_loss)
 
-        discr_real_loss = -tf.math.log(real_output[-1] + 1e-5)
+        discr_real_loss = \
+            -tf.math.log(tf.clip_by_value(real_output[-1], 1e-3, 1.0))
         discr_real_loss = tf.math.reduce_mean(discr_real_loss)
         if self.loss_config["discr_real_loss"] > 0:
             discr_loss.append(
@@ -650,9 +667,9 @@ class GANModel(JoshUpscaleModel):
         x, y, sample_weight = keras.utils.unpack_x_y_sample_weight(data)
 
         internal_layer = self.get_layer("internal")
-        generator_model = internal_layer.generator_model()
-        flow_model = internal_layer.flow_model()
-        discriminator_model = internal_layer.discriminator_model()
+        generator_model = internal_layer.generator_model
+        flow_model = internal_layer.flow_model
+        discriminator_model = internal_layer.discriminator_model
         gen_variables = generator_model.trainable_variables
         if self.loss_config["train_flow"]:
             gen_variables += flow_model.trainable_variables
@@ -679,16 +696,19 @@ class GANModel(JoshUpscaleModel):
         self.t_balance1_avg.update_state(loss["t_balance1"])
         self.t_balance2_avg.update_state(loss["t_balance2"])
 
-        # Control-flow: assuming everything is in sync between all replicas
-        tf.cond(
-            pred=tf.less(self.t_balance1_avg.result(),
-                         self.loss_config["t_balance1_threshold"]),
-            true_fn=train_discr,
-            false_fn=tf.no_op,
-        )
+        if self.loss_config["t_balance1_threshold"] is not None:
+            # Control-flow: assuming everything is in sync between all replicas
+            tf.cond(
+                pred=tf.less(self.t_balance1_avg.result(),
+                             self.loss_config["t_balance1_threshold"]),
+                true_fn=train_discr,
+                false_fn=tf.no_op,
+            )
+        else:
+            train_discr()
 
         # Manually advance iteration counter
-        self.optimizer.iterations.assign_add(1, read_value=False)
+        self.optimizer.iterations.assign_add(1)
 
         return self.compute_metrics(x, y, y_pred, sample_weight)
 
@@ -696,9 +716,9 @@ class GANModel(JoshUpscaleModel):
         """Register optimizer variables."""
         with self.distribute_strategy.scope():
             internal_layer = self.get_layer("internal")
-            generator_model = internal_layer.generator_model()
-            flow_model = internal_layer.flow_model()
-            discriminator_model = internal_layer.discriminator_model()
+            generator_model = internal_layer.generator_model
+            flow_model = internal_layer.flow_model
+            discriminator_model = internal_layer.discriminator_model
             gen_variables = generator_model.trainable_variables
             if self.loss_config["train_flow"]:
                 gen_variables += flow_model.trainable_variables
@@ -764,6 +784,7 @@ class GANModel(JoshUpscaleModel):
 
         class InternalLayer(layers.Layer):
             """Internal layer."""
+
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.generator_model = generator_model

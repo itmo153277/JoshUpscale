@@ -90,3 +90,14 @@ class TensorBoard(keras.callbacks.TensorBoard):
                 if self.write_images:
                     self._log_weight_as_image(weight, weight_name, epoch)
         self._train_writer.flush()
+
+
+class ProgressBar(keras.callbacks.ProgbarLogger):
+    """ProgressBar callback with updated stateful metrics"""
+
+    def _maybe_init_progbar(self) -> None:
+        """Init progbar."""
+        super()._maybe_init_progbar()
+        self.progbar.stateful_metrics = ["discr_steps",
+                                         "t_balance1",
+                                         "t_balance2"]
