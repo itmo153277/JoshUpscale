@@ -570,21 +570,28 @@ class GANModel(JoshUpscaleModel):
         else:
             t_balance2_cond = 1
 
-        adv_loss = -tf.math.log(tf.clip_by_value(fake_output[-1], 1e-3, 1.0))
+        adv_loss = tf.minimum(
+            -tf.math.log(tf.maximum(fake_output[-1], 1e-3)),
+            100
+        )
         adv_loss = tf.math.reduce_mean(adv_loss)
         if self.loss_config["adv_loss"] > 0:
             gen_loss.append(
                 self.loss_config["adv_loss"] * t_balance2_cond * adv_loss)
 
-        discr_fake_loss = \
-            -tf.math.log(tf.clip_by_value(1 - fake_output[-1], 1e-3, 1.0))
+        discr_fake_loss = tf.minimum(
+            -tf.math.log(tf.maximum(1 - fake_output[-1], 1e-3)),
+            100
+        )
         discr_fake_loss = tf.math.reduce_mean(discr_fake_loss)
         if self.loss_config["discr_fake_loss"] > 0:
             discr_loss.append(
                 self.loss_config["discr_fake_loss"] * discr_fake_loss)
 
-        discr_real_loss = \
-            -tf.math.log(tf.clip_by_value(real_output[-1], 1e-3, 1.0))
+        discr_real_loss = tf.minimum(
+            -tf.math.log(tf.maximum(real_output[-1], 1e-3)),
+            100
+        )
         discr_real_loss = tf.math.reduce_mean(discr_real_loss)
         if self.loss_config["discr_real_loss"] > 0:
             discr_loss.append(
