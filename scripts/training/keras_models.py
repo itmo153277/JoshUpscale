@@ -293,6 +293,14 @@ class FRVSRModel(JoshUpscaleModel):
         # Average loss across all replicas is summed
         return tf.add_n(self.losses + [loss]) / num_replicas
 
+    def register_optimizer_variables(self):
+        """Register optimizer variables."""
+        with self.distribute_strategy.scope():
+            variables = self.trainable_variables
+            self.optimizer.apply_gradients(zip([tf.zeros_like(x)
+                                                for x in variables],
+                                               variables))
+
     @staticmethod
     def _build_model_args(
         generator_model: keras.Model,
@@ -306,12 +314,14 @@ class FRVSRModel(JoshUpscaleModel):
                               name="target", dtype="float32")
 
         class InternalLayer(layers.Layer):
+            """Internal layer."""
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.generator_model = generator_model
                 self.flow_model = flow_model
 
             def call(self, inputs, targets):
+                """Execute training inference."""
                 input_shape = tf.shape(inputs[:, 0, :, :, :])
                 output_shape = tf.shape(targets[:, 0, :, :, :])
                 input_frames = tf.reshape(inputs[:, 1:, :, :, :],
@@ -327,7 +337,7 @@ class FRVSRModel(JoshUpscaleModel):
                                 input_shape,
                                 minval=-0.5,
                                 maxval=0.5,
-                                dtype="float32"
+                                dtype=inputs.dtype
                             )
                             for _ in range(num_rand_frames)
                         ], axis=1),
@@ -357,7 +367,7 @@ class FRVSRModel(JoshUpscaleModel):
                 last_output = generator_model([
                     inputs[:, 0, :, :, :],
                     tf.random.uniform(output_shape, minval=-0.5,
-                                      maxval=0.5, dtype="float32")
+                                      maxval=0.5, dtype=inputs.dtype)
                 ])
                 gen_outputs = [last_output]
                 for frame_i in range(9):
@@ -682,6 +692,26 @@ class GANModel(JoshUpscaleModel):
 
         return self.compute_metrics(x, y, y_pred, sample_weight)
 
+    def register_optimizer_variables(self):
+        """Register optimizer variables."""
+        with self.distribute_strategy.scope():
+            internal_layer = self.get_layer("internal")
+            generator_model = internal_layer.generator_model()
+            flow_model = internal_layer.flow_model()
+            discriminator_model = internal_layer.discriminator_model()
+            gen_variables = generator_model.trainable_variables
+            if self.loss_config["train_flow"]:
+                gen_variables += flow_model.trainable_variables
+            discr_variables = discriminator_model.trainable_variables
+            self.optimizer_gen.apply_gradients(
+                zip([tf.zeros_like(x)
+                     for x in gen_variables],
+                    gen_variables))
+            self.optimizer_discr.apply_gradients(
+                zip([tf.zeros_like(x)
+                     for x in discr_variables],
+                    discr_variables))
+
     def get_config(self) -> Dict[str, Any]:
         """Get model config.
 
@@ -733,6 +763,7 @@ class GANModel(JoshUpscaleModel):
                               name="target", dtype="float32")
 
         class InternalLayer(layers.Layer):
+            """Internal layer."""
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.generator_model = generator_model
@@ -741,6 +772,7 @@ class GANModel(JoshUpscaleModel):
                 self.vgg_model = vgg_model
 
             def call(self, inputs, targets):
+                """Execute training inference."""
                 input_shape = tf.shape(inputs[:, 0, :, :, :])
                 output_shape = tf.shape(targets[:, 0, :, :, :])
                 inputs_rev = inputs[:, -2::-1, :, :, :]
@@ -760,7 +792,7 @@ class GANModel(JoshUpscaleModel):
                                 input_shape,
                                 minval=-0.5,
                                 maxval=0.5,
-                                dtype="float32"
+                                dtype=inputs.dtype
                             )
                             for _ in range(num_rand_frames)
                         ], axis=1),
@@ -790,7 +822,7 @@ class GANModel(JoshUpscaleModel):
                 last_output = generator_model([
                     inputs[:, 0, :, :, :],
                     tf.random.uniform(output_shape, minval=-0.5,
-                                      maxval=0.5, dtype="float32")
+                                      maxval=0.5, dtype=inputs.dtype)
                 ])
                 gen_outputs = [last_output]
                 gen_warp = []
@@ -864,7 +896,8 @@ class GANModel(JoshUpscaleModel):
                     warp = warp[:, pad_size:pad_size+work_size,
                                 pad_size:pad_size+work_size, :]
                     warp = tf.pad(warp, [[0, 0], [pad_size, pad_size],
-                                         [pad_size, pad_size], [0, 0]], "CONSTANT")
+                                         [pad_size, pad_size], [0, 0]],
+                                  "CONSTANT")
                     before_warp = tf.reshape(
                         inputs, [-1, 3, crop_size*4, crop_size*4, 3])
                     before_warp = tf.transpose(before_warp, [0, 2, 3, 4, 1])

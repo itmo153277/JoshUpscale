@@ -87,6 +87,8 @@ def init(gpus: Union[List[str], None] = None,
 
 def get_callbacks(
     output_dir: Union[str, None],
+    checkpoint_dir: Union[str, None],
+    log_dir: Union[str, None],
     monitor_metric: Union[str, None],
     play_ds: Union[tf.data.Dataset, None],
     early_stopping: int = 0,
@@ -95,8 +97,11 @@ def get_callbacks(
     """Get callbacks for training."""
     callbacks = []
     if output_dir is not None:
-        log_dir = f"{output_dir}/logs"
-        checkpoint_dir = f"{output_dir}/checkpoints"
+        if log_dir is None:
+            log_dir = f"{output_dir}/logs"
+        if checkpoint_dir is None:
+            checkpoint_dir = f"{output_dir}/checkpoints"
+    if log_dir is not None:
         callbacks.append(TensorBoard(
             log_dir=log_dir,
             histogram_freq=20,
@@ -107,6 +112,7 @@ def get_callbacks(
                 log_dir=f"{log_dir}/metrics",
                 dataset=play_ds,
             ))
+    if checkpoint_dir is not None:
         if monitor_metric is not None:
             callbacks.append(keras.callbacks.ModelCheckpoint(
                 f"{checkpoint_dir}/best.weights.h5",
@@ -149,6 +155,8 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
         LOG.info("Training %s", train_model.name)
         callbacks = get_callbacks(
             output_dir=config["train"].get("output_dir", None),
+            log_dir=config["train"].get("log_dir", None),
+            checkpoint_dir=config["train"].get("checkpoint_dir", None),
             monitor_metric=config["train"].get("monitor_metric", None),
             play_ds=play_ds,
             early_stopping=config["train"].get("early_stopping", 0),

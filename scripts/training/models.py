@@ -11,7 +11,7 @@ from tensorflow.keras.optimizers import schedules
 from tensorflow.keras import applications
 from tensorflow.keras import regularizers
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
-    PreprocessLayer, PostprocessLayer, DenseWarpLayer, CUSTOM_LAYERS
+    PreprocessLayer, PostprocessLayer, DenseWarpLayer
 from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
 
 
@@ -781,7 +781,7 @@ def get_frvsr_single(
     inference_model: keras.Model,
     crop_size: int,
     learning_rate: Any = 0.0005,
-    steps_per_execution: Union[int, None] = None,
+    steps_per_execution: int = 1,
     regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
     name: str = "frvsr",
 ):
@@ -834,7 +834,7 @@ def get_frvsr(
     generator_model: keras.Model,
     crop_size: int,
     learning_rate: LearningRateSchedule = 0.0005,
-    steps_per_execution: Union[int, None] = None,
+    steps_per_execution: int = 1,
     regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
     name: str = "frvsr",
 ) -> keras.Model:
@@ -861,7 +861,7 @@ def get_frvsr(
         Image size
     learning_rate: LearningRateSchedule
         Learning rate
-    steps_per_execution: Union[None, int]
+    steps_per_execution: int
         Steps per single execution
     regularization: Union[Dict[str, Regularizer], Regularizer, None]
         Regularization config
@@ -950,7 +950,7 @@ def get_gan(
     crop_size: int,
     learning_rate: LearningRateSchedule = 0.0005,
     loss_config: Union[None, Dict[str, Any]] = None,
-    steps_per_execution: Union[None, int] = None,
+    steps_per_execution: int = 1,
     regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
     name: str = "gan",
 ) -> keras.Model:
@@ -993,7 +993,7 @@ def get_gan(
         Learning rate
     loss_config: Union[None, Dict[str, Any]]
         Loss config
-    steps_per_execution: Union[None, int]
+    steps_per_execution: int
         Steps per execution
     regularization: Union[Dict[str, Regularizer], Regularizer, None]
         Regularization config
@@ -1017,7 +1017,7 @@ def get_gan(
         add_regularization(model, regularization)
     model.compile(
         learning_rate=get_learning_rate(learning_rate),
-        steps_per_execution=steps_per_execution,
+        steps_per_execution=steps_per_execution
     )
     return model
 
@@ -1052,10 +1052,9 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
             raise ValueError(f"Unknown model type {model_type}")
         model = MODELS[model_type](name=name, **model_args)
         if "weights" in args:
-            status = model.load_weights(args["weights"])
-            if status is not None:
-                status.expect_partial()
-                del status
+            if hasattr(model, "register_optimizer_variables"):
+                model.register_optimizer_variables()
+            model.load_weights(args["weights"])
         models[name] = model
         return model
 
