@@ -578,7 +578,7 @@ def get_discriminator(
     - (N x crop_size*2 x crop_size*2 x 64*alpha) - layer 2 output
     - (N x crop_size x crop_size x 128*alpha) - layer 3 output
     - (N x crop_size/2 x crop_size/2 x 256*alpha) - layer 4 output
-    - (N x crop_size/2 x crop_size/2 x 1) - fake / real
+    - (N x crop_size/2 x crop_size/2 x 1) - fake / real logits
 
     Parameters
     ----------
@@ -639,7 +639,6 @@ def get_discriminator(
     net = discriminator_block(net, int(256 * alpha), "block_4")
     outputs.append(net)
     net = layers.Dense(1, name="dense")(net)
-    net = layers.Activation(K.sigmoid, name="a_2")(net)
     outputs.append(net)
     model = keras.Model(inputs=input_val, outputs=outputs, name=name)
     return model
@@ -1054,7 +1053,7 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
         if "weights" in args:
             if hasattr(model, "register_optimizer_variables"):
                 model.register_optimizer_variables()
-            model.load_weights(args["weights"])
+            model.load_weights(args["weights"], skip_mismatch=True)
         models[name] = model
         return model
 

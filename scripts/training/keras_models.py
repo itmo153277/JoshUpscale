@@ -570,28 +570,28 @@ class GANModel(JoshUpscaleModel):
         else:
             t_balance2_cond = 1
 
-        adv_loss = tf.minimum(
-            -tf.math.log(tf.maximum(fake_output[-1], 1e-3)),
-            100
-        )
+        def crossentropy_loss(x):
+            """Compute cross entropy loss."""
+            with tf.name_scope("crossentropy_loss"):
+                zeros = tf.zeros_like(x)
+                cond = x >= zeros
+                relu_logits = tf.where(cond, x, zeros)
+                neg_abs_logits = tf.where(cond, -x, x)
+                return relu_logits + tf.math.log1p(tf.exp(neg_abs_logits))
+
+        adv_loss = crossentropy_loss(fake_output[-1]) - fake_output[-1]
         adv_loss = tf.math.reduce_mean(adv_loss)
         if self.loss_config["adv_loss"] > 0:
             gen_loss.append(
                 self.loss_config["adv_loss"] * t_balance2_cond * adv_loss)
 
-        discr_fake_loss = tf.minimum(
-            -tf.math.log(tf.maximum(1 - fake_output[-1], 1e-3)),
-            100
-        )
+        discr_fake_loss = crossentropy_loss(fake_output[-1])
         discr_fake_loss = tf.math.reduce_mean(discr_fake_loss)
         if self.loss_config["discr_fake_loss"] > 0:
             discr_loss.append(
                 self.loss_config["discr_fake_loss"] * discr_fake_loss)
 
-        discr_real_loss = tf.minimum(
-            -tf.math.log(tf.maximum(real_output[-1], 1e-3)),
-            100
-        )
+        discr_real_loss = crossentropy_loss(real_output[-1]) - real_output[-1]
         discr_real_loss = tf.math.reduce_mean(discr_real_loss)
         if self.loss_config["discr_real_loss"] > 0:
             discr_loss.append(
@@ -659,9 +659,9 @@ class GANModel(JoshUpscaleModel):
         real_output = y_pred["real_output"]
 
         self.discr_real_acc_tr.update_state(
-            tf.ones_like(real_output[-1]), real_output[-1])
+            tf.ones_like(real_output[-1]), tf.math.sigmoid(real_output[-1]))
         self.discr_fake_acc_tr.update_state(
-            tf.zeros_like(fake_output[-1]), fake_output[-1])
+            tf.zeros_like(fake_output[-1]), tf.math.sigmoid(fake_output[-1]))
         metrics = super().compute_metrics(x, y, y_pred, sample_weight)
         return {
             **metrics,
