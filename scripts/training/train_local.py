@@ -178,13 +178,16 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
                if k not in ["model", "output_dir", "monitor_metric",
                             "early_stopping", "unrolled_steps_per_execution"]}
         )
+    models["flow"].trainable = False
     for model_name, export_config in config.get("export", {}).items():
         LOG.info("Exporting model %s", model_name)
         export_model = models[model_name]
-        export_model.save_weights(export_config["weights_path"])
-        with open(export_config["model_path"], "wt",
-                  encoding="utf-8") as f:
-            f.write(export_model.to_json())
+        if "weights_path" in export_config:
+            export_model.save_weights(export_config["weights_path"])
+        if "model_path" in export_config:
+            with open(export_config["model_path"], "wt",
+                      encoding="utf-8") as f:
+                f.write(export_model.to_json())
 
 
 def main(config_path: str, gpus: Union[List[str], None],

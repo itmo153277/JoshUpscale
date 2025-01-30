@@ -1043,17 +1043,21 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
             return models[name]
         args = config[name]
         model_type = args["name"]
-        model_args = {k: args[k] for k in args if k not in ["name", "weights"]}
+        model_args = {k: args[k]
+                      for k in args if k not in ["name", "weights", "freeze"]}
         for arg, val in model_args.items():
             if isinstance(val, dict) and "model" in val:
                 model_args[arg] = create_model(val["model"])
         if model_type not in MODELS:
             raise ValueError(f"Unknown model type {model_type}")
         model = MODELS[model_type](name=name, **model_args)
+        if "freeze" in args:
+            for layer_name in args["freeze"]:
+                get_layer_deep(model, layer_name).trainable = False
         if "weights" in args:
             if hasattr(model, "register_optimizer_variables"):
                 model.register_optimizer_variables()
-            model.load_weights(args["weights"], skip_mismatch=True)
+            model.load_weights(args["weights"])
         models[name] = model
         return model
 
