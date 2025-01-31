@@ -11,7 +11,7 @@ from tensorflow.keras.optimizers import schedules
 from tensorflow.keras import applications
 from tensorflow.keras import regularizers
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
-    PreprocessLayer, PostprocessLayer, DenseWarpLayer
+    PreprocessLayer, PostprocessLayer, DenseWarpLayer, FadeInLayer
 from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
 
 
@@ -187,6 +187,7 @@ def add_regularization(model: keras.Model,
 
 def res_block(inp: tf.Tensor, num_filters: int,
               activation: Activation,
+              fade_in_period: Union[float, None] = None,
               name: Union[str, None] = None) -> tf.Tensor:
     """Create residual block.
 
@@ -198,6 +199,8 @@ def res_block(inp: tf.Tensor, num_filters: int,
         Number of filters
     activation: keras.layers.Layer
         Activation layer
+    fade_in_period: Union[float, None]
+        Fade-in period
     name: Union[str, None]
         Name
 
@@ -232,6 +235,11 @@ def res_block(inp: tf.Tensor, num_filters: int,
     inp = layers.BatchNormalization(
         name=get_scoped_name(name, "bn_2"),
     )(inp)
+    if fade_in_period is not None:
+        inp = FadeInLayer(
+            period=fade_in_period,
+            name=get_scoped_name(name, "fade")
+        )(inp)
     inp = layers.Add(
         name=get_scoped_name(name, "add"),
     )([inp, shortcut])
@@ -470,6 +478,8 @@ def get_flow_autoencoder(
 def get_generator_resnet(
     num_filters: int = 64,
     num_res_blocks: int = 24,
+    num_fade_in_res_blocks: int = 0,
+    fade_in_period: float = 0,
     activation: Activation = "relu",
     name: str = "generator"
 ) -> keras.Model:
@@ -488,6 +498,10 @@ def get_generator_resnet(
         NUmber of filters
     num_res_blocks: int
         Number of res blocks
+    num_fade_in_res_blacks: int
+        Number of fade-in res blocks
+    fade_in_period: float
+        Fade-in period
     activation: Activation
         Activation function
     name: str
@@ -522,7 +536,20 @@ def get_generator_resnet(
         name="a_1",
     )(out)
     for i in range(num_res_blocks):
-        out = res_block(out, num_filters, activation, f"block_{i + 1}")
+        out = res_block(
+            inp=out,
+            num_filters=num_filters,
+            activation=activation,
+            name=f"block_{i + 1}"
+        )
+    for i in range(num_res_blocks, num_res_blocks + num_fade_in_res_blocks):
+        out = res_block(
+            inp=out,
+            num_filters=num_filters,
+            activation=activation,
+            fade_in_period=fade_in_period,
+            name=f"block_{i + 1}"
+        )
     out = layers.Conv2DTranspose(
         filters=32,
         kernel_size=2,
@@ -1043,8 +1070,10 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
             return models[name]
         args = config[name]
         model_type = args["name"]
-        model_args = {k: args[k]
-                      for k in args if k not in ["name", "weights", "freeze"]}
+        model_args = {k: args[k]for k in args if k not in ["name",
+                                                           "weights",
+                                                           "freeze",
+                                                           "copy_weights"]}
         for arg, val in model_args.items():
             if isinstance(val, dict) and "model" in val:
                 model_args[arg] = create_model(val["model"])
@@ -1058,6 +1087,14 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
             if hasattr(model, "register_optimizer_variables"):
                 model.register_optimizer_variables()
             model.load_weights(args["weights"])
+        if "copy_weights" in args:
+            model_copy = create_model(args["copy_weights"])
+            for layer in model_copy.layers:
+                try:
+                    model.get_layer(layer.name).set_weights(
+                        layer.get_weights())
+                except ValueError:
+                    pass
         models[name] = model
         return model
 

@@ -281,6 +281,65 @@ class ClipLayer(layers.Layer):
         }
 
 
+class FadeInLayer(layers.Layer):
+    """Fade in layer."""
+
+    def __init__(self, period: float, **kwargs) -> None:
+        """Create FadeInLayer.
+
+        Parameters
+        ----------
+        period: float
+            Fade-in period
+        **kwargs
+            keras.layers.Layer args
+        """
+        super().__init__(**kwargs)
+        self.period = period
+        self.counter = self.add_weight(
+            name="counter",
+            initializer="zeros",
+            dtype=tf.int64,
+            shape=(),
+            trainable=False,
+            aggregation="only_first_replica"
+        )
+
+    def call(self, inputs: tf.Tensor, training: bool = False) -> tf.Tensor:
+        """Fade-in value.
+
+        Parameters
+        ----------
+        inputs: tf.Tensor
+            Input tensor
+
+        Returns
+        -------
+        tf.Tensor
+            Output tensor
+        """
+        result = inputs * tf.cast(
+            tf.minimum(tf.math.truediv(self.counter, self.period), 1.0),
+            inputs.dtype)
+        if training and self.trainable:
+            self.counter.assign_add(1)
+        return result
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get layer config.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Layer config
+        """
+        config = super().get_config()
+        return {
+            **config,
+            "period": self.period,
+        }
+
+
 CUSTOM_LAYERS = {
     "UpscaleLayer": UpscaleLayer,
     "DenseWarpLayer": DenseWarpLayer,
@@ -289,6 +348,7 @@ CUSTOM_LAYERS = {
     "ClipLayer": ClipLayer,
     "PreprocessLayer": PreprocessLayer,
     "PostprocessLayer": PostprocessLayer,
+    "FadeInLayer": FadeInLayer,
 }
 
 __all__ = ["CUSTOM_LAYERS"] + list(CUSTOM_LAYERS)
