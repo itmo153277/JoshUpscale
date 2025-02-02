@@ -235,6 +235,7 @@ if __name__ == "__main__":
             format="[%(levelname)s] %(name)s: %(message)s",
             stream=sys.stderr,
         )
+        tf.get_logger().setLevel(logging.ERROR)
         sys.exit(main(**vars(parse_args())))
     except KeyboardInterrupt:
         sys.exit(-1)
