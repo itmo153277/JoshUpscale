@@ -1261,8 +1261,11 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
             raise ValueError(f"Unknown model type {model_type}")
         model = MODELS[model_type](name=name, **model_args)
         if "freeze" in args:
-            for layer_name in args["freeze"]:
-                get_layer_deep(model, layer_name).trainable = False
+            if isinstance(args["freeze"], list):
+                for layer_name in args["freeze"]:
+                    get_layer_deep(model, layer_name).trainable = False
+            else:
+                model.trainable = not args["freeze"]
         if "weights" in args:
             if hasattr(model, "register_optimizer_variables"):
                 model.register_optimizer_variables()
