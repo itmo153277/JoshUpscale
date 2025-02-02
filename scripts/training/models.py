@@ -2,7 +2,8 @@
 
 """Module routines."""
 
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Union, Tuple, Iterable
+import logging
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -14,6 +15,7 @@ from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
     PreprocessLayer, PostprocessLayer, DenseWarpLayer, FadeInLayer
 from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
 
+LOG = logging.getLogger("models")
 
 Activation = Union[str, Dict[str, Any]]
 LearningRateSchedule = Union[float, Dict[str, Any]]
@@ -187,7 +189,7 @@ def add_regularization(model: keras.Model,
 
 def res_block(inp: tf.Tensor, num_filters: int,
               activation: Activation,
-              fade_in_period: Union[float, None] = None,
+              fade_in_period: Union[int, None] = None,
               name: Union[str, None] = None) -> tf.Tensor:
     """Create residual block.
 
@@ -199,7 +201,7 @@ def res_block(inp: tf.Tensor, num_filters: int,
         Number of filters
     activation: keras.layers.Layer
         Activation layer
-    fade_in_period: Union[float, None]
+    fade_in_period: Union[int, None]
         Fade-in period
     name: Union[str, None]
         Name
@@ -479,7 +481,7 @@ def get_generator_resnet(
     num_filters: int = 64,
     num_res_blocks: int = 24,
     num_fade_in_res_blocks: int = 0,
-    fade_in_period: float = 0,
+    fade_in_period: int = 0,
     activation: Activation = "relu",
     name: str = "generator"
 ) -> keras.Model:
@@ -500,7 +502,7 @@ def get_generator_resnet(
         Number of res blocks
     num_fade_in_res_blacks: int
         Number of fade-in res blocks
-    fade_in_period: float
+    fade_in_period: int
         Fade-in period
     activation: Activation
         Activation function
@@ -1061,6 +1063,182 @@ MODELS = {
 }
 
 
+def lcs(left: List[Any], right: List[Any]) -> Iterable[Tuple[int, int]]:
+    """Find longest common subsequence."""
+    m = len(left)
+    n = len(right)
+    lengths = [[None]*(n + 1) for _ in range(m + 1)]
+    for i in range(m + 1):
+        for j in range(n + 1):
+            if i == 0 or j == 0:
+                lengths[i][j] = 0
+            elif left[i - 1] == right[j - 1]:
+                lengths[i][j] = lengths[i - 1][j - 1] + 1
+            else:
+                lengths[i][j] = max(lengths[i - 1][j], lengths[i][j - 1])
+    best_val = 0
+    start_idx = 0
+    for i in range(m + 1):
+        for j in range(start_idx, n + 1):
+            if lengths[i][j] > best_val:
+                best_val = lengths[i][j]
+                start_idx = j + 1
+                yield (i - 1, j - 1)
+                break
+
+
+def copy_variables(model_from: keras.Model, model_to: keras.Model) -> None:
+    """Copy savable variables from one model to another."""
+    # pylint: disable=protected-access
+    # pylint: disable=import-outside-toplevel
+    # pylint: disable=unidiomatic-typecheck
+    from keras.src.saving.saving_lib import _walk_saveable
+    from keras.src.saving.keras_saveable import KerasSaveable
+
+    visited_from = set()
+    visited_to = set()
+    # Note: touched dicts do not include aborted branches
+    touched_from = {}
+    touched_to = {}
+
+    def walk(obj_from, obj_to):
+        if isinstance(obj_from, (list, dict, tuple, set)):
+            if type(obj_from) != type(obj_to):  # noqa
+                return
+            if isinstance(obj_from, dict):
+                for k, v in obj_from.items():
+                    target = obj_to.get(k)
+                    if target is None:
+                        continue
+                    walk(v, target)
+                touched_from.update({id(x): x
+                                     for x in obj_from.values()
+                                     if isinstance(x, KerasSaveable)})
+                touched_to.update({id(x): x
+                                   for x in obj_to.values()
+                                   if isinstance(x, KerasSaveable)})
+            else:
+                if all(hasattr(x, "name") for x in obj_from) \
+                        and all(hasattr(x, "name") for x in obj_to):
+                    dict_to = {x.name: x for x in obj_to}
+                    for v in obj_from:
+                        target = dict_to.get(v.name)
+                        if target is None:
+                            continue
+                        walk(v, target)
+                else:
+                    obj_from = list(obj_from)
+                    obj_to = list(obj_to)
+                    for idx_from, idx_to in lcs([type(x) for x in obj_from],
+                                                [type(x) for x in obj_to]):
+                        walk(obj_from[idx_from], obj_to[idx_to])
+                touched_from.update({id(x): x
+                                     for x in obj_from
+                                     if isinstance(x, KerasSaveable)})
+                touched_to.update({id(x): x
+                                   for x in obj_to
+                                   if isinstance(x, KerasSaveable)})
+            return
+        if not isinstance(obj_from, KerasSaveable):
+            return
+        if id(obj_from) in visited_from:
+            return
+        visited_from.add(id(obj_from))
+        visited_to.add(id(obj_to))
+        if id(obj_from) == id(obj_to):
+            return
+        if hasattr(obj_from, "save_own_variables") \
+                and hasattr(obj_to, "save_own_variables"):
+            vars_from = {}
+            vars_to = {}
+            use_internal_variables = False
+            if hasattr(obj_from, "_variables") \
+                    and hasattr(obj_to, "_variables"):
+                use_internal_variables = True
+                for v in obj_from._variables:
+                    if v.path in vars_from:
+                        use_internal_variables = False
+                        break
+                    vars_from[v.path] = v
+                for v in obj_to._variables:
+                    if v.path in vars_to:
+                        use_internal_variables = False
+                        break
+                    vars_to[v.path] = v
+            if not use_internal_variables:
+                vars_from = {}
+                vars_to = {}
+                obj_from.save_own_variables(vars_from)
+                obj_to.save_own_variables(vars_to)
+            copied_from = set()
+            copied_to = set()
+            if not use_internal_variables \
+                    and all(x.isdigit() for x in vars_from) \
+                    and all(x.isdigit() for x in vars_to):
+                vars_from_list = list(sorted(vars_from.keys(), key=int))
+                vars_to_list = list(sorted(vars_to.keys(), key=int))
+                for idx_from, idx_to in lcs(
+                    [(vars_from[x].shape, vars_from[x].dtype)
+                     for x in vars_from_list],
+                    [(vars_to[x].shape, vars_to[x].dtype)
+                     for x in vars_to_list]
+                ):
+                    vars_to[vars_to_list[idx_to]] = \
+                        vars_from[vars_from_list[idx_from]]
+                    copied_from.add(vars_from_list[idx_from])
+                    copied_to.add(vars_to_list[idx_to])
+            else:
+                for k, v in vars_from.items():
+                    target = vars_to.get(k)
+                    if target is None:
+                        continue
+                    if target.dtype != v.dtype or target.shape != v.shape:
+                        continue
+                    copied_from.add(k)
+                    copied_to.add(k)
+                    vars_to[k] = v
+            not_copied_from = set(vars_from.keys()) - copied_from
+            not_copied_to = set(vars_to.keys()) - copied_to
+            if len(not_copied_from) > 0:
+                LOG.warning("Not copied %d variables from %s: %s",
+                            len(not_copied_from), obj_from, not_copied_from)
+            if len(not_copied_to) > 0:
+                LOG.warning("Not copied %d variables to %s: %s",
+                            len(not_copied_to), obj_to, not_copied_to)
+
+            if use_internal_variables:
+                for v in obj_to._variables:
+                    target = vars_to.get(v.path)
+                    if target is None or id(target) == id(v):
+                        continue
+                    v.assign(target)
+            else:
+                obj_to.load_own_variables(vars_to)
+
+        dict_to = dict(_walk_saveable(obj_to))
+        for k, v in _walk_saveable(obj_from):
+            if isinstance(v, KerasSaveable):
+                touched_from[id(v)] = v
+            target = dict_to.get(k)
+            if target is None:
+                continue
+            walk(v, target)
+        touched_to.update({id(x): x
+                           for x in dict_to.values()
+                           if isinstance(x, KerasSaveable)})
+    walk(model_from, model_to)
+    not_copied_from = set(touched_from.keys()) - visited_from
+    not_copied_to = set(touched_to.keys()) - visited_to
+    if len(not_copied_from) > 0:
+        LOG.warning("Not copied from %d savables: %s", len(not_copied_from), [
+            x for x in touched_from.values() if id(x) in not_copied_from
+        ])
+    if len(not_copied_to) > 0:
+        LOG.warning("Not copied to %d savables: %s", len(not_copied_to), [
+            x for x in touched_to.values() if id(x) in not_copied_to
+        ])
+
+
 def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
     """Create models from config."""
     models = {}
@@ -1070,10 +1248,12 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
             return models[name]
         args = config[name]
         model_type = args["name"]
-        model_args = {k: args[k]for k in args if k not in ["name",
-                                                           "weights",
-                                                           "freeze",
-                                                           "copy_weights"]}
+        model_args = {k: args[k] for k in args
+                      if k not in ["name",
+                                   "weights",
+                                   "freeze",
+                                   "copy_weights",
+                                   "copy_variables"]}
         for arg, val in model_args.items():
             if isinstance(val, dict) and "model" in val:
                 model_args[arg] = create_model(val["model"])
@@ -1095,6 +1275,14 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
                         layer.get_weights())
                 except ValueError:
                     pass
+        if "copy_variables" in args:
+            if hasattr(model, "register_optimizer_variables"):
+                model.register_optimizer_variables()
+            copy_variables(
+                model_from=create_model(args["copy_variables"]),
+                model_to=model,
+            )
+
         models[name] = model
         return model
 

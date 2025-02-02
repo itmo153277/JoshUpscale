@@ -138,6 +138,7 @@ class FRVSRModelSingle(keras.Model):
             **kwargs,
             loss=None,
             optimizer=keras.optimizers.Adam(
+                name="optimizer",
                 learning_rate=learning_rate
             ),
         )
@@ -257,6 +258,7 @@ class FRVSRModel(JoshUpscaleModel):
             **kwargs,
             loss=None,
             optimizer=keras.optimizers.Adam(
+                name="optimizer",
                 learning_rate=learning_rate
             ),
         )
@@ -296,10 +298,7 @@ class FRVSRModel(JoshUpscaleModel):
     def register_optimizer_variables(self):
         """Register optimizer variables."""
         with self.distribute_strategy.scope():
-            variables = self.trainable_variables
-            self.optimizer.apply_gradients(zip([tf.zeros_like(x)
-                                                for x in variables],
-                                               variables))
+            self.optimizer.build(self.trainable_variables)
 
     @staticmethod
     def _build_model_args(
@@ -505,11 +504,13 @@ class GANModel(JoshUpscaleModel):
             **kwargs,
             loss=None,
             optimizer=keras.optimizers.Optimizer(
-                name=None, learning_rate=learning_rate)
+                name="optimizer", learning_rate=learning_rate)
         )
         self.optimizer_gen = keras.optimizers.Adam(
+            name="optimizer_gen",
             learning_rate=learning_rate)
         self.optimizer_discr = keras.optimizers.Adam(
+            name="optimizer_discr",
             learning_rate=learning_rate)
 
     def compute_loss(self, x, y, y_pred, sample_weight):
@@ -730,14 +731,8 @@ class GANModel(JoshUpscaleModel):
             if self.loss_config["train_flow"]:
                 gen_variables += flow_model.trainable_variables
             discr_variables = discriminator_model.trainable_variables
-            self.optimizer_gen.apply_gradients(
-                zip([tf.zeros_like(x)
-                     for x in gen_variables],
-                    gen_variables))
-            self.optimizer_discr.apply_gradients(
-                zip([tf.zeros_like(x)
-                     for x in discr_variables],
-                    discr_variables))
+            self.optimizer_gen.build(gen_variables)
+            self.optimizer_discr.build(discr_variables)
 
     def get_config(self) -> Dict[str, Any]:
         """Get model config.
