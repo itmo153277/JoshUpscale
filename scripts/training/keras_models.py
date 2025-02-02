@@ -679,8 +679,7 @@ class GANModel(JoshUpscaleModel):
         flow_model = internal_layer.flow_model
         discriminator_model = internal_layer.discriminator_model
         gen_variables = generator_model.trainable_variables
-        if self.loss_config["train_flow"]:
-            gen_variables += flow_model.trainable_variables
+        gen_variables += flow_model.trainable_variables
         discr_variables = discriminator_model.trainable_variables
 
         with tf.GradientTape() as tape:
@@ -728,8 +727,7 @@ class GANModel(JoshUpscaleModel):
             flow_model = internal_layer.flow_model
             discriminator_model = internal_layer.discriminator_model
             gen_variables = generator_model.trainable_variables
-            if self.loss_config["train_flow"]:
-                gen_variables += flow_model.trainable_variables
+            gen_variables += flow_model.trainable_variables
             discr_variables = discriminator_model.trainable_variables
             self.optimizer_gen.build(gen_variables)
             self.optimizer_discr.build(discr_variables)
@@ -755,7 +753,6 @@ class GANModel(JoshUpscaleModel):
         if loss_config is None or not isinstance(loss_config, dict):
             loss_config = {}
         loss_config = {
-            "train_flow": True,
             "content_loss": 1.0,
             "pp_loss": 0.5,
             "warp_loss": 1.0,

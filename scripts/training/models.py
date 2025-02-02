@@ -1281,8 +1281,11 @@ def create_models(config: Dict[str, Any]) -> Dict[str, keras.Model]:
         if "copy_variables" in args:
             if hasattr(model, "register_optimizer_variables"):
                 model.register_optimizer_variables()
+            model_copy = create_model(args["copy_variables"])
+            if hasattr(model_copy, "register_optimizer_variables"):
+                model_copy.register_optimizer_variables()
             copy_variables(
-                model_from=create_model(args["copy_variables"]),
+                model_from=model_copy,
                 model_to=model,
             )
 
