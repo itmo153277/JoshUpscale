@@ -80,15 +80,17 @@ class TensorBoard(keras.callbacks.TensorBoard):
         weight_names = {}
         with self._train_writer.as_default():
             for weight in self.model.trainable_weights:
-                weight_name = weight.name.replace(':', '_')
+                weight_name = weight.path.replace(':', '_')
                 if weight_name in weight_names:
                     weight_names[weight_name] += 1
                     weight_name += f"_{weight_names[weight_name]}"
                 else:
                     weight_names[weight_name] = 0
-                tf.summary.histogram(weight_name, weight, step=epoch)
+                tf.summary.histogram(
+                    weight_name + "/histogram", weight, step=epoch)
                 if self.write_images:
-                    self._log_weight_as_image(weight, weight_name, epoch)
+                    self._log_weight_as_image(
+                        weight, weight_name + "/image", epoch)
         self._train_writer.flush()
 
 
