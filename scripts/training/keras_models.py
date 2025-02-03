@@ -4,6 +4,7 @@
 
 import itertools
 from typing import Any, Dict, Union
+import warnings
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -731,6 +732,23 @@ class GANModel(JoshUpscaleModel):
             discr_variables = discriminator_model.trainable_variables
             self.optimizer_gen.build(gen_variables)
             self.optimizer_discr.build(discr_variables)
+
+    def save_own_variables(self, store):
+        """Save persistent variables."""
+        variables = self.t_balance1_avg.variables
+        variables += self.t_balance2_avg.variables
+        for i, v in enumerate(variables):
+            store[str(i)] = v.numpy()
+
+    def load_own_variables(self, store):
+        """Load persistent variables."""
+        variables = self.t_balance1_avg.variables
+        variables += self.t_balance2_avg.variables
+        if len(store.keys()) == len(variables):
+            for i, v in enumerate(variables):
+                v.assign(store[str(i)])
+        else:
+            warnings.warn("GAN variables are not loaded")
 
     def get_config(self) -> Dict[str, Any]:
         """Get model config.
