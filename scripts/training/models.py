@@ -1155,13 +1155,27 @@ def copy_variables(model_from: keras.Model, model_to: keras.Model) -> None:
             if hasattr(obj_from, "_variables") \
                     and hasattr(obj_to, "_variables"):
                 use_internal_variables = True
+                var_names = {}
                 for v in obj_from._variables:
-                    if v.path in vars_from:
+                    var_name = v.path
+                    if var_name in var_names:
+                        var_names[var_name] += 1
+                        var_name = var_name + f"_{var_names[var_name]}"
+                    else:
+                        var_names[var_name] = 0
+                    if var_name in vars_from:
                         use_internal_variables = False
                         break
                     vars_from[v.path] = v
+                var_names = {}
                 for v in obj_to._variables:
-                    if v.path in vars_to:
+                    var_name = v.path
+                    if var_name in var_names:
+                        var_names[var_name] += 1
+                        var_name = var_name + f"_{var_names[var_name]}"
+                    else:
+                        var_names[var_name] = 0
+                    if var_name in vars_to:
                         use_internal_variables = False
                         break
                     vars_to[v.path] = v
@@ -1183,8 +1197,13 @@ def copy_variables(model_from: keras.Model, model_to: keras.Model) -> None:
                     [(vars_to[x].shape, vars_to[x].dtype)
                      for x in vars_to_list]
                 ):
-                    vars_to[vars_to_list[idx_to]] = \
-                        vars_from[vars_from_list[idx_from]]
+                    if use_internal_variables:
+                        vars_to[vars_to_list[idx_to]].assign(
+                            vars_from[vars_from_list[idx_from]]
+                        )
+                    else:
+                        vars_to[vars_to_list[idx_to]] = \
+                            vars_from[vars_from_list[idx_from]]
                     copied_from.add(vars_from_list[idx_from])
                     copied_to.add(vars_to_list[idx_to])
             else:
@@ -1196,7 +1215,10 @@ def copy_variables(model_from: keras.Model, model_to: keras.Model) -> None:
                         continue
                     copied_from.add(k)
                     copied_to.add(k)
-                    vars_to[k] = v
+                    if use_internal_variables:
+                        vars_to[k].assign(v)
+                    else:
+                        vars_to[k] = v
             not_copied_from = set(vars_from.keys()) - copied_from
             not_copied_to = set(vars_to.keys()) - copied_to
             if len(not_copied_from) > 0:
@@ -1206,13 +1228,7 @@ def copy_variables(model_from: keras.Model, model_to: keras.Model) -> None:
                 LOG.warning("Not copied %d variables to %s: %s",
                             len(not_copied_to), obj_to, not_copied_to)
 
-            if use_internal_variables:
-                for v in obj_to._variables:
-                    target = vars_to.get(v.path)
-                    if target is None or id(target) == id(v):
-                        continue
-                    v.assign(target)
-            else:
+            if not use_internal_variables:
                 obj_to.load_own_variables(vars_to)
 
         dict_to = dict(_walk_saveable(obj_to))
