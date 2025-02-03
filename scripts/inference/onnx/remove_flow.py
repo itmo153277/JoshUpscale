@@ -36,8 +36,8 @@ def parse_args() -> argparse.Namespace:
 
 
 # Hardcoded nodes
-INPUT_NODE = "final/full/generator/concat/concat"
-TARGET_NODE = "final/full/generator/conv_1/Conv2D"
+INPUT_NODE = "final_1/full_1/generator_1/concat_1/concat"
+TARGET_NODE = "final_1/full_1/generator_1/a_1_1/Relu6"
 
 
 def main(
@@ -67,6 +67,7 @@ def main(
 
     inp_name = graph.find_node_by_name(INPUT_NODE).input[0]
     target_node = graph.find_node_by_name(TARGET_NODE)
+    target_node = graph.find_node_by_output(target_node.input[0])
 
     weights = numpy_helper.to_array(graph.init_dict[target_node.input[1]])
     weights = weights[:, :3, :, :]

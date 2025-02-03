@@ -64,6 +64,10 @@ class Graph:
                 return node
         return None
 
+    def find_node_by_output(self, name: str) -> onnx.NodeProto:
+        """Find node by output."""
+        return self._node_dict.get(name)
+
     def insert_node(self, node: onnx.NodeProto) -> None:
         """Insert new node into graph."""
         if self.find_node_by_name(node.name) is not None:

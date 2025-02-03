@@ -40,8 +40,8 @@ def parse_args() -> argparse.Namespace:
 
 
 # Hardcoded nodes
-OUT_NODE = "final/full/generator/space_to_depth/SpaceToDepth"
-GRID_NODE = "final/full/dense_warp/StatefulPartitionedCall/" + \
+OUT_NODE = "final_1/full_1/generator_1/space_to_depth_1/SpaceToDepth"
+GRID_NODE = "final_1/full_1/dense_warp_1/StatefulPartitionedCall/" + \
     "dense_image_warp/Reshape"
 
 
