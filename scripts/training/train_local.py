@@ -13,7 +13,8 @@ import tensorflow as tf
 from tensorflow import keras
 from models import create_models
 from dataset import create_train_dataset, create_val_dataset
-from keras_callbacks import PlayCallback, TensorBoard, ProgressBar
+from keras_callbacks import PlayCallback, TensorBoard, ProgressBar, \
+    TerminateOnNaN
 
 
 LOG = logging.getLogger("train_local")
@@ -98,6 +99,7 @@ def get_callbacks(
 ):
     """Get callbacks for training."""
     callbacks = []
+    callbacks.append(TerminateOnNaN())
     if output_dir is not None:
         if log_dir is None:
             log_dir = f"{output_dir}/logs"

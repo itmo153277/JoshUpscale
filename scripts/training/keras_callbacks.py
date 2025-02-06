@@ -2,6 +2,8 @@
 
 """Custom callbacks."""
 
+from typing import Dict
+import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from utils import gif_summary
@@ -95,7 +97,7 @@ class TensorBoard(keras.callbacks.TensorBoard):
 
 
 class ProgressBar(keras.callbacks.ProgbarLogger):
-    """ProgressBar callback with updated stateful metrics"""
+    """ProgressBar callback with updated stateful metrics."""
 
     def _maybe_init_progbar(self) -> None:
         """Init progbar."""
@@ -103,3 +105,17 @@ class ProgressBar(keras.callbacks.ProgbarLogger):
         self.progbar.stateful_metrics = ["discr_steps",
                                          "t_balance1",
                                          "t_balance2"]
+
+
+class TerminateOnNaN(keras.callbacks.Callback):
+    """Terminate training on NaN logs."""
+
+    def on_train_batch_end(self, _batch: int,
+                           logs: Dict[str, np.ndarray] = None):
+        """Train batch ended."""
+        if logs is None:
+            return
+        for v in logs.values():
+            if np.isnan(v) or np.isinf(v):
+                print(logs)
+                raise ValueError("Encountered abnormal metric value")
