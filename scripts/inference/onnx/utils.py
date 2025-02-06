@@ -7,7 +7,8 @@ from onnxsim import simplify
 
 
 def simplify_model(model: onnx.ModelProto,
-                   num_checks: int = 3) -> onnx.ModelProto:
+                   num_checks: int = 3,
+                   convert_static_shape: bool = False) -> onnx.ModelProto:
     """Simplify onnx model.
 
     Parameters
@@ -16,13 +17,23 @@ def simplify_model(model: onnx.ModelProto,
         Input model
     num_checks: int
         Number of checks
+    convert_static_shape: bool
+        Convert shapes from dynamic to static
 
     Returns
     -------
     onnx.ModelProto
         Simplified model
     """
-    model, check = simplify(model, check_n=num_checks)
+    overwrite_input_shapes = None
+    if convert_static_shape:
+        overwrite_input_shapes = {
+            x.name: [1 if y.dim_param else y.dim_value
+                     for y in x.type.tensor_type.shape.dim]
+            for x in model.graph.input
+        }
+    model, check = simplify(model, check_n=num_checks,
+                            overwrite_input_shapes=overwrite_input_shapes)
     assert check, "Model is broken"
     return model
 

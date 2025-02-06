@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Quantize model to fp16."""
+"""Simplify model."""
 
 import sys
 import argparse
 import onnx
-import onnxconverter_common
-from graph import Graph
-from utils import simplify_model
+from onnx import version_converter
+from utils import simplify_model, get_opset_version
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,7 +20,7 @@ def parse_args() -> argparse.Namespace:
         Parsed arguments
     """
     parser = argparse.ArgumentParser(
-        description="Quantize model to fp16")
+        description="Change model output to moving average")
     parser.add_argument("model_path",
                         help="Model",
                         type=str)
@@ -32,13 +31,23 @@ def parse_args() -> argparse.Namespace:
                         help="Number of simplifier checks",
                         type=int,
                         default=3)
+    parser.add_argument("--opset",
+                        help="Opset",
+                        type=int,
+                        default=12)
     return parser.parse_args()
+
+
+# Hardcoded nodes
+INPUT_NODE = "final_1/full_1/generator_1/space_to_depth_1/SpaceToDepth"
+TARGET_NODE = "final_1/full_1/generator_1/clip_1/clip_by_value"
 
 
 def main(
     model_path: str,
     output_path: str,
     num_checks: int,
+    opset: int,
 ) -> int:
     """
     Run CLI.
@@ -51,6 +60,16 @@ def main(
         Output path
     num_checks: int
         Number of simplifier checks
+    strength: float
+        Filter strength
+    window: int
+        Scene detection window
+    threshold: float
+        Scene detection threshold
+    gain: float
+        Scene detection gain
+    norm: NormType
+        Scene detection norm type
 
     Returns
     -------
@@ -58,13 +77,13 @@ def main(
         Exit code
     """
     model = onnx.load(model_path)
-    model = onnxconverter_common.convert_float_to_float16(
+    if get_opset_version(model) != opset:
+        model = version_converter.convert_version(model, opset)
+    model = simplify_model(
         model,
-        keep_io_types=False,
-        op_block_list=["Resize"],
+        num_checks=num_checks,
+        convert_static_shape=True,
     )
-    model = Graph(model).serialize()
-    model = simplify_model(model, num_checks=num_checks)
     onnx.save(model, output_path)
     return 0
 

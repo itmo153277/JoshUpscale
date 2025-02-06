@@ -4,6 +4,7 @@
 
 from typing import Any, Callable, Dict, List, Union, Tuple, Iterable
 import logging
+import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -1050,6 +1051,56 @@ def get_gan(
     return model
 
 
+def get_onnx_model(inference_model: keras.Model,
+                   name: str = "final") -> keras.Model:
+    """Wrap model for export.
+
+    Parameters
+    ----------
+    model: keras.Model
+        Input model
+    name: str
+        Wrapped model name
+
+    Returns
+    -------
+    keras.Model
+        Wrapped model
+    """
+    inputs = [
+        keras.Input(
+            shape=np.array(x.shape)[[3, 1, 2]] if idx != 0 else x.shape[1:],
+            name=x.name,
+            dtype=x.dtype,
+        )
+        for idx, x in enumerate(inference_model.inputs)
+    ]
+    inputs_pr = [
+        layers.Lambda(lambda x: K.permute_dimensions(
+            x, pattern=[0, 2, 3, 1]))(inp) if idx != 0 else inp
+        for idx, inp in enumerate(inputs)
+    ]
+    outputs = inference_model(inputs_pr)
+    outputs = [outputs["output"]] + [
+        layers.Lambda(lambda x: K.permute_dimensions(
+            x, pattern=[0, 3, 1, 2]), dtype=output.dtype)(output)
+        for output in [outputs["output_raw"]] + outputs["last_frames"]
+    ]
+    outputs = [
+        layers.Identity(name=x, dtype=output.dtype)(output)
+        for x, output in zip(
+            ["output", "output_raw"] +
+            [f"out_frame_{i}" for i in range(len(inference_model.outputs) - 2)], outputs
+        )
+    ]
+    inference_model = keras.Model(
+        inputs=inputs,
+        outputs=outputs,
+        name=name
+    )
+    return inference_model
+
+
 MODELS = {
     "flow-resnet": get_flow_resnet,
     "flow-autoencoder": get_flow_autoencoder,
@@ -1060,6 +1111,7 @@ MODELS = {
     "frvsr": get_frvsr,
     "vgg": get_vgg,
     "gan": get_gan,
+    "onnx": get_onnx_model,
 }
 
 

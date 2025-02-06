@@ -189,6 +189,15 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
                 with open(export_config["model_path"], "wt",
                           encoding="utf-8") as f:
                     f.write(export_model.to_json())
+            if export_config["model_path"].endswith(".onnx"):
+                export_model([
+                    tf.zeros(shape=(1,) + x.shape[1:], dtype=x.dtype)
+                    for x in export_model.inputs
+                ], training=False)
+                export_model.export(
+                    export_config["model_path"],
+                    format="onnx"
+                )
             else:
                 export_model.save(export_config["model_path"])
 

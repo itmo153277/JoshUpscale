@@ -1,9 +1,5 @@
 tensorflow==2.18.0
-
-onnx==1.14.1
-onnxruntime==1.15.1
-onnx-simplifier==0.4.33
-tf2onnx==1.16.1
+tf2onnx
 
 imageio
 opencv-python-headless

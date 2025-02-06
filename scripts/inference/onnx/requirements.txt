@@ -1,7 +1,5 @@
-onnx==1.14.1
-onnxruntime==1.15.1
-onnxconverter-common==1.12.1
-onnx-simplifier==0.4.33
-pyyaml
+onnx==1.17.0
+onnxruntime==1.20.1
+onnx-simplifier==0.4.36
 numpy<2
 opencv-python-headless
