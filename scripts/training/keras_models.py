@@ -493,17 +493,21 @@ class GANModel(JoshUpscaleModel):
         del result["t_balance2"]
         return result
 
-    def compile(self, learning_rate: Any = 0.0005, **kwargs) -> None:
+    def compile(self, learning_rate: Any = 0.0005,
+                auto_scale_loss: bool = True, **kwargs) -> None:
         """Compile model.
 
         Parameters
         ----------
         learning_rate: Any
             Learning rate
+        auto_scale_loss: bool
+            Auto scale loss for mixed precision
         """
         super().compile(
             **kwargs,
             loss=None,
+            auto_scale_loss=False,
             optimizer=keras.optimizers.Optimizer(
                 name="optimizer", learning_rate=learning_rate)
         )
@@ -513,6 +517,13 @@ class GANModel(JoshUpscaleModel):
         self.optimizer_discr = keras.optimizers.Adam(
             name="optimizer_discr",
             learning_rate=learning_rate)
+        if auto_scale_loss and self.dtype_policy.name == "mixed_float16":
+            self.optimizer_gen = keras.optimizers.LossScaleOptimizer(
+                self.optimizer_gen, name="optimizer_gen_scale"
+            )
+            self.optimizer_discr = keras.optimizers.LossScaleOptimizer(
+                self.optimizer_discr, name="optimizer_discr_scale"
+            )
 
     def compute_loss(self, x, y, y_pred, sample_weight):
         """Compute loss."""
@@ -617,8 +628,12 @@ class GANModel(JoshUpscaleModel):
 
         vgg_loss = []
         for vgg_real, vgg_fake in zip(vgg_real_output, vgg_fake_output):
-            vgg_real = tf.math.l2_normalize(vgg_real, axis=-1)
-            vgg_fake = tf.math.l2_normalize(vgg_fake, axis=-1)
+            vgg_real = tf.math.l2_normalize(vgg_real,
+                                            axis=-1,
+                                            epsilon=keras.config.epsilon())
+            vgg_fake = tf.math.l2_normalize(vgg_fake,
+                                            axis=-1,
+                                            epsilon=keras.config.epsilon())
             cos_diff = vgg_real * vgg_fake
             cos_diff = tf.math.reduce_sum(cos_diff, axis=-1)
             cos_diff = 1 - tf.math.reduce_mean(cos_diff)
@@ -686,12 +701,11 @@ class GANModel(JoshUpscaleModel):
         with tf.GradientTape() as tape:
             y_pred = self(x, training=True)
             loss = self.compute_loss(x, y, y_pred, sample_weight)
+            gen_loss = self.optimizer_gen.scale_loss(loss["gen_loss"])
+            discr_loss = self.optimizer_discr.scale_loss(loss["discr_loss"])
         [gen_grad, discr_grad] = tape.gradient(
-            [loss["gen_loss"], loss["discr_loss"]],
-            [
-                gen_variables,
-                discr_variables,
-            ]
+            [gen_loss, discr_loss],
+            [gen_variables, discr_variables]
         )
         self.optimizer_gen.apply_gradients(zip(gen_grad, gen_variables))
 
