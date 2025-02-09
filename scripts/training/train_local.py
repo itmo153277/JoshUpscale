@@ -192,14 +192,19 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
                           encoding="utf-8") as f:
                     f.write(export_model.to_json())
             if export_config["model_path"].endswith(".onnx"):
-                export_model([
-                    tf.zeros(shape=(1,) + x.shape[1:], dtype=x.dtype)
+                # pylint: disable=import-outside-toplevel
+                from tf2onnx.convert import from_keras
+                import onnx
+
+                onnx_model, _ = from_keras(export_model, input_signature=[
+                    tf.TensorSpec(
+                        shape=(1,) + x.shape[1:],
+                        dtype=x.dtype,
+                        name=x.name
+                    )
                     for x in export_model.inputs
-                ], training=False)
-                export_model.export(
-                    export_config["model_path"],
-                    format="onnx"
-                )
+                ])
+                onnx.save(onnx_model, export_config["model_path"])
             else:
                 export_model.save(export_config["model_path"])
 
