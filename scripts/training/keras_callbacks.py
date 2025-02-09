@@ -104,7 +104,8 @@ class ProgressBar(keras.callbacks.ProgbarLogger):
         super()._maybe_init_progbar()
         self.progbar.stateful_metrics = ["discr_steps",
                                          "t_balance1",
-                                         "t_balance2"]
+                                         "t_balance2",
+                                         "loss_scale"]
 
 
 class TerminateOnNaN(keras.callbacks.Callback):

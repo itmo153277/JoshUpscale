@@ -298,8 +298,7 @@ class FRVSRModel(JoshUpscaleModel):
 
     def register_optimizer_variables(self):
         """Register optimizer variables."""
-        with self.distribute_strategy.scope():
-            self.optimizer.build(self.trainable_variables)
+        self.optimizer.build(self.trainable_variables)
 
     @staticmethod
     def _build_model_args(
@@ -443,8 +442,6 @@ class GANModel(JoshUpscaleModel):
                          ))
         self.loss_config = GANModel._get_loss_config(loss_config)
         self.generator_layer = generator_model.name
-        self.optimizer_gen = None
-        self.optimizer_discr = None
         self.content_loss_tr = keras.metrics.Mean(name="content_loss")
         self.warp_loss_tr = keras.metrics.Mean(name="warp_loss")
         self.vgg_loss_tr = keras.metrics.Mean(name="vgg_loss")
@@ -491,10 +488,10 @@ class GANModel(JoshUpscaleModel):
         del result["discr_steps"]
         del result["t_balance1"]
         del result["t_balance2"]
+        del result["loss_scale"]
         return result
 
-    def compile(self, learning_rate: Any = 0.0005,
-                auto_scale_loss: bool = True, **kwargs) -> None:
+    def compile(self, learning_rate: Any = 0.0005, **kwargs) -> None:
         """Compile model.
 
         Parameters
@@ -507,23 +504,9 @@ class GANModel(JoshUpscaleModel):
         super().compile(
             **kwargs,
             loss=None,
-            auto_scale_loss=False,
-            optimizer=keras.optimizers.Optimizer(
+            optimizer=keras.optimizers.Adam(
                 name="optimizer", learning_rate=learning_rate)
         )
-        self.optimizer_gen = keras.optimizers.Adam(
-            name="optimizer_gen",
-            learning_rate=learning_rate)
-        self.optimizer_discr = keras.optimizers.Adam(
-            name="optimizer_discr",
-            learning_rate=learning_rate)
-        if auto_scale_loss and self.dtype_policy.name == "mixed_float16":
-            self.optimizer_gen = keras.optimizers.LossScaleOptimizer(
-                self.optimizer_gen, name="optimizer_gen_scale"
-            )
-            self.optimizer_discr = keras.optimizers.LossScaleOptimizer(
-                self.optimizer_discr, name="optimizer_discr_scale"
-            )
 
     def compute_loss(self, x, y, y_pred, sample_weight):
         """Compute loss."""
@@ -684,6 +667,9 @@ class GANModel(JoshUpscaleModel):
             **metrics,
             "t_balance1": self.t_balance1_avg.result(),
             "t_balance2": self.t_balance2_avg.result(),
+            "loss_scale": (self.optimizer.dynamic_scale
+                           if hasattr(self.optimizer, "dynamic_scale")
+                           else 1),
         }
 
     def train_step(self, data):
@@ -701,19 +687,23 @@ class GANModel(JoshUpscaleModel):
         with tf.GradientTape() as tape:
             y_pred = self(x, training=True)
             loss = self.compute_loss(x, y, y_pred, sample_weight)
-            gen_loss = self.optimizer_gen.scale_loss(loss["gen_loss"])
-            discr_loss = self.optimizer_discr.scale_loss(loss["discr_loss"])
+            gen_loss = self.optimizer.scale_loss(loss["gen_loss"])
+            discr_loss = self.optimizer.scale_loss(loss["discr_loss"])
         [gen_grad, discr_grad] = tape.gradient(
             [gen_loss, discr_loss],
             [gen_variables, discr_variables]
         )
-        self.optimizer_gen.apply_gradients(zip(gen_grad, gen_variables))
 
-        def train_discr():
+        if not self.optimizer.built:
+            self.register_optimizer_variables()
+
+        def train_gen():
+            self.optimizer.apply_gradients(zip(gen_grad, gen_variables))
+
+        def train_gen_discr():
             self.discr_steps_tr.update_state()
-            self.optimizer_discr.apply_gradients(
-                zip(discr_grad, discr_variables))
-            return tf.no_op()
+            self.optimizer.apply_gradients(
+                zip(gen_grad + discr_grad, gen_variables + discr_variables))
 
         self.t_balance1_avg.update_state(loss["t_balance1"])
         self.t_balance2_avg.update_state(loss["t_balance2"])
@@ -723,29 +713,24 @@ class GANModel(JoshUpscaleModel):
             tf.cond(
                 pred=tf.less(self.t_balance1_avg.result(),
                              self.loss_config["t_balance1_threshold"]),
-                true_fn=train_discr,
-                false_fn=tf.no_op,
+                true_fn=train_gen_discr,
+                false_fn=train_gen,
             )
         else:
-            train_discr()
-
-        # Manually advance iteration counter
-        self.optimizer.iterations.assign_add(1)
+            train_gen_discr()
 
         return self.compute_metrics(x, y, y_pred, sample_weight)
 
     def register_optimizer_variables(self):
         """Register optimizer variables."""
-        with self.distribute_strategy.scope():
-            internal_layer = self.get_layer("internal")
-            generator_model = internal_layer.generator_model
-            flow_model = internal_layer.flow_model
-            discriminator_model = internal_layer.discriminator_model
-            gen_variables = generator_model.trainable_variables
-            gen_variables += flow_model.trainable_variables
-            discr_variables = discriminator_model.trainable_variables
-            self.optimizer_gen.build(gen_variables)
-            self.optimizer_discr.build(discr_variables)
+        internal_layer = self.get_layer("internal")
+        generator_model = internal_layer.generator_model
+        flow_model = internal_layer.flow_model
+        discriminator_model = internal_layer.discriminator_model
+        gen_variables = generator_model.trainable_variables
+        gen_variables += flow_model.trainable_variables
+        discr_variables = discriminator_model.trainable_variables
+        self.optimizer.build(gen_variables + discr_variables)
 
     def save_own_variables(self, store):
         """Save persistent variables."""
