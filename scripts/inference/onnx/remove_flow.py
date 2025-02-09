@@ -37,7 +37,6 @@ def parse_args() -> argparse.Namespace:
 
 # Hardcoded nodes
 INPUT_NODE = "final_1/full_1/generator_1/concat_1/concat"
-TARGET_NODE = "final_1/full_1/generator_1/a_1_1/Relu6"
 
 
 def main(
@@ -65,9 +64,10 @@ def main(
     model = onnx.load(model_path)
     graph = Graph(model)
 
-    inp_name = graph.find_node_by_name(INPUT_NODE).input[0]
-    target_node = graph.find_node_by_name(TARGET_NODE)
-    target_node = graph.find_node_by_output(target_node.input[0])
+    inp_node = graph.find_node_by_name(INPUT_NODE)
+    inp_name = inp_node.input[0]
+    out_name = inp_node.output[0]
+    target_node = graph.find_nodes_by_input(out_name)[0]
 
     weights = numpy_helper.to_array(graph.init_dict[target_node.input[1]])
     weights = weights[:, :3, :, :]
