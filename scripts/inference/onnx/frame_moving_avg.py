@@ -200,8 +200,8 @@ def main(
         scene_cond = "scene_cond"
     else:
         graph.create_value(
-            "output_mask_shape",
-            np.int64([1, 1] + output_shape)
+            "output_mask_scales",
+            np.float32([1, 1, window, window])
         )
         graph.create_value(
             "output_mask_roi",
@@ -209,8 +209,7 @@ def main(
         )
         graph.create_node(
             "scene_cond_s", "Resize",
-            ["scene_cond", "output_mask_roi", "output_mask_roi",
-             "output_mask_shape"],
+            ["scene_cond", "output_mask_roi", "output_mask_scales"],
             coordinate_transformation_mode="asymmetric",
             mode="linear",
             nearest_mode="floor",

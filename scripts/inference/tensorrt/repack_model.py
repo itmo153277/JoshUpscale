@@ -108,6 +108,8 @@ class CustomYAMLFormatter(yaml.Dumper):
 
 CustomYAMLFormatter.add_representer(
     list, CustomYAMLFormatter.custom_represent_list)
+CustomYAMLFormatter.add_representer(
+    tuple, CustomYAMLFormatter.custom_represent_list)
 
 
 def main(

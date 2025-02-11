@@ -197,8 +197,12 @@ class GraphSerializer:
             "cubic_coeff": layer.cubic_coeff,
         }
         if layer.num_inputs < 2:
-            params["shape"] = convert_to_list(layer.shape),
-            params["scales"] = layer.scales,
+            shape = convert_to_list(layer.shape)
+            scales = convert_to_list(layer.scales)
+            if shape is not None:
+                params["shape"] = shape
+            if scales is not None:
+                params["scales"] = scales
         return params
 
     def _get_scale_params(self, layer: trt.ILayer) -> Dict[str, Any]:
@@ -352,6 +356,8 @@ class CustomYAMLFormatter(yaml.Dumper):
 
 CustomYAMLFormatter.add_representer(
     list, CustomYAMLFormatter.custom_represent_list)
+CustomYAMLFormatter.add_representer(
+    tuple, CustomYAMLFormatter.custom_represent_list)
 
 
 def main(
