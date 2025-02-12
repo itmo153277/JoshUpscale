@@ -74,10 +74,7 @@ def init(gpus: Union[List[str], None] = None,
             compute_capability = details.get("compute_capability", None)
             if compute_capability and compute_capability[0] >= 7:
                 keras.mixed_precision.set_global_policy("mixed_float16")
-    if xla:
-        tf.config.optimizer.set_jit("autoclustering")
-    else:
-        tf.config.optimizer.set_jit(False)
+    tf.config.optimizer.set_jit("autoclustering" if xla else False)
     if random_seed is not None:
         keras.utils.set_random_seed(random_seed)
     strategy = tf.distribute.get_strategy()
@@ -140,7 +137,7 @@ def get_callbacks(
 
 
 def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
-          profile: bool = True) -> None:
+          profile: bool = True, xla: bool = True) -> None:
     """Run training."""
     LOG.info("Constructing models...")
     with strategy.scope():
@@ -170,6 +167,7 @@ def train(config: Dict[str, Any], strategy: tf.distribute.Strategy,
         if "unrolled_steps_per_execution" in config["train"]:
             train_model.unrolled_steps_per_execution = \
                 config["train"]["unrolled_steps_per_execution"]
+        train_model.jit_compile = xla
         train_model.fit(
             train_ds,
             validation_data=val_ds,
@@ -240,7 +238,7 @@ def main(config_path: str, gpus: Union[List[str], None],
         mixed_precision=mixed_precision,
         xla=xla,
     )
-    train(config, strategy, profile)
+    train(config, strategy, profile, xla)
     return 0
 
 
