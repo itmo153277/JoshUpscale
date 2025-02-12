@@ -7,7 +7,8 @@ from typing import Any, Dict, Union
 import warnings
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras import backend as K
+from keras.src.utils.tracking import DotNotTrackScope
 from keras_layers import DenseWarpLayer, UpscaleLayer
 from keras_metrics import CounterMetric, ExponentialMovingAvg
 
@@ -26,7 +27,9 @@ class JoshUpscaleModel(keras.Model):
             Inference model
         """
         super().__init__(**kwargs)
-        self.inference_model = inference_model
+        # Inference model is not trackable or savable
+        with DotNotTrackScope():
+            self.__inference_model = inference_model
 
     def predict_step(self, data: Any) -> Dict[str, tf.Tensor]:
         """Prediction step.
@@ -55,13 +58,13 @@ class JoshUpscaleModel(keras.Model):
         height = shape[2]
         width = shape[3]
         last_frames = [tf.zeros((batch_size, height, width, 3))] * \
-            (len(self.inference_model.inputs) - 2)
-        last_output = tf.zeros((batch_size, height*4, width*4, 3))
+            (len(self.__inference_model.inputs) - 2)
+        last_output = tf.zeros((batch_size, height * 4, width * 4, 3))
         gen_outputs = []
         pre_warps = []
         for i in itertools.chain(range(10), range(8, 0, -1)):
             cur_frame = inputs[:, i, :, :, :]
-            outputs = self.inference_model(
+            outputs = self.__inference_model(
                 [cur_frame, last_output] + last_frames,
                 training=False
             )
@@ -96,24 +99,16 @@ class FRVSRModelSingle(keras.Model):
 
     # pylint: disable=invalid-name
 
-    def __init__(self, inference_model: keras.Model, crop_size: int,
-                 **kwargs):
+    def __init__(self, inference_model: keras.Model, **kwargs):
         """Create FRVSRModelSingle.
 
         Parameters
         ----------
         inference_model: keras.Model
             Inference model
-        crop_size: int
-            Image size
         """
-        super().__init__(
-            **kwargs,
-            **FRVSRModelSingle._build_model_args(
-                inference_model=inference_model,
-                crop_size=crop_size,
-            )
-        )
+        super().__init__(**kwargs)
+        self.inference_model = inference_model
         self.gen_outputs_loss_tr = keras.metrics.Mean(name="gen_outputs_loss")
         self.target_warp_loss_tr = keras.metrics.Mean(name="target_warp_loss")
         self.loss_tr = keras.metrics.Mean(name="loss")
@@ -175,36 +170,17 @@ class FRVSRModelSingle(keras.Model):
         # Average loss across all replicas is summed
         return tf.add_n(self.losses + [loss]) / num_replicas
 
-    @staticmethod
-    def _build_model_args(
-        inference_model: keras.Model,
-        crop_size: int,
-    ) -> Dict[str, Any]:
-        """Build model arguments."""
-        num_frames = len(inference_model.inputs) - 1
-        inputs = keras.Input(
-            shape=[num_frames, crop_size, crop_size, 3],
-            name="input",
-            dtype="float32"
-        )
-        target = keras.Input(
-            shape=[crop_size*4, crop_size*4, 3],
-            name="target",
-            dtype="float32"
-        )
-        last = keras.Input(
-            shape=[crop_size*4, crop_size*4, 3],
-            name="last",
-            dtype="float32"
-        )
+    def call(self, x) -> Dict[str, Any]:
+        """Execute model."""
+        num_frames = len(self.inference_model.inputs) - 1
+        inputs = x["input"]
+        last = x["last"]
         input_frames = [inputs[:, i] for i in range(num_frames)]
-        output = inference_model([input_frames[-1], last] + input_frames[:-1])
+        output = self.inference_model(
+            [input_frames[-1], last] + input_frames[:-1])
         return {
-            "inputs": [inputs, target, last],
-            "outputs": {
-                "gen_output": output["output_raw"],
-                "pre_warp": output["pre_warp"],
-            }
+            "gen_output": output["output_raw"],
+            "pre_warp": output["pre_warp"],
         }
 
 
@@ -214,7 +190,7 @@ class FRVSRModel(JoshUpscaleModel):
     # pylint: disable=invalid-name
 
     def __init__(self, generator_model: keras.Model, flow_model: keras.Model,
-                 crop_size: int, **kwargs) -> None:
+                 **kwargs) -> None:
         """Create FRVSRModel.
 
         Parameters
@@ -223,17 +199,12 @@ class FRVSRModel(JoshUpscaleModel):
             Generator model
         flow_model: keras.Model
             Flow model
-        crop_size: int
-            Image size
         inference_model: keras.Model
             Inference model (for JoshUpscaleModel)
         """
-        super().__init__(**kwargs,
-                         **FRVSRModel._build_model_args(
-                             generator_model=generator_model,
-                             flow_model=flow_model,
-                             crop_size=crop_size
-                         ))
+        super().__init__(**kwargs)
+        self.generator_model = generator_model
+        self.flow_model = flow_model
         self.gen_outputs_loss_tr = keras.metrics.Mean(name="gen_outputs_loss")
         self.target_warp_loss_tr = keras.metrics.Mean(name="target_warp_loss")
         self.loss_tr = keras.metrics.Mean(name="loss")
@@ -300,103 +271,77 @@ class FRVSRModel(JoshUpscaleModel):
         """Register optimizer variables."""
         self.optimizer.build(self.trainable_variables)
 
-    @staticmethod
-    def _build_model_args(
-        generator_model: keras.Model,
-        flow_model: keras.Model,
-        crop_size: int,
-    ) -> Dict[str, Any]:
-        """Build model arguments."""
-        inputs = keras.Input(shape=[10, crop_size, crop_size, 3],
-                             name="input", dtype="float32")
-        targets = keras.Input(shape=[10, crop_size*4, crop_size*4, 3],
-                              name="target", dtype="float32")
+    def call(self, x) -> Dict[str, Any]:
+        """Execute model."""
+        inputs = x["input"]
+        targets = x["target"]
 
-        class InternalLayer(layers.Layer):
-            """Internal layer."""
-
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.generator_model = generator_model
-                self.flow_model = flow_model
-
-            def call(self, inputs, targets):
-                """Execute training inference."""
-                input_shape = tf.shape(inputs[:, 0, :, :, :])
-                output_shape = tf.shape(targets[:, 0, :, :, :])
-                input_frames = tf.reshape(inputs[:, 1:, :, :, :],
-                                          [-1, crop_size, crop_size, 3])
-                input_frames_pre = tf.reshape(inputs[:, :-1, :, :, :],
-                                              [-1, crop_size, crop_size, 3])
-                num_rand_frames = len(flow_model.inputs) - 2
-                if num_rand_frames > 0:
-                    # Random last frames for flow generation
-                    rand_frames = tf.reshape(
-                        tf.stack([
-                            tf.random.uniform(
-                                input_shape,
-                                minval=-0.5,
-                                maxval=0.5,
-                                dtype=inputs.dtype
-                            )
-                            for _ in range(num_rand_frames)
-                        ], axis=1),
-                        [-1, num_rand_frames, crop_size, crop_size, 3]
+        input_shape = tf.shape(inputs[:, 0, :, :, :])
+        output_shape = tf.shape(targets[:, 0, :, :, :])
+        height = input_shape[1]
+        width = input_shape[2]
+        input_frames = tf.reshape(inputs[:, 1:, :, :, :],
+                                  [-1, height, width, 3])
+        input_frames_pre = tf.reshape(inputs[:, :-1, :, :, :],
+                                      [-1, height, width, 3])
+        num_rand_frames = len(self.flow_model.inputs) - 2
+        if num_rand_frames > 0:
+            # Random last frames for flow generation
+            rand_frames = tf.reshape(
+                tf.stack([
+                    tf.random.uniform(
+                        input_shape,
+                        minval=-0.5,
+                        maxval=0.5,
+                        dtype=inputs.dtype
                     )
-                flow_last_frames = [
-                    tf.reshape(
-                        tf.concat([
-                            rand_frames[:, -(i + 1):, :, :, :],
-                            inputs[:, :-(i + 2), :, :, :]
-                        ], axis=1),
-                        [-1, crop_size, crop_size, 3]
-                    )
-                    for i in range(num_rand_frames)
-                ]
-                target_frames_pre = tf.reshape(
-                    targets[:, :-1, :, :, :],
-                    [-1, crop_size*4, crop_size*4, 3]
-                )
-                flow = flow_model(
-                    [input_frames, input_frames_pre] + flow_last_frames)
-                target_warp = DenseWarpLayer()([target_frames_pre, flow])
-                target_warp = tf.reshape(
-                    target_warp, [-1, 9, crop_size*4, crop_size*4, 3])
-                flow = tf.reshape(flow, [-1, 9, crop_size*4, crop_size*4, 2])
-                # First frame uses random pre_warp
-                last_output = generator_model([
-                    inputs[:, 0, :, :, :],
-                    tf.random.uniform(output_shape, minval=-0.5,
-                                      maxval=0.5, dtype=inputs.dtype)
-                ])
-                gen_outputs = [last_output]
-                for frame_i in range(9):
-                    cur_flow = flow[:, frame_i, :, :, :]
-                    gen_pre_output_warp = DenseWarpLayer()(
-                        [last_output, cur_flow])
-                    last_output = generator_model([
-                        inputs[:, frame_i + 1, :, :, :],
-                        gen_pre_output_warp
-                    ])
-                    gen_outputs.append(last_output)
-                gen_outputs = tf.reshape(
-                    tf.stack(gen_outputs, axis=1),
-                    [-1, 10, crop_size*4, crop_size*4, 3]
-                )
-                return [target_warp, gen_outputs]
-        [target_warp, gen_outputs] = InternalLayer(
-            name="internal")(inputs, targets)
-        target_warp = layers.Identity(name="target_warp",
-                                      dtype="float32")(target_warp)
-        gen_outputs = layers.Identity(
-            name="gen_outputs", dtype="float32")(gen_outputs)
-        return {
-            "inputs": [inputs, targets],
-            "outputs": {
-                "gen_outputs": gen_outputs,
-                "target_warp": target_warp
-            }
-        }
+                    for _ in range(num_rand_frames)
+                ], axis=1),
+                [-1, num_rand_frames, height, width, 3]
+            )
+        flow_last_frames = [
+            tf.reshape(
+                tf.concat([
+                    rand_frames[:, -(i + 1):, :, :, :],
+                    inputs[:, :-(i + 2), :, :, :]
+                ], axis=1),
+                [-1, height, width, 3]
+            )
+            for i in range(num_rand_frames)
+        ]
+        target_frames_pre = tf.reshape(
+            targets[:, :-1, :, :, :],
+            [-1, height * 4, width * 4, 3]
+        )
+        flow = self.flow_model(
+            [input_frames, input_frames_pre] + flow_last_frames)
+        target_warp = DenseWarpLayer()([target_frames_pre, flow])
+        target_warp = tf.reshape(
+            target_warp, [-1, 9, height * 4, width * 4, 3])
+        flow = tf.reshape(flow, [-1, 9, height * 4, width * 4, 2])
+        # First frame uses random pre_warp
+        last_output = self.generator_model([
+            inputs[:, 0, :, :, :],
+            tf.random.uniform(output_shape, minval=-0.5,
+                              maxval=0.5, dtype=inputs.dtype)
+        ])
+        gen_outputs = [last_output]
+        for frame_i in range(9):
+            cur_flow = flow[:, frame_i, :, :, :]
+            gen_pre_output_warp = DenseWarpLayer()(
+                [last_output, cur_flow])
+            last_output = self.generator_model([
+                inputs[:, frame_i + 1, :, :, :],
+                gen_pre_output_warp
+            ])
+            gen_outputs.append(last_output)
+        gen_outputs = tf.reshape(
+            tf.stack(gen_outputs, axis=1),
+            [-1, 10, height * 4, width * 4, 3]
+        )
+        gen_outputs = K.cast(gen_outputs, self.dtype)
+        target_warp = K.cast(target_warp, self.dtype)
+        return {"gen_outputs": gen_outputs, "target_warp": target_warp}
 
 
 class GANModel(JoshUpscaleModel):
@@ -411,7 +356,6 @@ class GANModel(JoshUpscaleModel):
         flow_model: keras.Model,
         discriminator_model: keras.Model,
         vgg_model: keras.Model,
-        crop_size: int,
         loss_config: Union[None, Dict[str, Any]] = None,
         **kwargs
     ) -> None:
@@ -427,21 +371,15 @@ class GANModel(JoshUpscaleModel):
             Discriminator model
         vgg: keras.Model
             VGG19 model
-        crop_size: int
-            Image size
         loss_config: Union[None, Dict[str, Any]]
             Loss configuration
         """
-        super().__init__(**kwargs,
-                         **GANModel._build_model_args(
-                             generator_model=generator_model,
-                             flow_model=flow_model,
-                             discriminator_model=discriminator_model,
-                             vgg_model=vgg_model,
-                             crop_size=crop_size,
-                         ))
+        super().__init__(**kwargs)
+        self.generator_model = generator_model
+        self.flow_model = flow_model
+        self.discriminator_model = discriminator_model
+        self.vgg_model = vgg_model
         self.loss_config = GANModel._get_loss_config(loss_config)
-        self.generator_layer = generator_model.name
         self.content_loss_tr = keras.metrics.Mean(name="content_loss")
         self.warp_loss_tr = keras.metrics.Mean(name="warp_loss")
         self.vgg_loss_tr = keras.metrics.Mean(name="vgg_loss")
@@ -676,10 +614,9 @@ class GANModel(JoshUpscaleModel):
         """Train step."""
         x, y, sample_weight = keras.utils.unpack_x_y_sample_weight(data)
 
-        internal_layer = self.get_layer("internal")
-        generator_model = internal_layer.generator_model
-        flow_model = internal_layer.flow_model
-        discriminator_model = internal_layer.discriminator_model
+        generator_model = self.generator_model
+        flow_model = self.flow_model
+        discriminator_model = self.discriminator_model
         gen_variables = generator_model.trainable_variables
         gen_variables += flow_model.trainable_variables
         discr_variables = discriminator_model.trainable_variables
@@ -723,10 +660,9 @@ class GANModel(JoshUpscaleModel):
 
     def register_optimizer_variables(self):
         """Register optimizer variables."""
-        internal_layer = self.get_layer("internal")
-        generator_model = internal_layer.generator_model
-        flow_model = internal_layer.flow_model
-        discriminator_model = internal_layer.discriminator_model
+        generator_model = self.generator_model
+        flow_model = self.flow_model
+        discriminator_model = self.discriminator_model
         gen_variables = generator_model.trainable_variables
         gen_variables += flow_model.trainable_variables
         discr_variables = discriminator_model.trainable_variables
@@ -785,215 +721,173 @@ class GANModel(JoshUpscaleModel):
         }
         return loss_config
 
-    @staticmethod
-    def _build_model_args(
-        generator_model: keras.Model,
-        flow_model: keras.Model,
-        discriminator_model: keras.Model,
-        vgg_model: keras.Model,
-        crop_size: int,
-    ):
-        inputs = keras.Input(shape=[10, crop_size, crop_size, 3],
-                             name="input", dtype="float32")
-        targets = keras.Input(shape=[10, crop_size*4, crop_size*4, 3],
-                              name="target", dtype="float32")
-
-        class InternalLayer(layers.Layer):
-            """Internal layer."""
-
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.generator_model = generator_model
-                self.flow_model = flow_model
-                self.discriminator_model = discriminator_model
-                self.vgg_model = vgg_model
-
-            def call(self, inputs, targets):
-                """Execute training inference."""
-                input_shape = tf.shape(inputs[:, 0, :, :, :])
-                output_shape = tf.shape(targets[:, 0, :, :, :])
-                inputs_rev = inputs[:, -2::-1, :, :, :]
-                targets_rev = targets[:, -2::-1, :, :, :]
-                inputs_d = tf.concat([inputs, inputs_rev], axis=1)
-                targets_d = tf.concat([targets, targets_rev], axis=1)
-                input_frames = tf.reshape(inputs_d[:, 1:, :, :, :],
-                                          [-1, crop_size, crop_size, 3])
-                input_frames_pre = tf.reshape(inputs_d[:, :-1, :, :, :],
-                                              [-1, crop_size, crop_size, 3])
-                num_rand_frames = len(flow_model.inputs) - 2
-                if num_rand_frames > 0:
-                    # Random last frames for flow generation
-                    rand_frames = tf.reshape(
-                        tf.stack([
-                            tf.random.uniform(
-                                input_shape,
-                                minval=-0.5,
-                                maxval=0.5,
-                                dtype=inputs.dtype
-                            )
-                            for _ in range(num_rand_frames)
-                        ], axis=1),
-                        [-1, num_rand_frames, crop_size, crop_size, 3]
+    def call(self, x) -> Dict[str, Any]:
+        """Execute model."""
+        inputs = x["input"]
+        targets = x["target"]
+        input_shape = tf.shape(inputs[:, 0, :, :, :])
+        output_shape = tf.shape(targets[:, 0, :, :, :])
+        height = input_shape[1]
+        width = input_shape[2]
+        inputs_rev = inputs[:, -2::-1, :, :, :]
+        targets_rev = targets[:, -2::-1, :, :, :]
+        inputs_d = tf.concat([inputs, inputs_rev], axis=1)
+        targets_d = tf.concat([targets, targets_rev], axis=1)
+        input_frames = tf.reshape(inputs_d[:, 1:, :, :, :],
+                                  [-1, height, width, 3])
+        input_frames_pre = tf.reshape(inputs_d[:, :-1, :, :, :],
+                                      [-1, height, width, 3])
+        num_rand_frames = len(self.flow_model.inputs) - 2
+        if num_rand_frames > 0:
+            # Random last frames for flow generation
+            rand_frames = tf.reshape(
+                tf.stack([
+                    tf.random.uniform(
+                        input_shape,
+                        minval=-0.5,
+                        maxval=0.5,
+                        dtype=inputs.dtype
                     )
-                flow_last_frames = [
-                    tf.reshape(
-                        tf.concat([
-                            rand_frames[:, -(i + 1):, :, :, :],
-                            inputs_d[:, :-(i + 2), :, :, :]
-                        ], axis=1),
-                        [-1, crop_size, crop_size, 3]
-                    )
-                    for i in range(num_rand_frames)
-                ]
-                target_frames_pre = tf.reshape(
-                    targets_d[:, :-1, :, :, :],
-                    [-1, crop_size*4, crop_size*4, 3]
-                )
-                flow = flow_model(
-                    [input_frames, input_frames_pre] + flow_last_frames)
-                target_warp = DenseWarpLayer()([target_frames_pre, flow])
-                target_warp = tf.reshape(
-                    target_warp, [-1, 18, crop_size*4, crop_size*4, 3])
-                flow = tf.reshape(flow, [-1, 18, crop_size*4, crop_size*4, 2])
-                # First frame uses random pre_warp
-                last_output = generator_model([
-                    inputs[:, 0, :, :, :],
-                    tf.random.uniform(output_shape, minval=-0.5,
-                                      maxval=0.5, dtype=inputs.dtype)
-                ])
-                gen_outputs = [last_output]
-                gen_warp = []
-                for frame_i in range(18):
-                    cur_flow = flow[:, frame_i, :, :, :]
-                    gen_pre_output_warp = DenseWarpLayer()(
-                        [last_output, cur_flow])
-                    last_output = generator_model([
-                        inputs_d[:, frame_i + 1, :, :, :],
-                        gen_pre_output_warp
-                    ])
-                    gen_outputs.append(last_output)
-                    gen_warp.append(gen_pre_output_warp)
-                gen_outputs = tf.reshape(
-                    tf.stack(gen_outputs, axis=1),
-                    [-1, 19, crop_size*4, crop_size*4, 3]
-                )
-                gen_warp = tf.reshape(
-                    tf.stack(gen_warp, axis=1),
-                    [-1, 18, crop_size*4, crop_size*4, 3]
-                )
-                vgg_real_output = vgg_model(
-                    tf.reshape(targets, [-1, crop_size * 4, crop_size * 4, 3]),
-                    training=False
-                )
-                vgg_real_output = [
-                    tf.reshape(x, [-1, 10] + list(out.shape)[1:])
-                    for x, out in zip(vgg_real_output, vgg_model.outputs)
-                ]
-                vgg_real_output = [
-                    tf.concat([x, x[:, -2::-1]], axis=1)
-                    for x in vgg_real_output
-                ]
-                vgg_fake_output = vgg_model(
-                    tf.reshape(
-                        gen_outputs, [-1, crop_size * 4, crop_size * 4, 3]),
-                    training=False
-                )
-                vgg_fake_output = [
-                    tf.reshape(x, [-1, 19] + list(out.shape)[1:])
-                    for x, out in zip(vgg_fake_output, vgg_model.outputs)
-                ]
-                t_gen_outputs = tf.reshape(gen_outputs[:, :18, :, :, :],
-                                           [-1, crop_size*4, crop_size*4, 3])
-                t_targets = tf.reshape(targets_d[:, :18, :, :, :],
-                                       [-1, crop_size*4, crop_size*4, 3])
-                t_inputs = tf.reshape(inputs_d[:, :18, :, :, :],
-                                      [-1, crop_size, crop_size, 3])
-                inputs_hi = UpscaleLayer(scale=4)(t_inputs)
-                inputs_hi = tf.reshape(
-                    inputs_hi, [-1, 3, crop_size*4, crop_size*4, 3])
-                inputs_hi = tf.transpose(inputs_hi, [0, 2, 3, 4, 1])
-                inputs_hi = tf.reshape(
-                    inputs_hi, [-1, crop_size*4, crop_size*4, 9])
-                t_inputs_vpre_batch = flow[:, :18:3, :, :, :]
-                t_inputs_v_batch = tf.zeros_like(t_inputs_vpre_batch)
-                t_inputs_vnxt_batch = flow[:, -2:-19:-3, :, :, :]
-                t_vel = tf.stack([t_inputs_vpre_batch, t_inputs_v_batch,
-                                  t_inputs_vnxt_batch], axis=2)
-                t_vel = tf.reshape(t_vel, [-1, crop_size*4, crop_size*4, 2])
-                t_vel = tf.stop_gradient(t_vel)
+                    for _ in range(num_rand_frames)
+                ], axis=1),
+                [-1, num_rand_frames, height, width, 3]
+            )
+        flow_last_frames = [
+            tf.reshape(
+                tf.concat([
+                    rand_frames[:, -(i + 1):, :, :, :],
+                    inputs_d[:, :-(i + 2), :, :, :]
+                ], axis=1),
+                [-1, height, width, 3]
+            )
+            for i in range(num_rand_frames)
+        ]
+        target_frames_pre = tf.reshape(
+            targets_d[:, :-1, :, :, :],
+            [-1, height * 4, width * 4, 3]
+        )
+        flow = self.flow_model(
+            [input_frames, input_frames_pre] + flow_last_frames)
+        target_warp = DenseWarpLayer()([target_frames_pre, flow])
+        target_warp = tf.reshape(
+            target_warp, [-1, 18, height * 4, width * 4, 3])
+        flow = tf.reshape(flow, [-1, 18, height * 4, width * 4, 2])
+        # First frame uses random pre_warp
+        last_output = self.generator_model([
+            inputs[:, 0, :, :, :],
+            tf.random.uniform(output_shape, minval=-0.5,
+                              maxval=0.5, dtype=inputs.dtype)
+        ])
+        gen_outputs = [last_output]
+        gen_warp = []
+        for frame_i in range(18):
+            cur_flow = flow[:, frame_i, :, :, :]
+            gen_pre_output_warp = DenseWarpLayer()(
+                [last_output, cur_flow])
+            last_output = self.generator_model([
+                inputs_d[:, frame_i + 1, :, :, :],
+                gen_pre_output_warp
+            ])
+            gen_outputs.append(last_output)
+            gen_warp.append(gen_pre_output_warp)
+        gen_outputs = tf.reshape(
+            tf.stack(gen_outputs, axis=1),
+            [-1, 19, height * 4, width * 4, 3]
+        )
+        gen_warp = tf.reshape(
+            tf.stack(gen_warp, axis=1),
+            [-1, 18, height * 4, width * 4, 3]
+        )
+        vgg_real_output = self.vgg_model(
+            tf.reshape(targets, [-1, height * 4, width * 4, 3]),
+            training=False
+        )
+        vgg_real_output = [
+            tf.reshape(x, [-1, 10] + list(out.shape)[1:])
+            for x, out in zip(vgg_real_output, self.vgg_model.outputs)
+        ]
+        vgg_real_output = [
+            tf.concat([x, x[:, -2::-1]], axis=1)
+            for x in vgg_real_output
+        ]
+        vgg_fake_output = self.vgg_model(
+            tf.reshape(
+                gen_outputs, [-1, height * 4, width * 4, 3]),
+            training=False
+        )
+        vgg_fake_output = [
+            tf.reshape(x, [-1, 19] + list(out.shape)[1:])
+            for x, out in zip(vgg_fake_output, self.vgg_model.outputs)
+        ]
+        t_gen_outputs = tf.reshape(gen_outputs[:, :18, :, :, :],
+                                   [-1, height * 4, width * 4, 3])
+        t_targets = tf.reshape(targets_d[:, :18, :, :, :],
+                               [-1, height * 4, width * 4, 3])
+        t_inputs = tf.reshape(inputs_d[:, :18, :, :, :],
+                              [-1, height, width, 3])
+        inputs_hi = K.cast(UpscaleLayer(scale=4)(t_inputs), self.compute_dtype)
+        inputs_hi = tf.reshape(
+            inputs_hi, [-1, 3, height * 4, width * 4, 3])
+        inputs_hi = tf.transpose(inputs_hi, [0, 2, 3, 4, 1])
+        inputs_hi = tf.reshape(
+            inputs_hi, [-1, height * 4, width * 4, 9])
+        t_inputs_vpre_batch = flow[:, :18:3, :, :, :]
+        t_inputs_v_batch = tf.zeros_like(t_inputs_vpre_batch)
+        t_inputs_vnxt_batch = flow[:, -2:-19:-3, :, :, :]
+        t_vel = tf.stack([t_inputs_vpre_batch, t_inputs_v_batch,
+                          t_inputs_vnxt_batch], axis=2)
+        t_vel = tf.reshape(t_vel, [-1, height * 4, width * 4, 2])
+        t_vel = tf.stop_gradient(t_vel)
 
-                def get_warp(inputs):
-                    warp = DenseWarpLayer()([inputs, t_vel])
-                    warp = tf.reshape(
-                        warp, [-1, 3, crop_size*4, crop_size*4, 3])
-                    warp = tf.transpose(warp, [0, 2, 3, 4, 1])
-                    warp = tf.reshape(warp, [-1, crop_size*4, crop_size*4, 9])
-                    work_size = int(crop_size * 4 * 0.75)
-                    pad_size = crop_size * 2 - work_size // 2
-                    warp = warp[:, pad_size:pad_size+work_size,
-                                pad_size:pad_size+work_size, :]
-                    warp = tf.pad(warp, [[0, 0], [pad_size, pad_size],
-                                         [pad_size, pad_size], [0, 0]],
-                                  "CONSTANT")
-                    before_warp = tf.reshape(
-                        inputs, [-1, 3, crop_size*4, crop_size*4, 3])
-                    before_warp = tf.transpose(before_warp, [0, 2, 3, 4, 1])
-                    before_warp = tf.reshape(before_warp,
-                                             [-1, crop_size*4, crop_size*4, 9])
-                    warp = layers.Concatenate()([before_warp, warp, inputs_hi])
-                    return warp
+        def get_warp(inputs):
+            warp = DenseWarpLayer()([inputs, t_vel])
+            warp = tf.reshape(
+                warp, [-1, 3, height * 4, width * 4, 3])
+            warp = tf.transpose(warp, [0, 2, 3, 4, 1])
+            warp = tf.reshape(warp, [-1, height * 4, width * 4, 9])
+            work_size_h = height * 3
+            work_size_w = width * 3
+            pad_size_h = height * 2 - work_size_h // 2
+            pad_size_w = width * 2 - work_size_w // 2
+            warp = warp[:, pad_size_h:pad_size_h+work_size_h,
+                        pad_size_w:pad_size_w+work_size_w, :]
+            warp = tf.pad(warp, [[0, 0], [pad_size_h, pad_size_h],
+                                 [pad_size_w, pad_size_w], [0, 0]],
+                          "CONSTANT")
+            before_warp = tf.reshape(
+                inputs, [-1, 3, height * 4, height * 4, 3])
+            before_warp = tf.transpose(before_warp, [0, 2, 3, 4, 1])
+            before_warp = tf.reshape(before_warp,
+                                     [-1, height * 4, width * 4, 9])
+            warp = tf.concat([before_warp, warp, inputs_hi], axis=-1)
+            return warp
 
-                real_warp = get_warp(t_targets)
-                real_output = discriminator_model(real_warp)
-                real_output = [
-                    tf.reshape(x, [-1, 6] + list(out.shape)[1:])
-                    for x, out in zip(real_output, discriminator_model.outputs)
-                ]
-                fake_warp = get_warp(t_gen_outputs)
-                fake_output = discriminator_model(fake_warp)
-                fake_output = [
-                    tf.reshape(x, [-1, 6] + list(out.shape)[1:])
-                    for x, out in zip(fake_output, discriminator_model.outputs)
-                ]
-                return [gen_outputs,
-                        gen_warp,
-                        target_warp,
-                        vgg_real_output,
-                        vgg_fake_output,
-                        real_output,
-                        fake_output]
+        real_warp = get_warp(t_targets)
+        real_output = self.discriminator_model(real_warp)
+        real_output = [
+            tf.reshape(x, [-1, 6] + list(out.shape)[1:])
+            for x, out in zip(real_output, self.discriminator_model.outputs)
+        ]
+        fake_warp = get_warp(t_gen_outputs)
+        fake_output = self.discriminator_model(fake_warp)
+        fake_output = [
+            tf.reshape(x, [-1, 6] + list(out.shape)[1:])
+            for x, out in zip(fake_output, self.discriminator_model.outputs)
+        ]
 
-        [gen_outputs,
-         gen_warp,
-         target_warp,
-         vgg_real_output,
-         vgg_fake_output,
-         real_output,
-         fake_output] = InternalLayer(name="internal")(inputs, targets)
-
-        gen_outputs = layers.Identity(name="gen_outputs",
-                                      dtype="float32")(gen_outputs)
-        gen_warp = layers.Identity(name="gen_warp",
-                                   dtype="float32")(gen_warp)
-        target_warp = layers.Identity(
-            name="target_warp", dtype="float32")(target_warp)
-        vgg_real_output = layers.Identity(name="vgg_real_output",
-                                          dtype="float32")(vgg_real_output)
-        vgg_fake_output = layers.Identity(name="vgg_fake_output",
-                                          dtype="float32")(vgg_fake_output)
-        real_output = layers.Identity(name="real_output",
-                                      dtype="float32")(real_output)
-        fake_output = layers.Identity(name="fake_output",
-                                      dtype="float32")(fake_output)
+        gen_outputs = K.cast(gen_outputs, self.dtype)
+        gen_warp = K.cast(gen_warp, self.dtype)
+        target_warp = K.cast(target_warp, self.dtype)
+        vgg_real_output = [K.cast(x, self.dtype) for x in vgg_real_output]
+        vgg_fake_output = [K.cast(x, self.dtype) for x in vgg_fake_output]
+        real_output = [K.cast(x, self.dtype) for x in real_output]
+        fake_output = [K.cast(x, self.dtype) for x in fake_output]
         return {
-            "inputs": [inputs, targets],
-            "outputs": {
-                "gen_outputs": gen_outputs,
-                "gen_warp": gen_warp,
-                "target_warp": target_warp,
-                "real_output": real_output,
-                "fake_output": fake_output,
-                "vgg_real_output": vgg_real_output,
-                "vgg_fake_output": vgg_fake_output,
-            }
+            "gen_outputs": gen_outputs,
+            "gen_warp": gen_warp,
+            "target_warp": target_warp,
+            "real_output": real_output,
+            "fake_output": fake_output,
+            "vgg_real_output": vgg_real_output,
+            "vgg_fake_output": vgg_fake_output,
         }

@@ -808,7 +808,6 @@ def get_inference_model(
 
 def get_frvsr_single(
     inference_model: keras.Model,
-    crop_size: int,
     learning_rate: Any = 0.0005,
     steps_per_execution: int = 1,
     regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
@@ -829,8 +828,6 @@ def get_frvsr_single(
     ----------
     inference_model: keras.Model
         Inference model
-    crop_size: int
-        Image size
     learning_rate: Any
         Learning rate
     steps_per_execution: int
@@ -845,7 +842,6 @@ def get_frvsr_single(
     """
     model = FRVSRModelSingle(
         inference_model=inference_model,
-        crop_size=crop_size,
         name=name
     )
     if regularization is not None:
@@ -861,7 +857,6 @@ def get_frvsr(
     inference_model: keras.Model,
     flow_model: keras.Model,
     generator_model: keras.Model,
-    crop_size: int,
     learning_rate: LearningRateSchedule = 0.0005,
     steps_per_execution: int = 1,
     regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
@@ -886,8 +881,6 @@ def get_frvsr(
         Flow model
     generator_model: keras.Model
         Generator model
-    crop_size: int
-        Image size
     learning_rate: LearningRateSchedule
         Learning rate
     steps_per_execution: int
@@ -904,7 +897,6 @@ def get_frvsr(
         inference_model=inference_model,
         flow_model=flow_model,
         generator_model=generator_model,
-        crop_size=crop_size,
         name=name
     )
     if regularization is not None:
@@ -976,7 +968,6 @@ def get_gan(
     flow_model: keras.Model,
     discriminator_model: keras.Model,
     vgg_model: keras.Model,
-    crop_size: int,
     learning_rate: LearningRateSchedule = 0.0005,
     loss_config: Union[None, Dict[str, Any]] = None,
     steps_per_execution: int = 1,
@@ -1016,8 +1007,6 @@ def get_gan(
         Discriminator model
     vgg_model: keras.Model
         VGG19 model
-    crop_size: int
-        Image size
     learning_rate: LearningRateSchedule
         Learning rate
     loss_config: Union[None, Dict[str, Any]]
@@ -1039,7 +1028,6 @@ def get_gan(
         discriminator_model=discriminator_model,
         vgg_model=vgg_model,
         loss_config=loss_config,
-        crop_size=crop_size,
         name=name,
     )
     if regularization is not None:
