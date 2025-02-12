@@ -298,6 +298,17 @@ class FRVSRModel(JoshUpscaleModel):
         output_shape = tf.shape(targets[:, 0, :, :, :])
         height = input_shape[1]
         width = input_shape[2]
+        if self.normalize_brightness:
+            brightness = tf.math.reduce_mean(
+                inputs * BGR_LUMA * 3,
+                axis=[2, 3, 4]
+            )[:, :, tf.newaxis, tf.newaxis, tf.newaxis]
+            inputs_flow = inputs - brightness
+            targets_pre = targets[:, :-1, :, :, :] - \
+                brightness[:, :-1, :, :, :] + brightness[:, 1:, :, :, :]
+        else:
+            inputs_flow = inputs
+            targets_pre = targets[:, :-1, :, :, :]
         num_rand_frames = len(self.flow_model.inputs) - 2
         if num_rand_frames > 0:
             # Random last frames for flow generation
@@ -317,23 +328,12 @@ class FRVSRModel(JoshUpscaleModel):
             tf.reshape(
                 tf.concat([
                     rand_frames[:, -(i + 1):, :, :, :],
-                    inputs[:, :-(i + 2), :, :, :]
+                    inputs_flow[:, :-(i + 2), :, :, :]
                 ], axis=1),
                 [-1, height, width, 3]
             )
             for i in range(num_rand_frames)
         ]
-        if self.normalize_brightness:
-            brightness = tf.math.reduce_mean(
-                inputs * BGR_LUMA * 3,
-                axis=[2, 3, 4]
-            )[:, :, tf.newaxis, tf.newaxis, tf.newaxis]
-            inputs_flow = inputs - brightness
-            targets_pre = targets[:, :-1, :, :, :] - \
-                brightness[:, :-1, :, :, :] + brightness[:, 1:, :, :, :]
-        else:
-            inputs_flow = inputs
-            targets_pre = targets[:, :-1, :, :, :]
         input_frames = tf.reshape(inputs_flow[:, 1:, :, :, :],
                                   [-1, height, width, 3])
         input_frames_pre = tf.reshape(inputs_flow[:, :-1, :, :, :],
