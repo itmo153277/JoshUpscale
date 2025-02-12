@@ -694,6 +694,8 @@ def get_inference_model(
     Outputs:
     - output: (N x H*4 x W*4 x 3) - upscaled frame (uint8)
                                     omitted if skip_processing
+    - output_denorm: (N x H*4 x W*4 x 3) - upscaled frame with true brightness
+                                           (float32)
     - output_raw: (N x H*4 x W*4 x 3) - upscaled frame (float32)
     - pre_warp: (N x H*4 x W*4 x 3) - warped previous upscaled frame
     - last_frames: num_flow_frames-1 x (N x PH x PW x 3) - new previous frames
@@ -778,7 +780,7 @@ def get_inference_model(
     if normalize_brightness:
         brightness = layers.Lambda(
             lambda x: ops.expand_dims(
-                ops.mean(x * BGR_LUMA, axis=[1, 2, 3]),
+                ops.mean(x * BGR_LUMA * 3, axis=[1, 2, 3]),
                 [1, 2, 3]))(cur_frame_proc)
         cur_frame_pad -= brightness
     flow = flow_model([cur_frame_pad] + last_frames)
@@ -799,15 +801,19 @@ def get_inference_model(
     output = PostprocessLayer(
         name="postprocess",
     )(output_raw)
+    output_denorm = output_raw
     if normalize_brightness:
         output_raw -= brightness
     pre_warp = layers.Identity(name="pre_warp", dtype="float32")(pre_warp)
+    output_denorm = layers.Identity(
+        name="output_denorm", dtype="float32")(output_denorm)
     output_raw = layers.Identity(
         name="output_raw", dtype="float32")(output_raw)
     output = layers.Identity(name="output", dtype=frame_dtype)(output)
     outputs = {}
     if not skip_processing:
         outputs["output"] = output
+    outputs["output_denorm"] = output_denorm
     outputs["output_raw"] = output_raw
     outputs["pre_warp"] = pre_warp
     outputs["last_frames"] = [cur_frame_pad] + last_frames[:-1]

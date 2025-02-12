@@ -70,7 +70,7 @@ class JoshUpscaleModel(keras.Model):
                 training=False
             )
             last_output = outputs["output_raw"]
-            gen_outputs.append(last_output)
+            gen_outputs.append(outputs["output_denorm"])
             if i > 0:
                 pre_warps.append(outputs["pre_warp"])
             last_frames = outputs["last_frames"]
@@ -325,7 +325,7 @@ class FRVSRModel(JoshUpscaleModel):
         ]
         if self.normalize_brightness:
             brightness = tf.math.reduce_mean(
-                inputs * BGR_LUMA,
+                inputs * BGR_LUMA * 3,
                 axis=[2, 3, 4]
             )[:, :, tf.newaxis, tf.newaxis, tf.newaxis]
             inputs_flow = inputs - brightness
