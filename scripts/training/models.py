@@ -777,7 +777,9 @@ def get_inference_model(
         )(cur_frame_proc)
     if normalize_brightness:
         brightness = layers.Lambda(
-            lambda x: ops.mean(x * BGR_LUMA, axis=[1, 2, 3]))(cur_frame_proc)
+            lambda x: ops.expand_dims(
+                ops.mean(x * BGR_LUMA, axis=[1, 2, 3]),
+                [1, 2, 3]))(cur_frame_proc)
         cur_frame_pad -= brightness
     flow = flow_model([cur_frame_pad] + last_frames)
     if padded_width != frame_width or padded_height != frame_height:
