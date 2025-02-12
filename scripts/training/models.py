@@ -15,6 +15,7 @@ from tensorflow.keras import regularizers
 from keras_layers import SpaceToDepth, DepthToSpace, UpscaleLayer, ClipLayer, \
     PreprocessLayer, PostprocessLayer, DenseWarpLayer, FadeInLayer
 from keras_models import FRVSRModelSingle, FRVSRModel, GANModel
+from utils import BGR_LUMA
 
 LOG = logging.getLogger("models")
 
@@ -776,10 +777,7 @@ def get_inference_model(
         )(cur_frame_proc)
     if normalize_brightness:
         brightness = layers.Lambda(
-            lambda x: ops.mean(
-                ops.image.rgb_to_grayscale(x),
-                axis=[1, 2]
-            ))(cur_frame_proc)
+            lambda x: ops.mean(x * BGR_LUMA, axis=[1, 2, 3]))(cur_frame_proc)
         cur_frame_pad -= brightness
     flow = flow_model([cur_frame_pad] + last_frames)
     if padded_width != frame_width or padded_height != frame_height:
@@ -871,6 +869,7 @@ def get_frvsr(
     flow_model: keras.Model,
     generator_model: keras.Model,
     learning_rate: LearningRateSchedule = 0.0005,
+    normalize_brightness: bool = False,
     steps_per_execution: int = 1,
     regularization: Union[Dict[str, Regularizer], Regularizer, None] = None,
     name: str = "frvsr",
@@ -896,6 +895,8 @@ def get_frvsr(
         Generator model
     learning_rate: LearningRateSchedule
         Learning rate
+    normalize_brightness: bool
+        Normalize brightness for flow
     steps_per_execution: int
         Steps per single execution
     regularization: Union[Dict[str, Regularizer], Regularizer, None]
@@ -910,6 +911,7 @@ def get_frvsr(
         inference_model=inference_model,
         flow_model=flow_model,
         generator_model=generator_model,
+        normalize_brightness=normalize_brightness,
         name=name
     )
     if regularization is not None:

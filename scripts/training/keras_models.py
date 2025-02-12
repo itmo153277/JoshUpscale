@@ -11,6 +11,7 @@ from tensorflow.keras import ops
 from keras.src.utils.tracking import DotNotTrackScope
 from keras_layers import DenseWarpLayer, UpscaleLayer
 from keras_metrics import CounterMetric, ExponentialMovingAvg
+from utils import BGR_LUMA
 
 
 class JoshUpscaleModel(keras.Model):
@@ -190,7 +191,7 @@ class FRVSRModel(JoshUpscaleModel):
     # pylint: disable=invalid-name
 
     def __init__(self, generator_model: keras.Model, flow_model: keras.Model,
-                 **kwargs) -> None:
+                 normalize_brightness: bool = False, **kwargs) -> None:
         """Create FRVSRModel.
 
         Parameters
@@ -201,13 +202,30 @@ class FRVSRModel(JoshUpscaleModel):
             Flow model
         inference_model: keras.Model
             Inference model (for JoshUpscaleModel)
+        normalize_brightness: bool
+            Normalize brightness for flow
         """
         super().__init__(**kwargs)
         self.generator_model = generator_model
         self.flow_model = flow_model
+        self.normalize_brightness = normalize_brightness
         self.gen_outputs_loss_tr = keras.metrics.Mean(name="gen_outputs_loss")
         self.target_warp_loss_tr = keras.metrics.Mean(name="target_warp_loss")
         self.loss_tr = keras.metrics.Mean(name="loss")
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get model config.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Model config
+        """
+        config = super().get_config()
+        return {
+            **config,
+            "normalize_brightness": self.normalize_brightness,
+        }
 
     @property
     def metrics(self):
@@ -280,10 +298,6 @@ class FRVSRModel(JoshUpscaleModel):
         output_shape = tf.shape(targets[:, 0, :, :, :])
         height = input_shape[1]
         width = input_shape[2]
-        input_frames = tf.reshape(inputs[:, 1:, :, :, :],
-                                  [-1, height, width, 3])
-        input_frames_pre = tf.reshape(inputs[:, :-1, :, :, :],
-                                      [-1, height, width, 3])
         num_rand_frames = len(self.flow_model.inputs) - 2
         if num_rand_frames > 0:
             # Random last frames for flow generation
@@ -309,10 +323,23 @@ class FRVSRModel(JoshUpscaleModel):
             )
             for i in range(num_rand_frames)
         ]
+        if self.normalize_brightness:
+            brightness = tf.math.reduce_mean(
+                inputs * BGR_LUMA,
+                axis=[2, 3, 4]
+            )[:, :, tf.newaxis, tf.newaxis, tf.newaxis]
+            inputs_flow = inputs - brightness
+            targets_pre = targets[:, :-1, :, :, :] - \
+                brightness[:, :-1, :, :, :] + brightness[:, 1:, :, :, :]
+        else:
+            inputs_flow = inputs
+            targets_pre = targets[:, :-1, :, :, :]
+        input_frames = tf.reshape(inputs_flow[:, 1:, :, :, :],
+                                  [-1, height, width, 3])
+        input_frames_pre = tf.reshape(inputs_flow[:, :-1, :, :, :],
+                                      [-1, height, width, 3])
         target_frames_pre = tf.reshape(
-            targets[:, :-1, :, :, :],
-            [-1, height * 4, width * 4, 3]
-        )
+            targets_pre, [-1, height * 4, width * 4, 3])
         flow = self.flow_model(
             [input_frames, input_frames_pre] + flow_last_frames)
         target_warp = DenseWarpLayer()([target_frames_pre, flow])
@@ -328,6 +355,9 @@ class FRVSRModel(JoshUpscaleModel):
         gen_outputs = [last_output]
         for frame_i in range(9):
             cur_flow = flow[:, frame_i, :, :, :]
+            if self.normalize_brightness:
+                last_output -= brightness[:, frame_i]
+                last_output += brightness[:, frame_i + 1]
             gen_pre_output_warp = DenseWarpLayer()(
                 [last_output, cur_flow])
             last_output = self.generator_model([

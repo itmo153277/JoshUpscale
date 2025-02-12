@@ -144,3 +144,6 @@ def display_data(dataset: tf.data.Dataset, num_img: int) -> None:
                 sp.axis("off")
                 plt.imshow(data["target"][ind, i][:, :, ::-1] + 0.5)
     plt.show()
+
+
+BGR_LUMA = [0.1140, 0.5870, 0.2989]
