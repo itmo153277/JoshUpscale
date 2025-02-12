@@ -74,6 +74,14 @@ def main(
 
     out_name = graph.find_node_by_name(OUT_NODE).input[0]
     grid_inp = graph.find_node_by_name(GRID_NODE).input[0]
+    parent = graph.find_node_by_output(out_name)
+    parent =  graph.find_node_by_output(parent.input[0])
+    if parent.op_type == "Add":
+        graph.remove_node(parent)
+        parent.output[0] = out_name
+        parent.input[0] = "grid_out"
+        out_name = "grid_out"
+        graph.insert_node(parent)
     img_inp = graph.inputs[1].name
     width = graph.inputs[1].type.tensor_type.shape.dim[3].dim_value
     height = graph.inputs[1].type.tensor_type.shape.dim[2].dim_value

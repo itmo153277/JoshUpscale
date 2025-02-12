@@ -7,7 +7,7 @@ from typing import Any, Dict, Union
 import warnings
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import backend as K
+from tensorflow.keras import ops
 from keras.src.utils.tracking import DotNotTrackScope
 from keras_layers import DenseWarpLayer, UpscaleLayer
 from keras_metrics import CounterMetric, ExponentialMovingAvg
@@ -339,8 +339,8 @@ class FRVSRModel(JoshUpscaleModel):
             tf.stack(gen_outputs, axis=1),
             [-1, 10, height * 4, width * 4, 3]
         )
-        gen_outputs = K.cast(gen_outputs, self.dtype)
-        target_warp = K.cast(target_warp, self.dtype)
+        gen_outputs = ops.cast(gen_outputs, self.dtype)
+        target_warp = ops.cast(target_warp, self.dtype)
         return {"gen_outputs": gen_outputs, "target_warp": target_warp}
 
 
@@ -825,7 +825,8 @@ class GANModel(JoshUpscaleModel):
                                [-1, height * 4, width * 4, 3])
         t_inputs = tf.reshape(inputs_d[:, :18, :, :, :],
                               [-1, height, width, 3])
-        inputs_hi = K.cast(UpscaleLayer(scale=4)(t_inputs), self.compute_dtype)
+        inputs_hi = ops.cast(UpscaleLayer(scale=4)(t_inputs),
+                             self.compute_dtype)
         inputs_hi = tf.reshape(
             inputs_hi, [-1, 3, height * 4, width * 4, 3])
         inputs_hi = tf.transpose(inputs_hi, [0, 2, 3, 4, 1])
@@ -875,13 +876,13 @@ class GANModel(JoshUpscaleModel):
             for x, out in zip(fake_output, self.discriminator_model.outputs)
         ]
 
-        gen_outputs = K.cast(gen_outputs, self.dtype)
-        gen_warp = K.cast(gen_warp, self.dtype)
-        target_warp = K.cast(target_warp, self.dtype)
-        vgg_real_output = [K.cast(x, self.dtype) for x in vgg_real_output]
-        vgg_fake_output = [K.cast(x, self.dtype) for x in vgg_fake_output]
-        real_output = [K.cast(x, self.dtype) for x in real_output]
-        fake_output = [K.cast(x, self.dtype) for x in fake_output]
+        gen_outputs = ops.cast(gen_outputs, self.dtype)
+        gen_warp = ops.cast(gen_warp, self.dtype)
+        target_warp = ops.cast(target_warp, self.dtype)
+        vgg_real_output = [ops.cast(x, self.dtype) for x in vgg_real_output]
+        vgg_fake_output = [ops.cast(x, self.dtype) for x in vgg_fake_output]
+        real_output = [ops.cast(x, self.dtype) for x in real_output]
+        fake_output = [ops.cast(x, self.dtype) for x in fake_output]
         return {
             "gen_outputs": gen_outputs,
             "gen_warp": gen_warp,

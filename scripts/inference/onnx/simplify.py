@@ -5,6 +5,7 @@
 
 import sys
 import argparse
+from typing import Union
 import onnx
 from onnx import version_converter
 from utils import simplify_model, get_opset_version
@@ -34,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--opset",
                         help="Opset",
                         type=int,
-                        default=12)
+                        default=None)
     return parser.parse_args()
 
 
@@ -47,7 +48,7 @@ def main(
     model_path: str,
     output_path: str,
     num_checks: int,
-    opset: int,
+    opset: Union[int, None] = None,
 ) -> int:
     """
     Run CLI.
@@ -60,16 +61,8 @@ def main(
         Output path
     num_checks: int
         Number of simplifier checks
-    strength: float
-        Filter strength
-    window: int
-        Scene detection window
-    threshold: float
-        Scene detection threshold
-    gain: float
-        Scene detection gain
-    norm: NormType
-        Scene detection norm type
+    opset: Union[int, None]
+        Opset
 
     Returns
     -------
@@ -77,7 +70,7 @@ def main(
         Exit code
     """
     model = onnx.load(model_path)
-    if get_opset_version(model) != opset:
+    if opset is not None and get_opset_version(model) != opset:
         model = version_converter.convert_version(model, opset)
     model = simplify_model(
         model,

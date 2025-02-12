@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras import backend as K
+from tensorflow.keras import ops
 from tensorflow.keras.optimizers import schedules
 from tensorflow.keras import applications
 from tensorflow.keras import regularizers
@@ -184,8 +184,7 @@ def add_regularization(model: keras.Model,
         reg = get_regularizer(reg_config)
 
         for w in weights:
-            with K.name_scope(get_scoped_name(w.name, "reg")):
-                model.losses.append(lambda: reg(w))
+            model.losses.append(lambda: reg(w))
 
 
 def res_block(inp: tf.Tensor, num_filters: int,
@@ -575,7 +574,7 @@ def get_generator_resnet(
         name="conv_trans_2",
     )(out)
     out = layers.Activation(
-        K.tanh,
+        ops.tanh,
         name="a_3",
     )(out)
     upscaled = UpscaleLayer(
@@ -681,6 +680,7 @@ def get_inference_model(
     frame_height: Union[int, None] = None,
     frame_width: Union[int, None] = None,
     flow_pad_factor: Union[int, None] = None,
+    normalize_brightness: bool = False,
     name: str = "inference"
 ) -> keras.Model:
     """Create inference model.
@@ -712,6 +712,8 @@ def get_inference_model(
         Frame width
     flow_pad_factor: Union[int, None]
         Pad frame sizes for flow model
+    normalize_brightness: bool
+        Normalize brightness for flow computation
 
     Returns
     -------
@@ -772,6 +774,13 @@ def get_inference_model(
             ),
             name="pad",
         )(cur_frame_proc)
+    if normalize_brightness:
+        brightness = layers.Lambda(
+            lambda x: ops.mean(
+                ops.image.rgb_to_grayscale(x),
+                axis=[1, 2]
+            ))(cur_frame_proc)
+        cur_frame_pad -= brightness
     flow = flow_model([cur_frame_pad] + last_frames)
     if padded_width != frame_width or padded_height != frame_height:
         offset_x = ((padded_width - frame_width) // 2) * 4
@@ -784,10 +793,14 @@ def get_inference_model(
     pre_warp = DenseWarpLayer(
         name="dense_warp",
     )([pre_gen, flow])
+    if normalize_brightness:
+        pre_warp += brightness
     output_raw = generator_model([cur_frame_proc, pre_warp])
     output = PostprocessLayer(
         name="postprocess",
     )(output_raw)
+    if normalize_brightness:
+        output_raw -= brightness
     pre_warp = layers.Identity(name="pre_warp", dtype="float32")(pre_warp)
     output_raw = layers.Identity(
         name="output_raw", dtype="float32")(output_raw)
@@ -1064,21 +1077,22 @@ def get_onnx_model(inference_model: keras.Model,
         for idx, x in enumerate(inference_model.inputs)
     ]
     inputs_pr = [
-        layers.Lambda(lambda x: K.permute_dimensions(
-            x, pattern=[0, 2, 3, 1]))(inp) if idx != 0 else inp
+        layers.Lambda(lambda x: ops.transpose(
+            x, axes=[0, 2, 3, 1]))(inp) if idx != 0 else inp
         for idx, inp in enumerate(inputs)
     ]
     outputs = inference_model(inputs_pr)
     outputs = [outputs["output"]] + [
-        layers.Lambda(lambda x: K.permute_dimensions(
-            x, pattern=[0, 3, 1, 2]), dtype=output.dtype)(output)
+        layers.Lambda(lambda x: ops.transpose(
+            x, axes=[0, 3, 1, 2]), dtype=output.dtype)(output)
         for output in [outputs["output_raw"]] + outputs["last_frames"]
     ]
     outputs = [
         layers.Identity(name=x, dtype=output.dtype)(output)
         for x, output in zip(
             ["output", "output_raw"] +
-            [f"out_frame_{i}" for i in range(len(inference_model.outputs) - 2)], outputs
+            [f"out_frame_{i}" for i in range(
+                len(inference_model.outputs) - 2)], outputs
         )
     ]
     inference_model = keras.Model(

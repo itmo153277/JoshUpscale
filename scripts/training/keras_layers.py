@@ -5,8 +5,8 @@
 from typing import Any, Dict, Sequence
 import tensorflow as tf
 from tfa.dense_image_warp import dense_image_warp
-from tensorflow.keras import backend as K
 from tensorflow.keras import layers
+from tensorflow.keras import ops
 
 
 class UpscaleLayer(layers.Layer):
@@ -226,7 +226,7 @@ class PostprocessLayer(layers.Layer):
         """
         out = inputs
         out = (out + 0.5) * 255
-        out = K.cast(out, "uint8")
+        out = ops.cast(out, "uint8")
         return out
 
 
@@ -263,7 +263,7 @@ class ClipLayer(layers.Layer):
         tf.Tensor
             Output tensor
         """
-        return K.clip(inputs, self.min_val, self.max_val)
+        return ops.clip(inputs, self.min_val, self.max_val)
 
     def get_config(self) -> Dict[str, Any]:
         """Get layer config.
