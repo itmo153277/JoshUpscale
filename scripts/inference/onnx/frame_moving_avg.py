@@ -77,6 +77,10 @@ def parse_args() -> argparse.Namespace:
                         type=NormType.argparse_value,
                         choices=list(NormType),
                         default=NormType.L1)
+    parser.add_argument("-l", "--limit",
+                        help="Limit pre_warp output to output range",
+                        action="store_true",
+                        default=False)
     return parser.parse_args()
 
 
@@ -94,6 +98,7 @@ def main(
     threshold: float,
     gain: float,
     norm: NormType,
+    limit: bool,
 ) -> int:
     """
     Run CLI.
@@ -116,6 +121,8 @@ def main(
         Scene detection gain
     norm: NormType
         Scene detection norm type
+    limit: bool
+        Limit pre_warp to output range
 
     Returns
     -------
@@ -135,6 +142,17 @@ def main(
     graph.remove_node(target_node)
     target_node.output[0] = "output_pre_mask"
     graph.insert_node(target_node)
+
+    if limit:
+        graph.create_constant(
+            "output_pre_limit_min_val", np.float32(0.5))
+        graph.create_constant(
+            "output_pre_limit_max_val", np.float32(-0.5))
+        graph.create_node("output_pre_limit_min", "Min",
+                          [input_tensor, "output_pre_limit_min_val"])
+        graph.create_node("output_pre_limit_max", "Max",
+                          ["output_pre_limit_min", "output_pre_limit_max_val"])
+        input_tensor = "output_pre_limit_max"
 
     gain_coef = 1.0 if gain == 0 else gain
 

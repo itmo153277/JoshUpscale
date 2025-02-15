@@ -781,7 +781,9 @@ def get_inference_model(
         brightness = layers.Lambda(
             lambda x: ops.expand_dims(
                 ops.mean(x * BGR_LUMA * 3, axis=[1, 2, 3]),
-                [1, 2, 3]))(cur_frame_proc)
+                [1, 2, 3]),
+            name="brightness",
+        )(cur_frame_proc)
         cur_frame_pad -= brightness
     flow = flow_model([cur_frame_pad] + last_frames)
     if padded_width != frame_width or padded_height != frame_height:
@@ -991,6 +993,7 @@ def get_gan(
     flow_model: keras.Model,
     discriminator_model: keras.Model,
     vgg_model: keras.Model,
+    normalize_brightness: bool = False,
     learning_rate: LearningRateSchedule = 0.0005,
     loss_config: Union[None, Dict[str, Any]] = None,
     steps_per_execution: int = 1,
@@ -1030,6 +1033,8 @@ def get_gan(
         Discriminator model
     vgg_model: keras.Model
         VGG19 model
+    normalize_brightness: bool
+        Normalize brightness for flow
     learning_rate: LearningRateSchedule
         Learning rate
     loss_config: Union[None, Dict[str, Any]]
@@ -1050,6 +1055,7 @@ def get_gan(
         flow_model=flow_model,
         discriminator_model=discriminator_model,
         vgg_model=vgg_model,
+        normalize_brightness=normalize_brightness,
         loss_config=loss_config,
         name=name,
     )

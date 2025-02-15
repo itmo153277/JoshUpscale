@@ -113,6 +113,7 @@ class FRVSRModelSingle(keras.Model):
         self.gen_outputs_loss_tr = keras.metrics.Mean(name="gen_outputs_loss")
         self.target_warp_loss_tr = keras.metrics.Mean(name="target_warp_loss")
         self.loss_tr = keras.metrics.Mean(name="loss")
+        self.build(None)
 
     @property
     def metrics(self):
@@ -212,6 +213,7 @@ class FRVSRModel(JoshUpscaleModel):
         self.gen_outputs_loss_tr = keras.metrics.Mean(name="gen_outputs_loss")
         self.target_warp_loss_tr = keras.metrics.Mean(name="target_warp_loss")
         self.loss_tr = keras.metrics.Mean(name="loss")
+        self.build(None)
 
     def get_config(self) -> Dict[str, Any]:
         """Get model config.
@@ -303,12 +305,11 @@ class FRVSRModel(JoshUpscaleModel):
                 inputs * BGR_LUMA * 3,
                 axis=[2, 3, 4]
             )[:, :, tf.newaxis, tf.newaxis, tf.newaxis]
+            brightness_diff = brightness[:, 1:, :, :, :] - \
+                brightness[:, :-1, :, :, :]
             inputs_flow = inputs - brightness
-            targets_pre = targets[:, :-1, :, :, :] - \
-                brightness[:, :-1, :, :, :] + brightness[:, 1:, :, :, :]
         else:
             inputs_flow = inputs
-            targets_pre = targets[:, :-1, :, :, :]
         num_rand_frames = len(self.flow_model.inputs) - 2
         if num_rand_frames > 0:
             # Random last frames for flow generation
@@ -338,13 +339,15 @@ class FRVSRModel(JoshUpscaleModel):
                                   [-1, height, width, 3])
         input_frames_pre = tf.reshape(inputs_flow[:, :-1, :, :, :],
                                       [-1, height, width, 3])
-        target_frames_pre = tf.reshape(
-            targets_pre, [-1, height * 4, width * 4, 3])
+        target_frames_pre = tf.reshape(targets[:, :-1, :, :, :],
+                                       [-1, height * 4, width * 4, 3])
         flow = self.flow_model(
             [input_frames, input_frames_pre] + flow_last_frames)
         target_warp = DenseWarpLayer()([target_frames_pre, flow])
         target_warp = tf.reshape(
             target_warp, [-1, 9, height * 4, width * 4, 3])
+        if self.normalize_brightness:
+            target_warp += brightness_diff
         flow = tf.reshape(flow, [-1, 9, height * 4, width * 4, 2])
         # First frame uses random pre_warp
         last_output = self.generator_model([
@@ -356,8 +359,7 @@ class FRVSRModel(JoshUpscaleModel):
         for frame_i in range(9):
             cur_flow = flow[:, frame_i, :, :, :]
             if self.normalize_brightness:
-                last_output -= brightness[:, frame_i]
-                last_output += brightness[:, frame_i + 1]
+                last_output += brightness_diff[:, frame_i]
             gen_pre_output_warp = DenseWarpLayer()(
                 [last_output, cur_flow])
             last_output = self.generator_model([
@@ -386,6 +388,7 @@ class GANModel(JoshUpscaleModel):
         flow_model: keras.Model,
         discriminator_model: keras.Model,
         vgg_model: keras.Model,
+        normalize_brightness: bool = False,
         loss_config: Union[None, Dict[str, Any]] = None,
         **kwargs
     ) -> None:
@@ -401,6 +404,8 @@ class GANModel(JoshUpscaleModel):
             Discriminator model
         vgg: keras.Model
             VGG19 model
+        normalize_brightness: bool
+            Normalize brightness for flow
         loss_config: Union[None, Dict[str, Any]]
             Loss configuration
         """
@@ -409,6 +414,7 @@ class GANModel(JoshUpscaleModel):
         self.flow_model = flow_model
         self.discriminator_model = discriminator_model
         self.vgg_model = vgg_model
+        self.normalize_brightness = normalize_brightness
         self.loss_config = GANModel._get_loss_config(loss_config)
         self.content_loss_tr = keras.metrics.Mean(name="content_loss")
         self.warp_loss_tr = keras.metrics.Mean(name="warp_loss")
@@ -425,6 +431,7 @@ class GANModel(JoshUpscaleModel):
         self.discr_steps_tr = CounterMetric(name="discr_steps")
         self.t_balance1_avg = ExponentialMovingAvg(decay=0.99)
         self.t_balance2_avg = ExponentialMovingAvg(decay=0.99)
+        self.build(None)
 
     @property
     def metrics(self):
@@ -763,9 +770,21 @@ class GANModel(JoshUpscaleModel):
         targets_rev = targets[:, -2::-1, :, :, :]
         inputs_d = tf.concat([inputs, inputs_rev], axis=1)
         targets_d = tf.concat([targets, targets_rev], axis=1)
-        input_frames = tf.reshape(inputs_d[:, 1:, :, :, :],
+        if self.normalize_brightness:
+            brightness = tf.math.reduce_mean(
+                inputs * BGR_LUMA * 3,
+                axis=[2, 3, 4]
+            )[:, :, tf.newaxis, tf.newaxis, tf.newaxis]
+            brightness_rev = brightness[:, -2::-1, :, :, :]
+            brightness_d = tf.concat([brightness, brightness_rev], axis=1)
+            brightness_diff = brightness_d[:, 1:, :, :, :] - \
+                brightness_d[:, :-1, :, :, :]
+            inputs_flow_d = inputs_d - brightness_d
+        else:
+            inputs_flow_d = inputs_d
+        input_frames = tf.reshape(inputs_flow_d[:, 1:, :, :, :],
                                   [-1, height, width, 3])
-        input_frames_pre = tf.reshape(inputs_d[:, :-1, :, :, :],
+        input_frames_pre = tf.reshape(inputs_flow_d[:, :-1, :, :, :],
                                       [-1, height, width, 3])
         num_rand_frames = len(self.flow_model.inputs) - 2
         if num_rand_frames > 0:
@@ -786,7 +805,7 @@ class GANModel(JoshUpscaleModel):
             tf.reshape(
                 tf.concat([
                     rand_frames[:, -(i + 1):, :, :, :],
-                    inputs_d[:, :-(i + 2), :, :, :]
+                    inputs_flow_d[:, :-(i + 2), :, :, :]
                 ], axis=1),
                 [-1, height, width, 3]
             )
@@ -801,6 +820,8 @@ class GANModel(JoshUpscaleModel):
         target_warp = DenseWarpLayer()([target_frames_pre, flow])
         target_warp = tf.reshape(
             target_warp, [-1, 18, height * 4, width * 4, 3])
+        if self.normalize_brightness:
+            target_warp += brightness_diff
         flow = tf.reshape(flow, [-1, 18, height * 4, width * 4, 2])
         # First frame uses random pre_warp
         last_output = self.generator_model([
@@ -812,6 +833,8 @@ class GANModel(JoshUpscaleModel):
         gen_warp = []
         for frame_i in range(18):
             cur_flow = flow[:, frame_i, :, :, :]
+            if self.normalize_brightness:
+                last_output += brightness_diff[:, frame_i]
             gen_pre_output_warp = DenseWarpLayer()(
                 [last_output, cur_flow])
             last_output = self.generator_model([
@@ -855,6 +878,12 @@ class GANModel(JoshUpscaleModel):
                                [-1, height * 4, width * 4, 3])
         t_inputs = tf.reshape(inputs_d[:, :18, :, :, :],
                               [-1, height, width, 3])
+        if self.normalize_brightness:
+            t_brightness = tf.reshape(brightness_d[:, :18, :, :, :],
+                                      [-1, 1, 1, 1])
+            t_gen_outputs -= t_brightness
+            t_targets -= t_brightness
+            t_inputs -= t_brightness
         inputs_hi = ops.cast(UpscaleLayer(scale=4)(t_inputs),
                              self.compute_dtype)
         inputs_hi = tf.reshape(
