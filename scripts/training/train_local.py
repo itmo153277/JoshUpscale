@@ -117,6 +117,7 @@ def get_callbacks(
         if monitor_metric is not None:
             callbacks.append(keras.callbacks.ModelCheckpoint(
                 f"{checkpoint_dir}/best.weights.h5",
+                mode="min",
                 monitor=monitor_metric,
                 save_best_only=True,
                 save_weights_only=True
@@ -129,6 +130,7 @@ def get_callbacks(
     if early_stopping > 0:
         callbacks.append(keras.callbacks.EarlyStopping(
             monitor=monitor_metric,
+            mode="min",
             patience=early_stopping,
             verbose=1,
         ))

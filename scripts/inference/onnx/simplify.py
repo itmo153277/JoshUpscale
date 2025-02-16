@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
         Parsed arguments
     """
     parser = argparse.ArgumentParser(
-        description="Change model output to moving average")
+        description="Simplify model")
     parser.add_argument("model_path",
                         help="Model",
                         type=str)

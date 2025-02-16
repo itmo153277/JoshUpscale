@@ -8,7 +8,6 @@ import warnings
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import ops
-from keras.src.utils.tracking import DotNotTrackScope
 from keras_layers import DenseWarpLayer, UpscaleLayer
 from keras_metrics import CounterMetric, ExponentialMovingAvg
 from utils import BGR_LUMA
@@ -28,9 +27,7 @@ class JoshUpscaleModel(keras.Model):
             Inference model
         """
         super().__init__(**kwargs)
-        # Inference model is not trackable or savable
-        with DotNotTrackScope():
-            self.__inference_model = inference_model
+        self.inference_model = inference_model
 
     def predict_step(self, data: Any) -> Dict[str, tf.Tensor]:
         """Prediction step.
@@ -59,13 +56,13 @@ class JoshUpscaleModel(keras.Model):
         height = shape[2]
         width = shape[3]
         last_frames = [tf.zeros((batch_size, height, width, 3))] * \
-            (len(self.__inference_model.inputs) - 2)
+            (len(self.inference_model.inputs) - 2)
         last_output = tf.zeros((batch_size, height * 4, width * 4, 3))
         gen_outputs = []
         pre_warps = []
         for i in itertools.chain(range(10), range(8, 0, -1)):
             cur_frame = inputs[:, i, :, :, :]
-            outputs = self.__inference_model(
+            outputs = self.inference_model(
                 [cur_frame, last_output] + last_frames,
                 training=False
             )

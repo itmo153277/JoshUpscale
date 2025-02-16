@@ -1007,7 +1007,7 @@ def get_gan(
     - target: (N x 10 x crop_size*4 x crop_size*4 x 3) - target frames
 
     Outputs:
-    - gen_outputs: (N x 10 x crop_size*4 x crop_size*4 x 3) - generated frames
+    - gen_outputs: (N x 19 x crop_size*4 x crop_size*4 x 3) - generated frames
     - gen_warp: (N x 19 x crop_size*4 x crop_size*4 x 3) - warped generated
                                                            frames
     - target_warp: (N x 18 x crop_size*4 x crop_size*4 x 3) - warped target
