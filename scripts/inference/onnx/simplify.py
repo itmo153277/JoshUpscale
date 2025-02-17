@@ -39,11 +39,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# Hardcoded nodes
-INPUT_NODE = "final_1/full_1/generator_1/space_to_depth_1/SpaceToDepth"
-TARGET_NODE = "final_1/full_1/generator_1/clip_1/clip_by_value"
-
-
 def main(
     model_path: str,
     output_path: str,
