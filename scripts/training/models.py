@@ -765,18 +765,7 @@ def get_inference_model(
         cur_frame_proc = PreprocessLayer(
             name="preprocess",
         )(cur_frame)
-    if padded_width == frame_width and padded_height == frame_height:
-        cur_frame_pad = cur_frame_proc
-    else:
-        pad_height = padded_height - frame_height
-        pad_width = padded_width - frame_width
-        cur_frame_pad = layers.ZeroPadding2D(
-            padding=(
-                (pad_height // 2, pad_height - pad_height // 2),
-                (pad_width // 2, pad_width - pad_width // 2),
-            ),
-            name="pad",
-        )(cur_frame_proc)
+    cur_frame_pad = cur_frame_proc
     if normalize_brightness:
         brightness = layers.Lambda(
             lambda x: ops.expand_dims(
@@ -785,6 +774,16 @@ def get_inference_model(
             name="brightness",
         )(cur_frame_proc)
         cur_frame_pad -= brightness
+    if padded_width != frame_width or padded_height != frame_height:
+        pad_height = padded_height - frame_height
+        pad_width = padded_width - frame_width
+        cur_frame_pad = layers.ZeroPadding2D(
+            padding=(
+                (pad_height // 2, pad_height - pad_height // 2),
+                (pad_width // 2, pad_width - pad_width // 2),
+            ),
+            name="pad",
+        )(cur_frame_pad)
     flow = flow_model([cur_frame_pad] + last_frames)
     if padded_width != frame_width or padded_height != frame_height:
         offset_x = ((padded_width - frame_width) // 2) * 4

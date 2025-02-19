@@ -5,7 +5,6 @@
 
 import sys
 import argparse
-from typing import List
 import onnx
 import numpy as np
 from onnx import numpy_helper
@@ -184,51 +183,51 @@ def optimize_input_transpose(graph: Graph) -> None:
     )
 
 
-def find_chain(graph: Graph, chain: List[str]) -> None:
-    """Find node chain in graph."""
-    def find_subchain(node, subchain):
-        if not subchain:
-            yield []
-            return
-        for inp in node.input:
-            new_node = graph.find_node_by_output(inp)
-            if new_node is None:
-                continue
-            if new_node.op_type != subchain[0]:
-                continue
-            for new_subchain in find_subchain(new_node, subchain[1:]):
-                yield [new_node] + new_subchain
-    chains = []
-    for node in graph.nodes:
-        if node.op_type != chain[0]:
-            continue
-        for subchain in find_subchain(node, chain[1:]):
-            chains.append([node] + subchain)
-    return chains
-
-
 def optimize_grid_sample(graph: Graph) -> None:
     """Optimize GridSample calculation in graph."""
-    chain = find_chain(graph, ["GridSample", "Add", "Div", "Slice",
-                       "Transpose", "Sub", "Slice", "DepthToSpace", "Conv"])[0]
-    add_const = numpy_helper.to_array(graph.init_dict[chain[1].input[1]])
-    div_const = numpy_helper.to_array(graph.init_dict[chain[2].input[1]])
-    grid_const = numpy_helper.to_array(graph.init_dict[chain[5].input[0]])
-    weights = numpy_helper.to_array(graph.init_dict[chain[8].input[1]])
-    bias = numpy_helper.to_array(graph.init_dict[chain[8].input[2]])
+    chains = [["GridSample", "Add", "Div", "Slice", "Transpose", "Sub",
+               "Slice", "DepthToSpace", "Conv"],
+              ["GridSample", "Add", "Div", "Slice", "Transpose", "Sub",
+               "DepthToSpace", "Conv"]]
+    chain = graph.find_node_chain(chains[0])
+    if chain:
+        conv_node = chain[0][8]
+    else:
+        chain = graph.find_node_chain(chains[1])
+        if chain:
+            conv_node = chain[0][7]
+        else:
+            return
+    grid_node = chain[0][0]
+    add_node = chain[0][1]
+    div_node = chain[0][2]
+    slice_rev_node = chain[0][3]
+    grid_transpose_node = chain[0][4]
+    grid_shift_node = chain[0][5]
 
-    grid_const = grid_const[:, ::-1, :, :] / div_const.reshape(1, 2, 1, 1)
+    add_const = numpy_helper.to_array(graph.init_dict[add_node.input[1]])
+    div_const = numpy_helper.to_array(graph.init_dict[div_node.input[1]])
+    grid_shift_const = numpy_helper.to_array(
+        graph.init_dict[grid_shift_node.input[0]])
+    weights = numpy_helper.to_array(graph.init_dict[conv_node.input[1]])
+    bias = numpy_helper.to_array(graph.init_dict[conv_node.input[2]])
+
+    grid_shift_const = (grid_shift_const[:, ::-1, :, :] /
+                        div_const.reshape(1, 2, 1, 1))
+    grid_shift_const = np.transpose(grid_shift_const, [0, 2, 3, 1])
     bias = (bias.reshape(-1, 2)[:, ::-1] / div_const - add_const).ravel()
     weights = (weights.reshape((-1, 2) + weights.shape[1:])[:, ::-1, :, :] /
                div_const.reshape(1, 2, 1, 1, 1)).reshape(weights.shape)
-    chain[0].input[1] = chain[4].output[0]
 
-    graph.create_value(chain[5].input[0], grid_const)
-    graph.create_value(chain[8].input[1], weights)
-    graph.create_value(chain[8].input[2], bias)
-    graph.remove_node(chain[1])
-    graph.remove_node(chain[2])
-    graph.remove_node(chain[3])
+    graph.create_value(grid_shift_node.input[0], grid_shift_const)
+    graph.create_value(conv_node.input[1], weights)
+    graph.create_value(conv_node.input[2], bias)
+    graph.remove_node(add_node)
+    graph.remove_node(div_node)
+    graph.remove_node(slice_rev_node)
+    grid_transpose_node.input[0] = grid_shift_node.input[1]
+    grid_shift_node.input[1] = grid_transpose_node.output[0]
+    grid_node.input[1] = grid_shift_node.output[0]
 
 
 def main(

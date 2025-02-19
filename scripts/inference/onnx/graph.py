@@ -78,6 +78,28 @@ class Graph:
                     break
         return nodes
 
+    def find_node_chain(self, chain: List[str]) -> List[List[onnx.NodeProto]]:
+        """Find node chain in graph."""
+        def find_subchain(node, subchain):
+            if not subchain:
+                yield []
+                return
+            for inp in node.input:
+                new_node = self.find_node_by_output(inp)
+                if new_node is None:
+                    continue
+                if new_node.op_type != subchain[0]:
+                    continue
+                for new_subchain in find_subchain(new_node, subchain[1:]):
+                    yield [new_node] + new_subchain
+        chains = []
+        for node in self.nodes:
+            if node.op_type != chain[0]:
+                continue
+            for subchain in find_subchain(node, chain[1:]):
+                chains.append([node] + subchain)
+        return chains
+
     def insert_node(self, node: onnx.NodeProto) -> None:
         """Insert new node into graph."""
         if self.find_node_by_name(node.name) is not None:

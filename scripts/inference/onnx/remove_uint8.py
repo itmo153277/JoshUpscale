@@ -82,6 +82,29 @@ def main(
         if (node.op_type == "Cast" and
                 node.attribute[0].i == onnx.TensorProto.UINT8):
             node.attribute[0].i = onnx.TensorProto.FLOAT
+    # Switch up cast/transpose
+    out_node = graph.find_node_by_output(graph.outputs[0].name)
+    out_parent_node = graph.find_node_by_output(out_node.input[0])
+    if out_node.op_type == "Transpose" and out_parent_node.op_type == "Cast":
+        graph.remove_node(out_node)
+        graph.remove_node(out_parent_node)
+        out_parent_node.output[0] = out_node.output[0]
+        out_node.input[0] = out_parent_node.input[0]
+        out_parent_node.input[0] = "out_trans_switch"
+        out_node.output[0] = "out_trans_switch"
+        graph.insert_node(out_node)
+        graph.insert_node(out_parent_node)
+    in_node = graph.find_nodes_by_input(graph.inputs[0].name)[0]
+    in_next_node = graph.find_nodes_by_input(in_node.output[0])[0]
+    if in_node.op_type == "Transpose" and in_next_node.op_type == "Cast":
+        graph.remove_node(in_node)
+        graph.remove_node(in_next_node)
+        in_next_node.input[0] = in_node.input[0]
+        in_node.output[0] = in_next_node.output[0]
+        in_next_node.output[0] = "inp_trans_switch"
+        in_node.input[0] = "inp_trans_switch"
+        graph.insert_node(in_node)
+        graph.insert_node(in_next_node)
     model = graph.serialize(
         inputs=remove_uint8_values(graph.inputs),
         outputs=remove_uint8_values(graph.outputs))
