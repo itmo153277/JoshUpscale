@@ -439,6 +439,7 @@ def get_flow_autoencoder(
         out = UpscaleLayer(
             resize_type="bilinear",
             scale=2,
+            dtype="float32",
             name=get_scoped_name(name, "upscale"),
         )(out)
         return out

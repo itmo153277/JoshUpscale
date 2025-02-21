@@ -47,6 +47,7 @@ class Session:
     """Inference session."""
 
     ORT_TYPES = {
+        "tensor(uint8)": np.uint8,
         "tensor(float)": np.float32,
         "tensor(float16)": np.float16,
     }
@@ -61,6 +62,7 @@ class Session:
         """
         self.sess = rt.InferenceSession(model)
         inputs = self.sess.get_inputs()
+        self.img_dtype = Session.ORT_TYPES[inputs[0].type]
         self.inp_name = inputs[0].name
         self.states = {x.name: np.zeros(
             shape=x.shape,
@@ -83,13 +85,13 @@ class Session:
         if len(image.shape) == 3:
             image = np.expand_dims(image, axis=0)
         inp_dict = {
-            self.inp_name: image,
+            self.inp_name: image.astype(self.img_dtype),
             **self.states
         }
         out = self.sess.run(None, inp_dict)
         for val, name in zip(out[1:], self.states.keys()):
             self.states[name] = val
-        return np.squeeze(out[0], axis=0)
+        return np.squeeze(out[0], axis=0).astype(np.uint8)
 
 
 def list_images(image_paths: List[str]) -> Iterator[str]:

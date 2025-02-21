@@ -262,11 +262,7 @@ def main(
     optimize_input_transpose(graph)
     optimize_grid_sample(graph)
     model = graph.serialize()
-    model = simplify_model(
-        model,
-        num_checks=num_checks,
-        convert_static_shape=True,
-    )
+    model = simplify_model(model, num_checks=num_checks)
     onnx.save(model, output_path)
     return 0
 

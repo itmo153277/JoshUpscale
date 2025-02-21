@@ -63,26 +63,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("output_path",
                         help="Output path",
                         type=str)
-    parser.add_argument("-w", "--whole",
-                        help="Process whole data in one step",
-                        dest="process_whole",
-                        action="store_true",
-                        default=False)
-    parser.add_argument("-s", "--steps",
-                        help="Max number of steps",
-                        dest="max_steps",
+    parser.add_argument("-s", "--stride",
+                        help="Step stride",
                         type=int,
                         default=None)
+    parser.add_argument("-n", "--normalize-brightness",
+                        help="Normalize brightness",
+                        default=False,
+                        action="store_true")
     parser.add_argument("-m", "--method",
                         help="Calibration method (default: %(default)s)",
                         dest="calibration_method",
                         type=CalibrationMethod.argparse_value,
                         choices=list(CalibrationMethod),
                         default=CalibrationMethod.ENTROPY)
-    args = parser.parse_args()
-    if args.max_steps is not None and args.max_steps < 1:
-        parser.error(f"Invalid steps argument: {args.max_steps}")
-    return args
+    return parser.parse_args()
 
 
 def read_data(path: str) -> List[np.ndarray]:
@@ -108,48 +103,37 @@ class DataReader(quantization.CalibrationDataReader):
                  model: onnx.ModelProto,
                  hr_data: List[np.ndarray],
                  lr_data: List[np.ndarray],
-                 num_steps: Union[None, int] = None,
+                 normalize_brightness: bool = False,
                  **kwargs) -> None:
         """Create DataReader."""
         super().__init__(**kwargs)
-        self.hr_data_iter = iter(hr_data)
-        self.lr_data_iter = iter(lr_data)
+        self.hr_data = hr_data
+        self.lr_data = lr_data
+        self.normalize_brightness = normalize_brightness
         self.names = [i.name for i in model.graph.input]
         self.dtypes = {
             i.name: DataReader.ONNX_TYPES[i.type.tensor_type.elem_type]
             for i in model.graph.input
         }
-        self.states = {}
-        last_gen = None
-        if len(self.names) > 1:
-            self.pad_frame_shape = [
-                d.dim_value
-                for d in model.graph.input[2].type.tensor_type.shape.dim
-            ]
-            for name in self.names[-1:1:-1]:
-                self.states[name] = self._normalize_and_pad(
-                    next(self.lr_data_iter),
-                    self.dtypes[name]
-                )
-                last_gen = next(self.hr_data_iter)
-            self.states[self.names[1]] = DataReader._normalize(
-                last_gen,
-                self.dtypes[self.names[1]]
-            )
-        if num_steps is not None:
-            self.step_iter = iter(range(num_steps))
-        else:
-            self.step_iter = None
+        self.pad_frame_shape = [
+            d.dim_value
+            for d in model.graph.input[2].type.tensor_type.shape.dim
+        ]
+        self.range_iter = None
+        self.set_range(0, len(self))
 
-    @staticmethod
-    def _normalize(img: np.ndarray, dtype: np.dtype) -> np.ndarray:
+    def _normalize(self, img: np.ndarray, dtype: np.dtype) -> np.ndarray:
         """Normalize data."""
-        return np.transpose(img / 255 - 0.5, [0, 3, 1, 2]).astype(dtype)
+        img = np.transpose(img / 255 - 0.5, [0, 3, 1, 2]).astype(dtype)
+        if self.normalize_brightness:
+            img -= (img * np.array([0.1140, 0.5870, 0.2989]
+                                   ).reshape((1, 3, 1, 1))).mean() * 3
+        return img
 
     def _normalize_and_pad(self, img: np.ndarray,
                            dtype: np.dtype) -> np.ndarray:
         """Normalize and pad data."""
-        data = DataReader._normalize(img, dtype)
+        data = self._normalize(img, dtype)
         data = np.pad(
             data,
             [
@@ -161,29 +145,31 @@ class DataReader(quantization.CalibrationDataReader):
 
     def get_next(self) -> Union[None, Dict[str, np.ndarray]]:
         """Iterate over data."""
-        if self.step_iter is not None:
-            i = next(self.step_iter, None)
-            if i is None:
-                return None
-        cur_frame = next(self.lr_data_iter)
-        value = {
-            self.names[0]: cur_frame,
-            **self.states
-        }
-        last_gen = next(self.hr_data_iter, None)
-        if len(self.names) > 1 and last_gen is not None:
-            self.states[self.names[1]] = DataReader._normalize(
-                last_gen,
-                self.dtypes[self.names[1]]
+        idx = next(self.range_iter, None)
+        if idx is None:
+            return None
+        LOG.info("Processing %d / %d", idx + 1, len(self))
+        values = {}
+        num_last_frames = len(self.names) - 2
+        for i, name in enumerate(self.names[-1:1:-1]):
+            values[name] = self._normalize_and_pad(
+                self.lr_data[idx + i],
+                self.dtypes[name]
             )
-            for old_name, new_name in zip(self.names[-2:1:-1],
-                                          self.names[-1:2:-1]):
-                self.states[new_name] = self.states[old_name]
-            self.states[self.names[2]] = self._normalize_and_pad(
-                cur_frame,
-                self.dtypes[self.names[2]]
-            )
-        return value
+        values[self.names[1]] = self._normalize(
+            self.hr_data[idx + num_last_frames - 1],
+            self.dtypes[self.names[1]]
+        )
+        values[self.names[0]] = self.lr_data[idx + num_last_frames] \
+            .astype(self.dtypes[self.names[0]])
+        return values
+
+    def __len__(self) -> int:
+        return len(self.hr_data) - len(self.names) + 2
+
+    def set_range(self, start_index: int, end_index: int) -> None:
+        """Set DatReader range."""
+        self.range_iter = iter(range(start_index, min(end_index, len(self))))
 
 
 def main(
@@ -191,8 +177,8 @@ def main(
     lowres_path: str,
     hires_path: str,
     output_path: str,
-    process_whole: bool = False,
-    max_steps: Union[None, int] = None,
+    stride: Union[None, int] = None,
+    normalize_brightness: bool = False,
     calibration_method: CalibrationMethod = CalibrationMethod.ENTROPY,
 ) -> int:
     """
@@ -208,10 +194,10 @@ def main(
         Path to hi-res input images
     output_path: str
         Output path
-    process_whole: bool
-        Process whole data in one ste
-    max_steps: int
-        Max number of steps
+    stride: int
+        Step stride
+    normalize_brightness: bool
+        Normalize brightness
     calibration_method: CalibrationMethod
         Calibration method
 
@@ -226,40 +212,25 @@ def main(
     hr_data = read_data(hires_path)
     num_images = len(hr_data)
     assert len(lr_data) == num_images, "Numbers of frames do not match"
-    num_inputs = len(model.graph.input)
-    if num_inputs > 1:
-        num_images -= num_inputs - 2
-    if max_steps is not None:
-        num_images = min(num_images, max_steps)
-    if process_whole:
-        lr_data = lr_data[:num_images + num_inputs - 2]
-        hr_data = hr_data[:num_images + num_inputs - 2]
+    data_reader = DataReader(model, hr_data, lr_data, normalize_brightness)
     with tempfile.NamedTemporaryFile() as tmp:
         calibrator = quantization.create_calibrator(
-            model,
+            model_path,
             calibrate_method=calibration_method.value,
             augmented_model_path=tmp.name,
         )
-        if process_whole:
-            LOG.info("Calibration")
-            data_reader = DataReader(model, hr_data, lr_data)
+        if stride is None:
             calibrator.collect_data(data_reader)
         else:
-            for i in range(num_images):
-                LOG.info("Calibration %d / %d", i + 1, num_images)
-                # Collecting data for one sample at a time due to possible OOM
-                data_reader = DataReader(
-                    model,
-                    hr_data[i:],
-                    lr_data[i:],
-                    num_steps=1
-                )
+            for i in range(0, len(data_reader), stride):
+                data_reader.set_range(i, i + stride)
                 calibrator.collect_data(data_reader)
         LOG.info("Computing")
-        calibration = calibrator.compute_range()
+        calibration = calibrator.compute_data()
     with open(output_path, "wt", encoding="utf-8") as f:
-        json.dump({k: [float(low), float(hi)]
-                  for k, (low, hi) in calibration.items()}, f)
+        json.dump({k: (float(td.range_value[0][0]),
+                       float(td.range_value[1][0]))
+                   for k, td in calibration.items()}, f)
     return 0
 
 
