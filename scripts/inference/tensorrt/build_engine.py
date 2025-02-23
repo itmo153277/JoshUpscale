@@ -67,6 +67,8 @@ def set_dynamic_ranges(network: trt.INetworkDefinition,
         tensor = network.get_input(i)
         if tensor.name in calibration:
             set_dynamic_range(tensor, calibration[tensor.name])
+        elif tensor.dtype in [trt.DataType.FLOAT, trt.DataType.HALF]:
+            LOG.warning("Missing calibration data for %s", tensor.name)
     for layer in network:
         if layer.type == trt.LayerType.CONSTANT \
                 and layer.get_output(0).name not in calibration \
@@ -77,7 +79,7 @@ def set_dynamic_ranges(network: trt.INetworkDefinition,
             min_val = float(weights.min())
             max_val = float(weights.max())
             calibration[layer.get_output(0).name] = (min_val, max_val)
-        elif layer.type in [trt.LayerType.IDENTITY, trt.LayerTYpe.SHUFFLE] \
+        elif layer.type in [trt.LayerType.IDENTITY, trt.LayerType.SHUFFLE] \
                 and layer.get_output(0).name not in calibration \
                 and layer.get_output(0).dtype in [trt.DataType.FLOAT,
                                                   trt.DataType.HALF] \
@@ -87,7 +89,7 @@ def set_dynamic_ranges(network: trt.INetworkDefinition,
         for i in range(layer.num_outputs):
             tensor = layer.get_output(i)
             if tensor.name in calibration:
-                set_dynamic_range(tensor, calibration(tensor.name))
+                set_dynamic_range(tensor, calibration[tensor.name])
             elif tensor.dtype in [trt.DataType.FLOAT, trt.DataType.HALF]:
                 LOG.warning("Missing calibration data for %s", tensor.name)
 
