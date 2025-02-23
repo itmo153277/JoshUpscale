@@ -7,6 +7,7 @@ import os
 import sys
 import logging
 import argparse
+import json
 from typing import Any, Dict, Type, Union, Tuple
 import yaml
 import tensorrt as trt
@@ -52,6 +53,45 @@ def get_tensor_map(network: trt.INetworkDefinition) -> \
     return tensors
 
 
+def set_dynamic_range(tensor: trt.ITensor, val_range: Tuple[float]) -> None:
+    """Set tensor dynamic range."""
+    min_val, max_val = val_range
+    value = max(abs(min_val), abs(max_val))
+    tensor.set_dynamic_range(-value, value)
+
+
+def set_dynamic_ranges(network: trt.INetworkDefinition,
+                       calibration: Dict[str, Tuple[float]]) -> None:
+    """Set dynamic ranges for network."""
+    for i in range(network.num_inputs):
+        tensor = network.get_input(i)
+        if tensor.name in calibration:
+            set_dynamic_range(tensor, calibration[tensor.name])
+    for layer in network:
+        if layer.type == trt.LayerType.CONSTANT \
+                and layer.get_output(0).name not in calibration \
+                and layer.get_output(0).dtype in [trt.DataType.FLOAT,
+                                                  trt.DataType.HALF]:
+            layer.__class__ = trt.IConstantLayer
+            weights = layer.weights
+            min_val = float(weights.min())
+            max_val = float(weights.max())
+            calibration[layer.get_output(0).name] = (min_val, max_val)
+        elif layer.type in [trt.LayerType.IDENTITY, trt.LayerTYpe.SHUFFLE] \
+                and layer.get_output(0).name not in calibration \
+                and layer.get_output(0).dtype in [trt.DataType.FLOAT,
+                                                  trt.DataType.HALF] \
+                and layer.get_input(0).name in calibration:
+            calibration[layer.get_output(0).name] = \
+                calibration[layer.get_input(0).name]
+        for i in range(layer.num_outputs):
+            tensor = layer.get_output(i)
+            if tensor.name in calibration:
+                set_dynamic_range(tensor, calibration(tensor.name))
+            elif tensor.dtype in [trt.DataType.FLOAT, trt.DataType.HALF]:
+                LOG.warning("Missing calibration data for %s", tensor.name)
+
+
 def create_builder_config(builder: trt.Builder,
                           network: trt.INetworkDefinition,
                           config: Dict[str, Any]) -> \
@@ -64,7 +104,7 @@ def create_builder_config(builder: trt.Builder,
     if not builder.platform_has_tf32:
         builder_config.clear_flag(trt.BuilderFlag.TF32)
     quant_int8 = config.get("int8", False)
-    quant_fp16 = config.get("fp16", quant_int8)
+    quant_fp16 = config.get("fp16", False) or quant_int8
     if quant_fp16:
         if not builder.platform_has_fast_fp16:
             LOG.warning("FP16 is slow on this platform")
@@ -78,20 +118,6 @@ def create_builder_config(builder: trt.Builder,
             config["optimization_level"]
     if config.get("direct_io", False):
         builder_config.set_flag(trt.BuilderFlag.DIRECT_IO)
-    precision_config = config.get("precision_constrains", None)
-    if precision_config is not None:
-        mode = precision_config.get("mode", None)
-        if mode == "PREFER":
-            builder_config.set_flag(
-                trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
-        elif mode == "OBEY":
-            builder_config.set_flag(
-                trt.BuilderFlag.OBEY_PRECISION_CONSTRAINTS)
-        if quant_fp16:
-            for k, v in precision_config.get("tensors", {}).items():
-                tensors[k] = enum_from_string(trt.DataType, v)
-            for k, v in precision_config.get("layers", {}).items():
-                layers[k].precision = enum_from_string(trt.DataType, v)
     for k, v in config.get("allowed_formats", {}).items():
         fmts = 0
         if not isinstance(v, list):
@@ -103,14 +129,26 @@ def create_builder_config(builder: trt.Builder,
             LOG.warning("Adding extra output: %s", tensor.name)
             network.mark_output(tensor)
         tensor.allowed_formats = fmts
-    for k, v in config.get("dtypes", {}).items():
-        dtype = enum_from_string(trt.DataType, v)
-        tensor, layer, idx = tensors[k]
-        if tensor.is_network_input or tensor.is_network_output:
-            tensor.dtype = dtype
-        else:
-            layer.set_output_dtype(idx, dtype)
-        assert tensor.dtype == dtype, "Failed to set dtype"
+    precision_config = config.get("precision_constraints", None)
+    if precision_config is not None:
+        mode = precision_config.get("mode", None)
+        if mode == "PREFER":
+            builder_config.set_flag(
+                trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
+        elif mode == "OBEY":
+            builder_config.set_flag(
+                trt.BuilderFlag.OBEY_PRECISION_CONSTRAINTS)
+        if quant_fp16:
+            for k, v in precision_config.get("tensors", {}).items():
+                dtype = enum_from_string(trt.DataType, v)
+                tensor, layer, idx = tensors[k]
+                if tensor.is_network_input or tensor.is_network_output:
+                    tensor.dtype = dtype
+                else:
+                    layer.set_output_dtype(idx, dtype)
+                assert tensor.dtype == dtype, "Failed to set dtype"
+            for k, v in precision_config.get("layers", {}).items():
+                layers[k].precision = enum_from_string(trt.DataType, v)
     timing_cache_config = config.get("timing_cache", None)
     if timing_cache_config is not None:
         if timing_cache_config.get("disable", False):
@@ -128,13 +166,17 @@ def create_builder_config(builder: trt.Builder,
         if timing_cache_path is not None and os.path.exists(timing_cache_path):
             with open(timing_cache_path, "rb") as f:
                 timing_cache = builder_config.create_timing_cache(f.read())
-                assert timing_cache is not None, "Failed to read timing cache"
+            assert timing_cache is not None, "Failed to read timing cache"
         else:
             LOG.warning("Creating new timing cache")
             timing_cache = builder_config.create_timing_cache(b"")
-        succuss = builder_config.set_timing_cache(
+        for k, v in timing_cache_config.get("records", {}).items():
+            key = trt.TimingCacheKey.parse(k)
+            value = trt.TimingCacheValue(v["hash"], v["timing"])
+            timing_cache.update(key, value)
+        success = builder_config.set_timing_cache(
             timing_cache, ignore_mismatch=True)
-        assert succuss, "Failed to load timing cache"
+        assert success, "Failed to load timing cache"
     profile_config = config.get("profile", None)
     if profile_config is not None:
         verbosity = profile_config.get("verbosity", None)
@@ -157,6 +199,10 @@ def create_builder_config(builder: trt.Builder,
         else:
             tactics &= ~(1 << int(enum_from_string(trt.TacticSource, k)))
     builder_config.set_tactic_sources(tactics)
+    if "calibration_path" in config and quant_int8:
+        with open(config["calibration_path"], "rt", encoding="utf-8") as f:
+            calibration = json.load(f)
+        set_dynamic_ranges(network, calibration)
     return builder_config, timing_cache
 
 
@@ -177,7 +223,7 @@ def save_timing_cache(builder_config: trt.IBuilderConfig,
             value = timing_cache.query(key)
             parsed_timing_cache[str(key)] = {
                 "hash": value.tacticHash,
-                "timingMSec": value.timingMSec
+                "timing": value.timingMSec
             }
         with open(timing_cache_report_path, "wt", encoding="utf-8") as f:
             yaml.dump(timing_cache_report_path, f, sort_keys=False)
@@ -187,7 +233,7 @@ def save_timing_cache(builder_config: trt.IBuilderConfig,
         if os.path.exists(timing_cache_path):
             with open(timing_cache_path, "rb") as f:
                 old_timing_cache = builder_config.create_timing_cache(f.read())
-            if old_timing_cache:
+            if old_timing_cache is not None:
                 success = timing_cache.combine(
                     old_timing_cache, ignore_mismatch=True)
                 assert success, "Cannot load timing cache"

@@ -76,11 +76,6 @@ class DataReader(quantization.CalibrationDataReader):
             for k, v in calibration_dict.items()
             if k in value_types
         }
-        calibration_dict[model.graph.input[0].name] = \
-            value_types[model.graph.input[0].name](255.0)
-        for inp in model.graph.input[1:]:
-            calibration_dict[model.graph.input[0].name] = \
-                value_types[model.graph.input[0].name](0.5)
         self.data_iter = iter([calibration_dict])
 
     def get_next(self) -> Union[None, Dict[str, np.ndarray]]:
