@@ -228,8 +228,8 @@ def main(
         LOG.info("Computing")
         calibration = calibrator.compute_data()
     with open(output_path, "wt", encoding="utf-8") as f:
-        json.dump({k: (float(td.range_value[0][0]),
-                       float(td.range_value[1][0]))
+        json.dump({k: (float(td.range_value[0].ravel()[0]),
+                       float(td.range_value[1].ravel()[0]))
                    for k, td in calibration.items()}, f)
     return 0
 

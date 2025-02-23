@@ -31,11 +31,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("model_path",
                         help="Model",
                         type=str)
-    parser.add_argument("calibration_path",
-                        help="Calibration data path",
-                        type=str)
     parser.add_argument("output_path",
                         help="Output path",
+                        type=str)
+    parser.add_argument("calibration_path",
+                        help="Calibration data path",
                         type=str)
     parser.add_argument("--num-checks",
                         help="Number of simplifier checks",
