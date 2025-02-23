@@ -7,65 +7,16 @@ import os
 import sys
 import logging
 import argparse
-import gzip
-import struct
-from typing import Any, Dict, List, Type, Union
+from typing import Any, Dict, Type, Union, Tuple
 import yaml
-import numpy as np
 import tensorrt as trt
 
 LOG = logging.getLogger("build_engine")
 
 
-class HumanReadableSize:
-    """Human readable size."""
-
-    UNIT_MAP = {
-        "KB": 1 << 10,
-        "MB": 1 << 20,
-        "GB": 1 << 30,
-        "TB": 1 << 40,
-    }
-
-    def __init__(self, val: Union[int, str]) -> None:
-        """Create object."""
-        if isinstance(val, int):
-            self.val = val
-        elif isinstance(val, str):
-            self.val = HumanReadableSize._convert_value(val)
-        else:
-            raise ValueError("Unsupported type")
-
-    def __repr__(self) -> str:
-        """Convert to str."""
-        val = self.val
-        for cur_pf, mul in reversed(HumanReadableSize.UNIT_MAP.items()):
-            if val >= mul:
-                postfix = cur_pf
-                val //= mul
-                break
-        else:
-            postfix = "B"
-        return f"{val}{postfix}"
-
-    def __int__(self) -> int:
-        """Convert to int."""
-        return self.val
-
-    @staticmethod
-    def _convert_value(val: str) -> int:
-        """Convert value."""
-        val = val.upper().strip()
-        for postfix, mul in HumanReadableSize.UNIT_MAP.items():
-            if val.endswith(postfix):
-                multiplier = mul
-                val = val[:-2].strip()
-                break
-        else:
-            if val.endswith("B"):
-                val = val[:-1].strip()
-            multiplier = 1
-        return multiplier * int(val)
+def enum_from_string(enum: Type, val: str) -> Any:
+    """Get enum value from string."""
+    return getattr(enum, val)
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,436 +30,233 @@ def parse_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         description="Build TensorRT engine")
-    parser.add_argument("model_path",
-                        help="Model",
+    parser.add_argument("-c", "--config",
+                        help="Builder configuration",
+                        dest="config_path",
+                        required=True,
                         type=str)
-    parser.add_argument("output_path",
-                        help="Output path",
-                        type=str)
-    parser.add_argument("--int8",
-                        help="Enable int8 quantization",
-                        dest="quant_int8",
-                        required=False,
-                        default=False,
-                        action="store_true")
-    parser.add_argument("--fp16",
-                        help="Enable fp16 quantization",
-                        dest="quant_fp16",
-                        required=False,
-                        default=False,
-                        action="store_true")
-    parser.add_argument("-w", "--workspace-size",
-                        help="Workspace size limit (default: %(default)s)",
-                        type=HumanReadableSize,
-                        required=False,
-                        default=HumanReadableSize("2GB"))
     return parser.parse_args()
 
 
-def load_weights(weights_path: str) -> List[np.ndarray]:
-    """Load weights from file."""
-    dtype_dict = {
-        0: np.int32,
-        1: np.float32,
-    }
-    weights = []
-    with gzip.open(weights_path, "rb") as f:
-        while f.peek(1):
-            dtype = struct.unpack("=I", f.read(4))[0]
-            assert dtype in dtype_dict
-            size = struct.unpack("=I", f.read(4))[0]
-            if size == 0:
-                weights.append(None)
-            else:
-                data = np.frombuffer(f.read(size * 4), dtype=dtype_dict[dtype])
-                weights.append(data)
-    return weights
+def get_tensor_map(network: trt.INetworkDefinition) -> \
+        Dict[str, Tuple[trt.ITensor, trt.ILayer, int]]:
+    """Get tensor map from network definition."""
+    tensors = {}
+    for layer in network:
+        for i in range(layer.num_outputs):
+            tensor = layer.get_output(i)
+            tensors[tensor.name] = (tensor, layer, i)
+    for i in range(network.num_inputs):
+        tensor = network.get_input(i)
+        tensors[tensor.name] = (tensor, None, 0)
+    return tensors
 
 
-def enum_from_string(enum: Type, val: str) -> Any:
-    """Get enum value from string."""
-    return getattr(enum, val)
-
-
-class GraphDeserializer:
-    """TensorRT graph deserializer."""
-
-    def __init__(self, quant_int8: bool, quant_fp16: bool) -> None:
-        """Create object."""
-        self._network = None
-        self._tensors = {}
-        self._weights = []
-        self._quant_int8 = quant_int8
-        self._quant_fp16 = quant_fp16
-
-    def _set_dynamic_range(self, name: str,
-                           val_range: Union[List[float], None]) -> None:
-        tensor = self._tensors[name]
-        if val_range is None:
-            if tensor.dtype == trt.DataType.FLOAT:
-                LOG.warning("Missing calibration data for %s", name)
-            return
-        min_val, max_val = val_range
-        if -min_val != max_val:
-            # TensorRT supports symmetric ranges only
-            max_val = max(abs(min_val), abs(max_val))
-            min_val = -max_val
-        tensor.set_dynamic_range(min_val, max_val)
-
-    def _add_input(self, config: Dict[str, Any]) -> None:
-        name = config["name"]
-        tensor = self._network.add_input(
-            name=name,
-            dtype=enum_from_string(trt.DataType, config["dtype"]),
-            shape=config["shape"]
-        )
-        tensor.allowed_formats = 1 << int(trt.TensorFormat.LINEAR)
-        self._tensors[name] = tensor
-        self._set_dynamic_range(name, config.get("range", None))
-
-    def _add_activation(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        activation_type = enum_from_string(
-            trt.ActivationType, config["activation_type"])
-        layer = self._network.add_activation(input_tensor, activation_type)
-        layer.alpha = config["alpha"]
-        layer.beta = config["beta"]
-        return layer
-
-    def _add_cast(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_cast(input_tensor, enum_from_string(
-            trt.DataType, config["to_type"]))
-        return layer
-
-    def _add_concat(self, config: Dict[str, Any]) -> trt.ILayer:
-        input_tensors = [
-            self._tensors[x]
-            for x in config["inputs"]
-        ]
-        layer = self._network.add_concatenation(input_tensors)
-        layer.axis = config["axis"]
-        return layer
-
-    def _add_constant(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 0
-        shape = config["shape"]
-        weights = self._weights[config["weights"]]
-        layer = self._network.add_constant(shape, weights)
-        return layer
-
-    def _add_convolution(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_convolution_nd(
-            input_tensor,
-            config["num_output_maps"],
-            config["kernel_size_nd"],
-            self._weights[config["kernel"]],
-            self._weights[config["bias"]]
-        )
-        layer.padding_mode = enum_from_string(
-            trt.PaddingMode, config["padding_mode"])
-        layer.num_groups = config["num_groups"]
-        layer.stride_nd = config["stride_nd"]
-        layer.padding_nd = config["padding_nd"]
-        layer.dilation_nd = config["dilation_nd"]
-        return layer
-
-    def _add_deconvolution(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_deconvolution_nd(
-            input_tensor,
-            config["num_output_maps"],
-            config["kernel_size_nd"],
-            self._weights[config["kernel"]],
-            self._weights[config["bias"]]
-        )
-        layer.padding_mode = enum_from_string(
-            trt.PaddingMode, config["padding_mode"])
-        layer.num_groups = config["num_groups"]
-        layer.stride_nd = config["stride_nd"]
-        layer.padding_nd = config["padding_nd"]
-        layer.dilation_nd = config["dilation_nd"]
-        return layer
-
-    def _add_elementwise(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 2
-        input_tensor1 = self._tensors[config["inputs"][0]]
-        input_tensor2 = self._tensors[config["inputs"][1]]
-        op = enum_from_string(trt.ElementWiseOperation, config["op"])
-        layer = self._network.add_elementwise(input_tensor1, input_tensor2, op)
-        return layer
-
-    def _add_gather(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 2
-        input_tensor = self._tensors[config["inputs"][0]]
-        indices = self._tensors[config["inputs"][1]]
-        layer = self._network.add_gather_v2(
-            input_tensor,
-            indices,
-            enum_from_string(trt.GatherMode, config["mode"])
-        )
-        layer.axis = config["axis"]
-        layer.num_elementwise_dims = config["num_elementwise_dims"]
-        return layer
-
-    def _add_grid_sample(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 2
-        input_tensor = self._tensors[config["inputs"][0]]
-        grid = self._tensors[config["inputs"][1]]
-        layer = self._network.add_grid_sample(
-            input_tensor,
-            grid,
-        )
-        layer.align_corners = config["align_corners"]
-        layer.interpolation_mode = enum_from_string(
-            trt.InterpolationMode, config["interpolation_mode"])
-        layer.sample_mode = enum_from_string(
-            trt.SampleMode, config["sample_mode"])
-        return layer
-
-    def _add_identity(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_identity(input_tensor)
-        layer.set_output_type(0, enum_from_string(
-            trt.DataType, config["output_dtypes"][0]))
-        return layer
-
-    def _add_pooling(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_pooling_nd(
-            input_tensor,
-            enum_from_string(trt.PoolingType, config["pooling_type"]),
-            config["window_size_nd"],
-        )
-        layer.padding_mode = enum_from_string(
-            trt.PaddingMode, config["padding_mode"])
-        layer.blend_factor = config["blend_factor"]
-        layer.average_count_excludes_padding = \
-            config["average_count_excludes_padding"]
-        layer.stride_nd = config["stride_nd"]
-        layer.padding_nd = config["padding_nd"]
-        return layer
-
-    def _add_reduce(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_reduce(
-            input_tensor,
-            enum_from_string(trt.ReduceOperation, config["op"]),
-            config["axes"],
-            config["keep_dims"],
-        )
-        return layer
-
-    def _add_resize(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) in [1, 2]
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_resize(input_tensor)
-        if len(config["inputs"]) > 1:
-            scale_tensor = self._tensors[config["inputs"][1]]
-            layer.set_input(1, scale_tensor)
+def create_builder_config(builder: trt.Builder,
+                          network: trt.INetworkDefinition,
+                          config: Dict[str, Any]) -> \
+        Tuple[trt.IBuilderConfig, Union[trt.ITimingCache, None]]:
+    """Set builder config parameters."""
+    builder_config = builder.create_builder_config()
+    timing_cache = None
+    layers = {x.name: x for x in network}
+    tensors = get_tensor_map(network)
+    if not builder.platform_has_tf32:
+        builder_config.clear_flag(trt.BuilderFlag.TF32)
+    quant_int8 = config.get("int8", False)
+    quant_fp16 = config.get("fp16", quant_int8)
+    if quant_fp16:
+        if not builder.platform_has_fast_fp16:
+            LOG.warning("FP16 is slow on this platform")
+        builder_config.set_flag(trt.BuilderFlag.FP16)
+    if quant_int8:
+        if not builder.platform_has_fast_int8:
+            LOG.warning("INT8 is slow on this platform")
+        builder_config.set_flag(trt.BuilderFlag.INT8)
+    if "optimization_level" in config:
+        builder_config.builder_optimization_level = \
+            config["optimization_level"]
+    if config.get("direct_io", False):
+        builder_config.set_flag(trt.BuilderFlag.DIRECT_IO)
+    precision_config = config.get("precision_constrains", None)
+    if precision_config is not None:
+        mode = precision_config.get("mode", None)
+        if mode == "PREFER":
+            builder_config.set_flag(
+                trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
+        elif mode == "OBEY":
+            builder_config.set_flag(
+                trt.BuilderFlag.OBEY_PRECISION_CONSTRAINTS)
+        if quant_fp16:
+            for k, v in precision_config.get("tensors", {}).items():
+                tensors[k] = enum_from_string(trt.DataType, v)
+            for k, v in precision_config.get("layers", {}).items():
+                layers[k].precision = enum_from_string(trt.DataType, v)
+    for k, v in config.get("allowed_formats", {}).items():
+        fmts = 0
+        if not isinstance(v, list):
+            v = [v]
+        for fmt in v:
+            fmts |= 1 << int(enum_from_string(trt.TensorFormat, fmt))
+        tensor = tensors[k][0]
+        if not (tensor.is_network_input or tensor.is_network_output):
+            LOG.warning("Adding extra output: %s", tensor.name)
+            network.mark_output(tensor)
+        tensor.allowed_formats = fmts
+    for k, v in config.get("dtypes", {}).items():
+        dtype = enum_from_string(trt.DataType, v)
+        tensor, layer, idx = tensors[k]
+        if tensor.is_network_input or tensor.is_network_output:
+            tensor.dtype = dtype
         else:
-            if "scales" in config:
-                layer.scales = config["scales"]
-            elif "shape" in config:
-                layer.shape = config["shape"]
-            else:
-                raise ValueError(f"Unknown resize scale for {config['name']}")
-        layer.resize_mode = enum_from_string(
-            trt.ResizeMode, config["resize_mode"])
-        layer.coordinate_transformation = enum_from_string(
-            trt.ResizeCoordinateTransformation,
-            config["coordinate_transformation"]
-        )
-        layer.selector_for_single_pixel = enum_from_string(
-            trt.ResizeSelector,
-            config["selector_for_single_pixel"]
-        )
-        layer.nearest_rounding = enum_from_string(
-            trt.ResizeRoundMode,
-            config["nearest_rounding"]
-        )
-        layer.exclude_outside = config["exclude_outside"]
-        layer.cubic_coeff = config["cubic_coeff"]
-        return layer
+            layer.set_output_dtype(idx, dtype)
+        assert tensor.dtype == dtype, "Failed to set dtype"
+    timing_cache_config = config.get("timing_cache", None)
+    if timing_cache_config is not None:
+        if timing_cache_config.get("disable", False):
+            builder_config.set_flag(trt.BuilderFlag.DISABLE_TIMING_CACHE)
+        else:
+            builder_config.clear_flag(trt.BuilderFlag.DISABLE_TIMING_CACHE)
+        if timing_cache_config.get("editable", False):
+            builder_config.set_flag(trt.BuilderFlag.EDITABLE_TIMING_CACHE)
+        if timing_cache_config.get("error_or_miss", False):
+            builder_config.set_flag(trt.BuilderFlag.ERROR_ON_TIMING_CACHE_MISS)
+        if not timing_cache_config.get("compilation_cache", True):
+            builder_config.set_flag(trt.BuilderFlag.DISABLE_COMPILATION_CACHE)
+        timing_cache_path = timing_cache_config.get(
+            "load_serialized_cache", None)
+        if timing_cache_path is not None and os.path.exists(timing_cache_path):
+            with open(timing_cache_path, "rb") as f:
+                timing_cache = builder_config.create_timing_cache(f.read())
+                assert timing_cache is not None, "Failed to read timing cache"
+        else:
+            LOG.warning("Creating new timing cache")
+            timing_cache = builder_config.create_timing_cache(b"")
+        succuss = builder_config.set_timing_cache(
+            timing_cache, ignore_mismatch=True)
+        assert succuss, "Failed to load timing cache"
+    profile_config = config.get("profile", None)
+    if profile_config is not None:
+        verbosity = profile_config.get("verbosity", None)
+        if verbosity is not None:
+            builder_config.profiling_verbosity = enum_from_string(
+                trt.ProfilingVerbosity, verbosity)
+    compat_config = config.get("compatibility", None)
+    if compat_config is not None:
+        if compat_config.get("device", False):
+            builder_config.hardware_compatibility_level = \
+                trt.HardwareCompatibilityLevel.AMPERE_PLUS
+        if compat_config.get("version", False):
+            builder_config.set_flag(trt.BuilderFlag.VERSION_COMPATIBLE)
+        if compat_config.get("exclude_lean_runtime", False):
+            builder_config.set_flag(trt.BuilderFlag.EXCLUDE_LEAN_RUNTIME)
+    tactics = builder_config.get_tactic_sources()
+    for k, v in config.get("tactics", {}).items():
+        if v:
+            tactics |= 1 << int(enum_from_string(trt.TacticSource, k))
+        else:
+            tactics &= ~(1 << int(enum_from_string(trt.TacticSource, k)))
+    builder_config.set_tactic_sources(tactics)
+    return builder_config, timing_cache
 
-    def _add_scale(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_scale(
-            input_tensor,
-            enum_from_string(trt.ScaleMode, config["mode"]),
-            self._weights[config["shift"]],
-            self._weights[config["scale"]],
-            self._weights[config["power"]],
-        )
-        layer.channel_axis = config["channel_axis"]
-        return layer
 
-    def _add_shuffle(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_shuffle(input_tensor)
-        layer.first_transpose = config["first_transpose"]
-        layer.second_transpose = config["second_transpose"]
-        if config.get("reshape_dims", None) is not None:
-            layer.reshape_dims = config["reshape_dims"]
-        layer.zero_is_placeholder = config["zero_is_placeholder"]
-        return layer
+def save_timing_cache(builder_config: trt.IBuilderConfig,
+                      config: Dict[str, Any]) -> None:
+    """Save timing cache."""
+    timing_cache_config = config.get("timing_cache", None)
+    if timing_cache_config is None:
+        return
+    timing_cache = builder_config.get_timing_cache()
+    if not timing_cache:
+        return
+    timing_cache_report_path = timing_cache_config.get(
+        "save_cache_report", None)
+    if timing_cache_report_path is not None:
+        parsed_timing_cache = {}
+        for key in timing_cache.query_keys():
+            value = timing_cache.query(key)
+            parsed_timing_cache[str(key)] = {
+                "hash": value.tacticHash,
+                "timingMSec": value.timingMSec
+            }
+        with open(timing_cache_report_path, "wt", encoding="utf-8") as f:
+            yaml.dump(timing_cache_report_path, f, sort_keys=False)
 
-    def _add_slice(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        layer = self._network.add_slice(
-            input_tensor, config["start"], config["shape"], config["stride"])
-        layer.mode = enum_from_string(trt.SliceMode, config["mode"])
-        return layer
+    timing_cache_path = timing_cache_config.get("save_serialized_cache", None)
+    if timing_cache_path is not None:
+        if os.path.exists(timing_cache_path):
+            with open(timing_cache_path, "rb") as f:
+                old_timing_cache = builder_config.create_timing_cache(f.read())
+            if old_timing_cache:
+                success = timing_cache.combine(
+                    old_timing_cache, ignore_mismatch=True)
+                assert success, "Cannot load timing cache"
+        with open(timing_cache_path, "wb") as f:
+            f.write(timing_cache.serialize())
 
-    def _add_unary(self, config: Dict[str, Any]) -> trt.ILayer:
-        assert len(config["inputs"]) == 1
-        input_tensor = self._tensors[config["inputs"][0]]
-        op = enum_from_string(trt.UnaryOperation, config["op"])
-        layer = self._network.add_unary(input_tensor, op)
-        return layer
 
-    def _add_layer(self, config: Dict[str, Any]) -> trt.ILayer:
-        layer_deserializers = {
-            trt.LayerType.ACTIVATION: self._add_activation,
-            trt.LayerType.CAST: self._add_cast,
-            trt.LayerType.CONCATENATION: self._add_concat,
-            trt.LayerType.CONSTANT: self._add_constant,
-            trt.LayerType.CONVOLUTION: self._add_convolution,
-            trt.LayerType.DECONVOLUTION: self._add_deconvolution,
-            trt.LayerType.ELEMENTWISE: self._add_elementwise,
-            trt.LayerType.GATHER: self._add_gather,
-            trt.LayerType.GRID_SAMPLE: self._add_grid_sample,
-            trt.LayerType.IDENTITY: self._add_identity,
-            trt.LayerType.POOLING: self._add_pooling,
-            trt.LayerType.REDUCE: self._add_reduce,
-            trt.LayerType.RESIZE: self._add_resize,
-            trt.LayerType.SCALE: self._add_scale,
-            trt.LayerType.SHUFFLE: self._add_shuffle,
-            trt.LayerType.SLICE: self._add_slice,
-            trt.LayerType.UNARY: self._add_unary,
-        }
-        layer_type = enum_from_string(trt.LayerType, config["type"])
-        if layer_type not in layer_deserializers:
-            raise ValueError(f"Unsupported layer type: {layer_type.name}")
-        layer = layer_deserializers[layer_type](config)
-        layer.name = config["name"]
-        if "precision" in config:
-            precision = enum_from_string(
-                trt.DataType, config["precision"])
-            if precision == trt.DataType.HALF and not self._quant_fp16:
-                precision = trt.DataType.FLOAT
-            if self._quant_fp16 or self._quant_fp16:
-                LOG.info("Forced precision %s for %s",
-                         config["precision"], layer.name)
-                layer.precision = precision
-        assert layer.num_outputs == len(config["output_names"])
-        for i, out_name, out_dtype, out_range in zip(
-            range(layer.num_outputs),
-            config["output_names"],
-            config["output_dtypes"],
-            config["output_ranges"],
-        ):
-            out = layer.get_output(i)
-            out.name = out_name
-            assert layer.get_output_type(i) == \
-                enum_from_string(trt.DataType, out_dtype), \
-                f"Data types do not match for {out_name}: {out_dtype} " + \
-                f"vs {out.dtype.name}"
-            self._tensors[out_name] = out
-            self._set_dynamic_range(out_name, out_range)
-        return layer
-
-    def deserialize(self, model_path: str, builder: trt.Builder,
-                    model: Dict[str, Any]) -> trt.INetworkDefinition:
-        """Deserialize network from model definition."""
-        self._tensors = {}
-
-        weights_path = os.path.join(
-            os.path.dirname(model_path), model["weights"]
-        )
-        self._weights = load_weights(weights_path)
-        self._network = builder.create_network(
-            1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
-        for inp in model["inputs"]:
-            self._add_input(inp)
-        for layer in model["layers"]:
-            self._add_layer(layer)
-        for out in model["outputs"]:
-            self._network.mark_output(self._tensors[out])
-            self._tensors[out].allowed_formats = 1 << int(
-                trt.TensorFormat.LINEAR)
-        return self._network
+def save_profile(engine: trt.ICudaEngine, config: Dict[str, Any]) -> None:
+    """Save profile."""
+    profile_config = config.get("profile", None)
+    if profile_config is None:
+        return
+    profile_report_path = profile_config.get("save_report_path", None)
+    if profile_report_path is None:
+        return
+    inspector = engine.create_engine_inspector()
+    with open(profile_report_path, "wt", encoding="utf-8") as f:
+        f.write(inspector.get_engine_information(
+            trt.LayerInformationFormat.JSON))
 
 
 def main(
-    model_path: str,
-    output_path: str,
-    quant_int8: bool = False,
-    quant_fp16: bool = False,
-    workspace_size: Union[None, HumanReadableSize] = None,
+    config_path: str,
 ) -> int:
     """
     Run CLI.
 
     Parameters
     ----------
-    model_path: str
-        Model
-    output_path: str
-        Output path
-    quant_int8: bool
-        Int8 quantization
-    quant_fp16: bool
-        FP16 quantization
-    workspace_size: Union[None, HumanReadableSize]
-        Workspace size limit
+    config_path: str
+        Builder configuration
 
     Returns
     -------
     int
         Exit code
     """
-    with open(model_path, "rt", encoding="utf-8") as f:
-        model = yaml.unsafe_load(f)
-    trt_logger = trt.Logger(trt.Logger.INFO)
-    builder = trt.Builder(trt_logger)
-    network = GraphDeserializer(
-        quant_fp16=quant_fp16,
-        quant_int8=quant_int8,
-    ).deserialize(model_path, builder, model)
-    config = builder.create_builder_config()
-    config.set_memory_pool_limit(
-        trt.MemoryPoolType.WORKSPACE, int(workspace_size or 2 << 30))
-    config.set_flag(trt.BuilderFlag.SPARSE_WEIGHTS)
-    if quant_fp16 or quant_int8:
-        if not builder.platform_has_fast_fp16:
-            LOG.warning("FP16 is slow on this platform")
-        config.set_flag(trt.BuilderFlag.FP16)
-    if quant_int8:
-        if not builder.platform_has_fast_int8:
-            LOG.warning("INT8 is slow on this platform")
-        config.set_flag(trt.BuilderFlag.INT8)
-    config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
-    config.set_flag(trt.BuilderFlag.REJECT_EMPTY_ALGORITHMS)
-    if builder.num_DLA_cores > 0:
-        config.default_device_type = trt.DeviceType.DLA
-        config.set_flag(trt.BuilderFlag.GPU_FALLBACK)
-    config.builder_optimization_level = 5
-    engine = builder.build_serialized_network(network, config)
-    assert engine is not None
-    with open(output_path, "wb") as f:
-        f.write(engine)
+    with open(config_path, "rt", encoding="utf-8") as f:
+        config = yaml.unsafe_load(f)
+    trt_log = trt.Logger(trt.Logger.INFO)
+    builder = trt.Builder(trt_log)
+    network = builder.create_network(
+        1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+    parser = trt.OnnxParser(network, trt_log)
+    if not parser.parse_from_file(config["model_path"]):
+        error_str = "\n".join([
+            f"  {parser.get_error(i).desc()}"
+            for i in range(parser.num_errors)
+        ]) or "  Unknown error"
+        raise RuntimeError(f"Failed to parse ONNX model:\n{error_str}")
+    builder_config, timing_cache = create_builder_config(
+        builder, network, config)
+    built_engine = builder.build_serialized_network(network, builder_config)
+    assert built_engine is not None, "Build failed"
+    runtime = trt.Runtime(trt_log)
+    engine = runtime.deserialize_cuda_engine(built_engine)
+    outputs = [x for x in [engine.get_tensor_name(i)
+                           for i in range(engine.num_io_tensors)]
+               if engine.get_tensor_mode(x) == trt.TensorIOMode.OUTPUT]
+    indices = [outputs.index(network.get_output(i).name)
+               for i in range(min(network.num_outputs, network.num_inputs))]
+    LOG.info("Output indices: %s", indices)
+    with open(config["output_path"], "wb") as f:
+        f.write(built_engine)
+        if config.get("include_output_indices", True):
+            f.write(bytes(indices + [len(indices)]))
+    save_timing_cache(builder_config, config)
+    del timing_cache
+    save_profile(engine, config)
     return 0
 
 

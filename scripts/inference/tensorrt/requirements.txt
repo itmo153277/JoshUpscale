@@ -1,4 +1,4 @@
-tensorrt==10.8.0.43
+tensorrt==10.*
 pycuda
 pyyaml
 numpy
