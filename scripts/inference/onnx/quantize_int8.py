@@ -129,12 +129,12 @@ class StaticCalibrator(quantization.CalibraterBase):
 def patch_onnxruntime() -> None:
     """Patch onnxruntime to run on calibration GPU"""
     qmod = importlib.import_module("onnxruntime.quantization.quantize")
-    orig_creaete_calibrator = qmod.create_calibrator
+    orig_create_calibrator = qmod.create_calibrator
 
     def create_calibrator(model, *args, **kwargs):
         if "calibrate_method" in kwargs and kwargs["calibrate_method"] is None:
             return StaticCalibrator(model)
-        return orig_creaete_calibrator(model, *args, **kwargs)
+        return orig_create_calibrator(model, *args, **kwargs)
     qmod.create_calibrator = create_calibrator
 
 

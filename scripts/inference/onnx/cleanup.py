@@ -246,8 +246,6 @@ def main(
         Output path
     num_checks: int
         Number of simplifier checks
-    opset: Union[int, None]
-        Opset
 
     Returns
     -------

@@ -75,7 +75,7 @@ def main(
     out_name = graph.find_node_by_name(OUT_NODE).input[0]
     grid_inp = graph.find_node_by_name(GRID_NODE).input[0]
     parent = graph.find_node_by_output(out_name)
-    parent =  graph.find_node_by_output(parent.input[0])
+    parent = graph.find_node_by_output(parent.input[0])
     if parent.op_type == "Add":
         graph.remove_node(parent)
         parent.output[0] = out_name
