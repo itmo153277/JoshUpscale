@@ -102,21 +102,13 @@ class Session:
         self._output_buf_cpu = np.zeros(output_shape, dtype=output_dtype)
         self._inter_bufs = []
         if len(input_names) == 1:
-            self._bindings = [{
-                input_names[0]: int(self._input_buf),
-                output_names[0]: int(self._output_buf),
-            }, {
-                input_names[0]: int(self._input_buf),
-                output_names[0]: int(self._output_buf),
-            }]
+            self._bindings = [{}, {}]
         else:
             num_inter = len(input_names) - 1
             for _ in range(2):
                 for i in range(num_inter):
                     self._inter_bufs.append(self._malloc(output_names[i + 1]))
             self._bindings = [{
-                input_names[0]: int(self._input_buf),
-                output_names[0]: int(self._output_buf),
                 **{
                     input_names[i + 1]: int(self._inter_bufs[i])
                     for i in range(num_inter)
@@ -126,8 +118,6 @@ class Session:
                     for i in range(num_inter)
                 },
             }, {
-                input_names[0]: int(self._input_buf),
-                output_names[0]: int(self._output_buf),
                 **{
                     input_names[i + 1]: int(self._inter_bufs[num_inter + i])
                     for i in range(num_inter)
@@ -150,6 +140,10 @@ class Session:
             buf = self._malloc(name)
             self._extra_bufs.append(buf)
             self._context.set_tensor_address(name, int(buf))
+        self._context.set_tensor_address(input_names[0],
+                                         int(self._input_buf))
+        self._context.set_tensor_address(output_names[0],
+                                         int(self._output_buf))
 
     def _malloc(self, tensor_name: str) -> cuda.DeviceAllocation:
         """Memory allocation."""
