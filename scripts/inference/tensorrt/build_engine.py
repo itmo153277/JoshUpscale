@@ -273,7 +273,9 @@ def main(
     """
     with open(config_path, "rt", encoding="utf-8") as f:
         config = yaml.unsafe_load(f)
-    trt_log = trt.Logger(trt.Logger.INFO)
+    trt_log = trt.Logger(trt.Logger.VERBOSE
+                         if config.get("verbose", False)
+                         else trt.Logger.INFO)
     builder = trt.Builder(trt_log)
     network = builder.create_network(
         1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
