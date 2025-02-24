@@ -190,12 +190,17 @@ def main(
         )
         model = onnx.load(tmp.name)
     graph = Graph(model)
-    for op_type in ["Conv", "ConvTranspose"]:
+    for op_type in ["Conv"]:
         for chain in graph.find_node_chain([
             "DequantizeLinear",
             "QuantizeLinear",
             op_type
         ]):
+            in_nodes = graph.find_nodes_by_input(chain[0].output[0])
+            if len(in_nodes) != 1 \
+                or in_nodes[0].op_type not in ["Clip", "Relu", "LeakyRelu",
+                                               "Add"]:
+                continue
             graph.remove_node(chain[0])
             graph.remove_node(chain[1])
             graph.remove_node(chain[2])

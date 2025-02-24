@@ -153,8 +153,6 @@ def create_builder_config(builder: trt.Builder,
     if timing_cache_config is not None:
         if timing_cache_config.get("disable", False):
             builder_config.set_flag(trt.BuilderFlag.DISABLE_TIMING_CACHE)
-        else:
-            builder_config.clear_flag(trt.BuilderFlag.DISABLE_TIMING_CACHE)
         if timing_cache_config.get("editable", False):
             builder_config.set_flag(trt.BuilderFlag.EDITABLE_TIMING_CACHE)
         if timing_cache_config.get("error_or_miss", False):
@@ -300,7 +298,8 @@ def main(
     LOG.info("Output indices: %s", indices)
     with open(config["output_path"], "wb") as f:
         f.write(built_engine)
-        if config.get("include_output_indices", True):
+        if config.get("include_output_indices", True) \
+                and indices != list(range(network.num_inputs)):
             f.write(bytes(indices + [len(indices)]))
     save_timing_cache(builder_config, config)
     del timing_cache

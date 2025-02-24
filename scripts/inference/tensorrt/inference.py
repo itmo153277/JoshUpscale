@@ -13,6 +13,7 @@ import time
 import logging
 from glob import glob
 import argparse
+import struct
 import cv2
 import numpy as np
 import pycuda.driver as cuda
@@ -76,9 +77,13 @@ class Session:
         runtime = trt.Runtime(TRT_LOG)
         with open(engine_path, "rb") as f:
             data = f.read()
-        additional_data = data[-1] + 1
-        indices = list(data[-additional_data:-1])
-        self._engine = runtime.deserialize_cuda_engine(data[:-additional_data])
+        trt_size = struct.unpack_from("<I", data, 16)[0]
+        if trt_size + data[-1] + 1 != len(data):
+            indices = None
+        else:
+            indices = list(data[trt_size:-1])
+            data = data[:trt_size]
+        self._engine = runtime.deserialize_cuda_engine(data)
         input_names = []
         output_names_raw = []
         for i in range(self._engine.num_io_tensors):
@@ -88,6 +93,8 @@ class Session:
                 input_names.append(name)
             elif tensor_mode == trt.TensorIOMode.OUTPUT:
                 output_names_raw.append(name)
+        if indices is None:
+            indices = list(range(len(input_names)))
         output_names = []
         for i in indices:
             output_names.append(output_names_raw[i])
