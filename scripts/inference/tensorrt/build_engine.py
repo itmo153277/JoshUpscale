@@ -53,9 +53,15 @@ def get_tensor_map(network: trt.INetworkDefinition) -> \
     return tensors
 
 
-def set_dynamic_range(tensor: trt.ITensor, val_range: Tuple[float]) -> None:
+def set_dynamic_range(tensor: trt.ITensor,
+                      calibration: Dict[str, Tuple[float]]) -> None:
     """Set tensor dynamic range."""
-    min_val, max_val = val_range
+    if tensor.dtype not in [trt.DataType.FLOAT, trt.DataType.HALF]:
+        return
+    if tensor.name not in calibration:
+        LOG.warning("Missing calibration data for %s", tensor.name)
+        return
+    min_val, max_val = calibration[tensor.name]
     value = max(abs(min_val), abs(max_val))
     tensor.set_dynamic_range(-value, value)
 
@@ -64,11 +70,7 @@ def set_dynamic_ranges(network: trt.INetworkDefinition,
                        calibration: Dict[str, Tuple[float]]) -> None:
     """Set dynamic ranges for network."""
     for i in range(network.num_inputs):
-        tensor = network.get_input(i)
-        if tensor.name in calibration:
-            set_dynamic_range(tensor, calibration[tensor.name])
-        elif tensor.dtype in [trt.DataType.FLOAT, trt.DataType.HALF]:
-            LOG.warning("Missing calibration data for %s", tensor.name)
+        set_dynamic_range(network.get_input(i), calibration)
     for layer in network:
         if layer.type == trt.LayerType.CONSTANT \
                 and layer.get_output(0).name not in calibration \
@@ -87,11 +89,7 @@ def set_dynamic_ranges(network: trt.INetworkDefinition,
             calibration[layer.get_output(0).name] = \
                 calibration[layer.get_input(0).name]
         for i in range(layer.num_outputs):
-            tensor = layer.get_output(i)
-            if tensor.name in calibration:
-                set_dynamic_range(tensor, calibration[tensor.name])
-            elif tensor.dtype in [trt.DataType.FLOAT, trt.DataType.HALF]:
-                LOG.warning("Missing calibration data for %s", tensor.name)
+            set_dynamic_range(layer.get_output(i), calibration)
 
 
 def create_builder_config(builder: trt.Builder,
@@ -179,7 +177,7 @@ def create_builder_config(builder: trt.Builder,
         success = builder_config.set_timing_cache(
             timing_cache, ignore_mismatch=True)
         assert success, "Failed to load timing cache"
-    profile_config = config.get("profile", None)
+    profile_config = config.get("profiling", None)
     if profile_config is not None:
         verbosity = profile_config.get("verbosity", None)
         if verbosity is not None:
@@ -218,7 +216,7 @@ def save_timing_cache(builder_config: trt.IBuilderConfig,
     if not timing_cache:
         return
     timing_cache_report_path = timing_cache_config.get(
-        "save_cache_report", None)
+        "save_report_path", None)
     if timing_cache_report_path is not None:
         parsed_timing_cache = {}
         for key in timing_cache.query_keys():
@@ -245,7 +243,7 @@ def save_timing_cache(builder_config: trt.IBuilderConfig,
 
 def save_profile(engine: trt.ICudaEngine, config: Dict[str, Any]) -> None:
     """Save profile."""
-    profile_config = config.get("profile", None)
+    profile_config = config.get("profiling", None)
     if profile_config is None:
         return
     profile_report_path = profile_config.get("save_report_path", None)
