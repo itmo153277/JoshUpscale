@@ -219,14 +219,14 @@ def save_timing_cache(builder_config: trt.IBuilderConfig,
         "save_report_path", None)
     if timing_cache_report_path is not None:
         parsed_timing_cache = {}
-        for key in timing_cache.query_keys():
+        for key in timing_cache.queryKeys():
             value = timing_cache.query(key)
             parsed_timing_cache[str(key)] = {
                 "hash": value.tacticHash,
                 "timing": value.timingMSec
             }
         with open(timing_cache_report_path, "wt", encoding="utf-8") as f:
-            yaml.dump(timing_cache_report_path, f, sort_keys=False)
+            yaml.dump(parsed_timing_cache, f, sort_keys=False)
 
     timing_cache_path = timing_cache_config.get("save_serialized_cache", None)
     if timing_cache_path is not None:
