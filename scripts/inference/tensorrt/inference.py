@@ -78,6 +78,8 @@ class Session:
         with open(engine_path, "rb") as f:
             data = f.read()
         trt_size = struct.unpack_from("<I", data, 16)[0]
+        if trt_size + data[-1] + 1 != len(data) and trt_size != len(data):
+            trt_size += 24
         if trt_size + data[-1] + 1 != len(data):
             indices = None
         else:
