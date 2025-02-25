@@ -10,14 +10,6 @@
 namespace JoshUpscale {
 
 namespace core {
-
-inline constexpr std::size_t INPUT_WIDTH = 480;
-inline constexpr std::size_t INPUT_HEIGHT = 270;
-inline constexpr std::size_t OUTPUT_WIDTH = 1920;
-inline constexpr std::size_t OUTPUT_HEIGHT = 1080;
-
-enum class Quantization : int { NONE, FP16, INT8 };
-
 struct Image {
 	void *ptr;
 	std::ptrdiff_t stride;
@@ -33,8 +25,8 @@ struct Runtime {
 	    const Image &inputImage, const Image &outputImage) = 0;
 };
 
-JOSHUPSCALE_EXPORT Runtime *createRuntime(int deviceId,
-    const std::filesystem::path &modelPath, Quantization quantization);
+JOSHUPSCALE_EXPORT Runtime *createRuntime(
+    int deviceId, const std::filesystem::path &modelPath);
 
 }  // namespace core
 

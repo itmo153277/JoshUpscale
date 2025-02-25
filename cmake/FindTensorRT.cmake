@@ -11,16 +11,16 @@
 # sets:
 # - TensorRT_FOUND
 # - TensorRT_nvinfer_FOUND
-# - TensorRT_nvinfer_plugin_FOUND
-# - TensorRT_nvparsers_FOUND
+# - TensorRT_nvinfer_lean_FOUND
+# - TensorRT_nvinfer_dispatch_FOUND
 # - TensorRT_nvonnxparser_FOUND
 # - TensorRT_ROOT (set if absent)
 # - TensorRT_INCLUDE_DIR (cached)
 # - TensorRT_LIBRARY_DIR (set if absent)
 # - TensorRT_BIN_DIR (windows only, cached)
 # - TensorRT_nvinfer_LIBRARY (cached)
-# - TensorRT_nvinfer_plugin_LIBRARY (cached)
-# - TensorRT_nvparsers_LIBRARY (cached)
+# - TensorRT_nvinfer_lean_LIBRARY (cached)
+# - TensorRT_nvinfer_dispatch_LIBRARY (cached)
 # - TensorRT_nvonnxparser_LIBRARY (cached)
 # - TensorRT_LIBRARIES
 # - TensorRT_VERSION
@@ -30,8 +30,8 @@
 #
 # targets:
 # - TensorRT::nvinfer
-# - TensorRT::nvinfer_plugin
-# - TensorRT::nvparsers
+# - TensorRT::nvinfer_lean
+# - TensorRT::nvinfer_dispatch
 # - TensorRT::nvonnxparser
 
 find_package(CUDAToolkit QUIET)
@@ -40,39 +40,8 @@ find_path(TensorRT_INCLUDE_DIR NvInfer.h
   HINTS ${CUDAToolkit_INCLUDE_DIRS})
 
 if(NOT TensorRT_ROOT)
-  get_filename_component(TensorRT_ROOT
-    ${TensorRT_INCLUDE_DIR} DIRECTORY)
+  get_filename_component(TensorRT_ROOT ${TensorRT_INCLUDE_DIR} DIRECTORY)
 endif()
-
-if(TensorRT_LIBRARY_DIR)
-  find_library(TensorRT_nvinfer_LIBRARY nvinfer
-    PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
-else()
-  find_library(TensorRT_nvinfer_LIBRARY nvinfer
-    HINTS ${CUDAToolkit_LIBRARY_DIR})
-  get_filename_component(TensorRT_LIBRARY_DIR
-    ${TensorRT_nvinfer_LIBRARY} DIRECTORY)
-endif()
-
-if(WIN32 AND NOT TensorRT_BIN_DIR)
-  find_program(TensorRT_BIN_DIR_NVINFER nvinfer.dll
-    HINTS ${TensorRT_LIBRARY_DIR}
-          ${TensorRT_LIBRARY_DIR}/../bin
-          ${CUDAToolkit_BIN_DIR}
-    NO_CACHE)
-  get_filename_component(TensorRT_BIN_DIR
-    ${TensorRT_BIN_DIR_NVINFER} DIRECTORY)
-  unset(TensorRT_BIN_DIR_NVINFER)
-  set(TensorRT_BIN_DIR "${TensorRT_BIN_DIR}"
-    CACHE PATH "TensorRT bin directory")
-endif()
-
-find_library(TensorRT_nvinfer_plugin_LIBRARY nvinfer_plugin
-  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
-find_library(TensorRT_nvparsers_LIBRARY nvparsers
-  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
-find_library(TensorRT_nvonnxparser_LIBRARY nvonnxparser
-  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
 
 if(TensorRT_INCLUDE_DIR AND EXISTS "${TensorRT_INCLUDE_DIR}/NvInferVersion.h")
   file(STRINGS "${TensorRT_INCLUDE_DIR}/NvInferVersion.h"
@@ -95,16 +64,54 @@ if(TensorRT_INCLUDE_DIR AND EXISTS "${TensorRT_INCLUDE_DIR}/NvInferVersion.h")
   )
 endif()
 
+set(TensorRT_SUFFIX "")
+
+if(WIN32 AND ${TensorRT_VERSION} VERSION_GREATER_EQUAL "10.0.0")
+  set(TensorRT_SUFFIX _${TensorRT_VERSION_MAJOR})
+endif()
+
+if(TensorRT_LIBRARY_DIR)
+  find_library(TensorRT_nvinfer_LIBRARY nvinfer${TensorRT_SUFFIX}
+    PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
+else()
+  find_library(TensorRT_nvinfer_LIBRARY nvinfer${TensorRT_SUFFIX}
+    HINTS ${CUDAToolkit_LIBRARY_DIR})
+  get_filename_component(TensorRT_LIBRARY_DIR
+    ${TensorRT_nvinfer_LIBRARY} DIRECTORY)
+endif()
+
+if(WIN32 AND NOT TensorRT_BIN_DIR)
+  find_program(TensorRT_BIN_DIR_NVINFER nvinfer${TensorRT_SUFFIX}.dll
+    HINTS ${TensorRT_LIBRARY_DIR}
+          ${TensorRT_LIBRARY_DIR}/../bin
+          ${CUDAToolkit_BIN_DIR}
+    NO_CACHE)
+  get_filename_component(TensorRT_BIN_DIR
+    ${TensorRT_BIN_DIR_NVINFER} DIRECTORY)
+  unset(TensorRT_BIN_DIR_NVINFER)
+  set(TensorRT_BIN_DIR "${TensorRT_BIN_DIR}"
+    CACHE PATH "TensorRT bin directory")
+endif()
+
+find_library(TensorRT_nvinfer_lean_LIBRARY
+  nvinfer_lean${TensorRT_SUFFIX}
+  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
+find_library(TensorRT_nvinfer_dispatch_LIBRARY
+  nvinfer_dispatch${TensorRT_SUFFIX}
+  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
+find_library(TensorRT_nvonnxparser_LIBRARY nvonnxparser
+  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
+
 if(TensorRT_nvinfer_LIBRARY)
   set(TensorRT_nvinfer_FOUND 1)
-  if(TensorRT_nvinfer_plugin_LIBRARY)
-    set(TensorRT_nvinfer_plugin_FOUND 1)
+  if(TensorRT_nvinfer_lean_LIBRARY)
+    set(TensorRT_nvinfer_lean_FOUND 1)
   endif()
-  if(TensorRT_nvparsers_LIBRARY)
-    set(TensorRT_nvparsers_FOUND 1)
-    if(TensorRT_nvonnxparser_LIBRARY)
-      set(TensorRT_nvonnxparser_FOUND 1)
-    endif()
+  if(TensorRT_nvinfer_dispatch_LIBRARY)
+    set(TensorRT_nvinfer_dispatch_FOUND 1)
+  endif()
+  if(TensorRT_nvonnxparser_LIBRARY)
+    set(TensorRT_nvonnxparser_FOUND 1)
   endif()
 endif()
 
@@ -115,9 +122,9 @@ mark_as_advanced(
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
   TensorRT
-  REQUIRED_VARS TensorRT_ROOT
+  REQUIRED_VARS TensorRT_nvinfer_LIBRARY
+                TensorRT_ROOT
                 TensorRT_INCLUDE_DIR
-                TensorRT_nvinfer_LIBRARY
   VERSION_VAR TensorRT_VERSION
   HANDLE_COMPONENTS
 )
@@ -125,8 +132,8 @@ find_package_handle_standard_args(
 mark_as_advanced(
   TensorRT_INCLUDE_DIR
   TensorRT_nvinfer_LIBRARY
-  TensorRT_nvinfer_plugin_LIBRARY
-  TensorRT_nvparsers_LIBRARY
+  TensorRT_nvinfer_lean_LIBRARY
+  TensorRT_nvinfer_dispatch_LIBRARY
   TensorRT_nvonnxparser_LIBRARY
 )
 
@@ -139,10 +146,10 @@ function(add_tensorrt_lib LIB_NAME)
     set_property(TARGET TensorRT::${LIB_NAME}
       PROPERTY IMPORTED_IMPLIB
       "${TensorRT_${LIB_NAME}_LIBRARY}")
-    if(EXISTS "${TensorRT_BIN_DIR}/${LIB_NAME}.dll")
+    if(EXISTS "${TensorRT_BIN_DIR}/${LIB_NAME}${TensorRT_SUFFIX}.dll")
       set_property(TARGET TensorRT::${LIB_NAME}
         PROPERTY IMPORTED_LOCATION
-        "${TensorRT_BIN_DIR}/${LIB_NAME}.dll")
+        "${TensorRT_BIN_DIR}/${LIB_NAME}${TensorRT_SUFFIX}.dll")
     endif()
   else()
     set_property(TARGET TensorRT::${LIB_NAME}
@@ -157,7 +164,7 @@ endfunction()
 
 set(TensorRT_LIBRARIES "")
 if(TensorRT_FOUND)
-  foreach(LIB_NAME nvinfer nvinfer_plugin nvparsers nvonnxparser)
+  foreach(LIB_NAME nvinfer nvinfer_lean nvinfer_dispatch nvonnxparser)
     if(TensorRT_${LIB_NAME}_FOUND)
       add_tensorrt_lib(${LIB_NAME})
     endif()

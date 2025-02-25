@@ -2,16 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "joshupscale",
   "version-semver": "1.1.0",
-  "dependencies": [
-    "yaml-cpp",
-    {
-      "name": "boost-iostreams",
-      "default-features": false,
-      "features": [
-        "zlib"
-      ]
-    }
-  ],
+  "dependencies": [],
   "features": {
     "avisynth-plugin": {
       "description": "AviSynth plugin",

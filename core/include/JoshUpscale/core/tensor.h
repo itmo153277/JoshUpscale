@@ -46,7 +46,7 @@ using TensorStoragePtr = std::shared_ptr<TensorStorage>;
 std::unique_ptr<TensorStorage> allocPlainTensor(
     std::size_t width, std::size_t height);
 
-inline constexpr std::ptrdiff_t getPlainStride(std::size_t width) {
+constexpr std::ptrdiff_t getPlainStride(std::size_t width) {
 	return static_cast<std::ptrdiff_t>(width) * 3;
 }
 
