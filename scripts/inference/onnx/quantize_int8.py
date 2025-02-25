@@ -134,6 +134,7 @@ def patch_onnxruntime() -> None:
 
 
 ADD_NODE = "final_1/full_1/generator_1/add_1/Add"
+CONV_TRANS_NODE = "final_1/full_1/generator_1/conv_trans_1_1/conv_transpose"
 
 
 def main(
@@ -190,16 +191,13 @@ def main(
         )
         model = onnx.load(tmp.name)
     graph = Graph(model)
-    for op_type in ["Conv"]:
+    for op_type in ["Conv", "ConvTranspose"]:
         for chain in graph.find_node_chain([
             "DequantizeLinear",
             "QuantizeLinear",
             op_type
         ]):
-            in_nodes = graph.find_nodes_by_input(chain[0].output[0])
-            if len(in_nodes) != 1 \
-                or in_nodes[0].op_type not in ["Clip", "Relu", "LeakyRelu",
-                                               "Add"]:
+            if chain[2].name == CONV_TRANS_NODE:
                 continue
             graph.remove_node(chain[0])
             graph.remove_node(chain[1])
