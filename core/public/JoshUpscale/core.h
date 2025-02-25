@@ -3,15 +3,19 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 
 #include "JoshUpscale/core/export.h"
 
 namespace JoshUpscale {
 
+enum class DataLocation : std::uint8_t { CPU, CUDA };
+
 namespace core {
 struct Image {
 	void *ptr;
+	DataLocation location;
 	std::ptrdiff_t stride;
 	std::size_t width;
 	std::size_t height;

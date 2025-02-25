@@ -2,12 +2,16 @@
 
 #pragma once
 
+#include <cuda_fp16.h>
 #include <cuda_runtime_api.h>
 
 #include <cstddef>
 #include <memory>
+#include <new>
 #include <stdexcept>
 #include <utility>
+
+#include "JoshUpscale/core/tensor.h"
 
 namespace JoshUpscale {
 
@@ -61,6 +65,8 @@ struct CudaBuffer : std::unique_ptr<T, detail::CudaDeleter<T>> {
 	using unique_ptr = std::unique_ptr<T, detail::CudaDeleter<T>>;
 	using unique_ptr::get;
 
+	explicit CudaBuffer(std::nullptr_t) : unique_ptr(nullptr) {
+	}
 	explicit CudaBuffer(std::size_t size)
 	    : unique_ptr(alloc(size)), m_Size(size) {
 		cudaCheck(::cudaMemset(get(), 0, getByteSize()));
@@ -136,14 +142,13 @@ private:
 };
 
 template <typename From, typename To>
-void cudaCast(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
-    const CudaStream &stream);
+void cudaCast(const From &from, const To &to, const CudaStream &stream);
 
 template <typename From, typename To>
 void cudaCopy(const From &from, const To &to, const CudaStream &stream);
 
-template <typename From, typename To>
-void cudaCopy(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
+template <typename T>
+void cudaCopy(const CudaBuffer<T> &from, const CudaBuffer<T> &to,
     const CudaStream &stream, std::size_t size);
 
 struct DeviceContext {

@@ -4,6 +4,7 @@
 
 #include <exception>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <typeinfo>
@@ -12,7 +13,6 @@
 #include <cxxabi.h>
 
 #include <cstdlib>
-#include <memory>
 #elif defined(_MSC_VER)
 #include <cstddef>
 #endif

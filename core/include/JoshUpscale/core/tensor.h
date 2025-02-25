@@ -1,9 +1,9 @@
-// Copyright 2022 Ivanov Viktor
+// Copyright 2025 Ivanov Viktor
 
 #pragma once
 
 #include <cstddef>
-#include <memory>
+#include <variant>
 
 #include "JoshUpscale/core.h"
 
@@ -13,59 +13,18 @@ namespace core {
 
 namespace detail {
 
-class TensorStorage {
-protected:
-	TensorStorage(std::size_t size, std::byte *ptr) : m_Size(size), m_Ptr(ptr) {
-	}
-
-public:
-	// Non-copyable, non-movable
-	TensorStorage(const TensorStorage &) = delete;
-	TensorStorage(TensorStorage &&) = delete;
-	TensorStorage &operator=(const TensorStorage &) = delete;
-	TensorStorage &operator=(TensorStorage &&) = delete;
-
-	virtual ~TensorStorage() {
-	}
-
-	std::byte *getPtr() const {
-		return m_Ptr;
-	}
-
-	std::size_t getSize() const {
-		return m_Size;
-	}
-
-protected:
-	std::size_t m_Size;
-	std::byte *m_Ptr;
-};
-
-using TensorStoragePtr = std::shared_ptr<TensorStorage>;
-
-std::unique_ptr<TensorStorage> allocPlainTensor(
-    std::size_t width, std::size_t height);
-
 constexpr std::ptrdiff_t getPlainStride(std::size_t width) {
 	return static_cast<std::ptrdiff_t>(width) * 3;
 }
-
 }  // namespace detail
 
 class Tensor {
 public:
 	explicit Tensor(const Image &img)
-	    : m_Data(reinterpret_cast<std::byte *>(img.ptr))
+	    : m_Data(reinterpret_cast<char *>(img.ptr))
 	    , m_Stride(img.stride)
 	    , m_Width(img.width)
 	    , m_Height(img.height) {
-	}
-	Tensor(std::size_t width, std::size_t height)
-	    : m_Storage(detail::allocPlainTensor(width, height))
-	    , m_Data(m_Storage->getPtr())
-	    , m_Stride(detail::getPlainStride(width))
-	    , m_Width(width)
-	    , m_Height(height) {
 	}
 
 	// Default-copyable, default-movable
@@ -80,7 +39,10 @@ public:
 		return m_Stride == detail::getPlainStride(m_Width);
 	}
 	std::size_t getSize() const {
-		return m_Width * m_Height * 3 * sizeof(std::byte);
+		return m_Width * m_Height * 3;
+	}
+	std::size_t getByteSize() const {
+		return getSize() * sizeof(char);
 	}
 	std::size_t getWidth() const {
 		return m_Width;
@@ -91,16 +53,83 @@ public:
 	std::ptrdiff_t getStride() const {
 		return m_Stride;
 	}
-	std::byte *data() const {
+	char *data() const {
 		return m_Data;
 	}
 
 private:
-	detail::TensorStoragePtr m_Storage = nullptr;
-	std::byte *m_Data;
+	char *m_Data;
 	std::ptrdiff_t m_Stride;
 	std::size_t m_Width;
 	std::size_t m_Height;
+};
+
+struct CpuTensor : Tensor {
+	explicit CpuTensor(const Image &img) : Tensor(img) {
+	}
+
+	// Default-copyable, default-movable
+	CpuTensor(const CpuTensor &) = default;
+	CpuTensor(CpuTensor &&) noexcept = default;
+	CpuTensor &operator=(const CpuTensor &) = default;
+	CpuTensor &operator=(CpuTensor &&) noexcept = default;
+};
+
+struct CudaTensor : Tensor {
+	explicit CudaTensor(const Image &img) : Tensor(img) {
+	}
+
+	// Default-copyable, default-movable
+	CudaTensor(const CudaTensor &) = default;
+	CudaTensor(CudaTensor &&) noexcept = default;
+	CudaTensor &operator=(const CudaTensor &) = default;
+	CudaTensor &operator=(CudaTensor &&) noexcept = default;
+};
+
+class GenericTensor {
+public:
+	explicit GenericTensor(const Image &img)
+	    : m_Location(img.location), m_Tensor{getTensor(img)} {
+	}
+
+	// Default-copyable, default-movable
+	GenericTensor(const GenericTensor &) = default;
+	GenericTensor(GenericTensor &&) noexcept = default;
+	GenericTensor &operator=(const GenericTensor &) = default;
+	GenericTensor &operator=(GenericTensor &&) noexcept = default;
+
+	CpuTensor &getCpuTensor() {
+		return std::get<CpuTensor>(m_Tensor);
+	}
+	const CpuTensor &getCpuTensor() const {
+		return std::get<CpuTensor>(m_Tensor);
+	}
+	CudaTensor &getCudaTensor() {
+		return std::get<CudaTensor>(m_Tensor);
+	}
+	const CudaTensor &getCudaTensor() const {
+		return std::get<CudaTensor>(m_Tensor);
+	}
+	DataLocation getLocation() const {
+		return m_Location;
+	}
+
+private:
+	using TensorVarint = std::variant<CpuTensor, CudaTensor, std::nullptr_t>;
+
+	DataLocation m_Location;
+	TensorVarint m_Tensor;
+
+	static TensorVarint getTensor(const Image &img) {
+		switch (img.location) {
+		case DataLocation::CPU:
+			return CpuTensor(img);
+		case DataLocation::CUDA:
+			return CudaTensor(img);
+		default:
+			return nullptr;
+		}
+	}
 };
 
 }  // namespace core

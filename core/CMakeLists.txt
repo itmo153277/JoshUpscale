@@ -17,7 +17,7 @@ endif()
 generate_export_header(JoshUpscale
   EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/generated/include/JoshUpscale/core/export.h
 )
-target_compile_features(JoshUpscale PUBLIC cxx_std_20 cuda_std_17)
+target_compile_features(JoshUpscale PUBLIC cxx_std_20 cuda_std_20)
 target_include_directories(JoshUpscale PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(JoshUpscale PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/public
