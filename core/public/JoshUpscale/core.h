@@ -10,9 +10,10 @@
 
 namespace JoshUpscale {
 
+namespace core {
+
 enum class DataLocation : std::uint8_t { CPU, CUDA };
 
-namespace core {
 struct Image {
 	void *ptr;
 	DataLocation location;

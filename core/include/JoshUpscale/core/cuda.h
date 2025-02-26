@@ -1,4 +1,4 @@
-// Copyright 2022 Ivanov Viktor
+// Copyright 2025 Ivanov Viktor
 
 #pragma once
 
@@ -6,12 +6,15 @@
 #include <cuda_runtime_api.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
-#include <new>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
+#include "JoshUpscale/core.h"
 #include "JoshUpscale/core/tensor.h"
+#include "JoshUpscale/core/utils.h"
 
 namespace JoshUpscale {
 
@@ -60,6 +63,10 @@ struct CudaDeleter {
 
 }  // namespace detail
 
+struct DynamicType {};
+
+enum class DataType : std::uint8_t { UINT8, FLOAT, HALF };
+
 template <typename T>
 struct CudaBuffer : std::unique_ptr<T, detail::CudaDeleter<T>> {
 	using unique_ptr = std::unique_ptr<T, detail::CudaDeleter<T>>;
@@ -97,6 +104,61 @@ private:
 		return reinterpret_cast<T *>(result);
 	}
 };
+
+template <>
+struct CudaBuffer<DynamicType>
+    : std::unique_ptr<void, detail::CudaDeleter<void>> {
+	using unique_ptr = std::unique_ptr<void, detail::CudaDeleter<void>>;
+	using unique_ptr::get;
+
+	explicit CudaBuffer(std::nullptr_t) : unique_ptr(nullptr) {
+	}
+	explicit CudaBuffer(std::size_t size, DataType type)
+	    : unique_ptr(alloc(size, type)), m_Size(size), m_DataType(type) {
+		cudaCheck(::cudaMemset(get(), 0, getByteSize()));
+	}
+
+	// Non-copyable, default-movable
+	CudaBuffer(const CudaBuffer &) = delete;
+	CudaBuffer(CudaBuffer &&) noexcept = default;
+	CudaBuffer &operator=(const CudaBuffer &) = delete;
+	CudaBuffer &operator=(CudaBuffer &&) noexcept = default;
+
+	std::size_t getSize() const {
+		return m_Size;
+	}
+	std::size_t getByteSize() const {
+		return m_Size * getDataTypeSize(m_DataType);
+	}
+	DataType getDataType() const {
+		return m_DataType;
+	}
+
+private:
+	std::size_t m_Size;
+	DataType m_DataType;
+
+	static void *alloc(std::size_t size, DataType type) {
+		void *result;
+		cudaCheck(::cudaMalloc(&result, size * getDataTypeSize(type)));
+		return result;
+	}
+
+	static constexpr std::size_t getDataTypeSize(DataType type) {
+		switch (type) {
+		case DataType::UINT8:
+			return sizeof(std::uint8_t);
+		case DataType::HALF:
+			return sizeof(__half);
+		case DataType::FLOAT:
+			return sizeof(float);
+		default:
+			unreachable();
+		}
+	}
+};
+
+using GenericCudaBuffer = CudaBuffer<DynamicType>;
 
 class CudaStream {
 public:
@@ -148,8 +210,82 @@ template <typename From, typename To>
 void cudaCopy(const From &from, const To &to, const CudaStream &stream);
 
 template <typename T>
-void cudaCopy(const CudaBuffer<T> &from, const CudaBuffer<T> &to,
-    const CudaStream &stream, std::size_t size);
+void cudaCopy(const CpuTensor &from, const CudaBuffer<T> &to,
+    const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
+	if constexpr (std::is_same_v<T, std::uint8_t>) {
+		cudaCopy(from, to, stream);
+	} else {
+		cudaCopy(from, internalBuffer, stream);
+		cudaCast(internalBuffer, to, stream);
+	}
+}
+
+template <typename T>
+void cudaCopy(const CudaTensor &from, const CudaBuffer<T> &to,
+    const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
+	if constexpr (std::is_same_v<T, std::uint8_t>) {
+		cudaCopy(from, to, stream);
+	} else if (from.isPlain()) {
+		cudaCast(from, to, stream);
+	} else {
+		cudaCopy(from, internalBuffer, stream);
+		cudaCast(internalBuffer, to, stream);
+	}
+}
+
+template <typename T>
+void cudaCopy(const GenericTensor &from, const CudaBuffer<T> &to,
+    const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
+	switch (from.getLocation()) {
+	case DataLocation::CPU:
+		cudaCopy(
+		    static_cast<const CpuTensor &>(from), to, internalBuffer, stream);
+		break;
+	case DataLocation::CUDA:
+		cudaCopy(
+		    static_cast<const CudaTensor &>(from), to, internalBuffer, stream);
+		break;
+	}
+}
+
+template <typename T>
+void cudaCopy(const CudaBuffer<T> &from, const CpuTensor &to,
+    const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
+	if constexpr (std::is_same_v<T, std::uint8_t>) {
+		cudaCopy(from, to, stream);
+	} else {
+		cudaCast(from, internalBuffer, stream);
+		cudaCopy(internalBuffer, to, stream);
+	}
+}
+
+template <typename T>
+void cudaCopy(const CudaBuffer<T> &from, const CudaTensor &to,
+    const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
+	if constexpr (std::is_same_v<T, std::uint8_t>) {
+		cudaCopy(from, to, stream);
+	} else if (to.isPlain()) {
+		cudaCast(from, to, stream);
+	} else {
+		cudaCast(from, internalBuffer, stream);
+		cudaCopy(internalBuffer, to, stream);
+	}
+}
+
+template <typename T>
+void cudaCopy(const CudaBuffer<T> &from, const GenericTensor &to,
+    const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
+	switch (to.getLocation()) {
+	case DataLocation::CPU:
+		cudaCopy(
+		    from, static_cast<const CpuTensor &>(to), internalBuffer, stream);
+		break;
+	case DataLocation::CUDA:
+		cudaCopy(
+		    from, static_cast<const CudaTensor &>(to), internalBuffer, stream);
+		break;
+	}
+}
 
 struct DeviceContext {
 	explicit DeviceContext(int device) {

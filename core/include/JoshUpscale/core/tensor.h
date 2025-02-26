@@ -2,10 +2,11 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstddef>
-#include <variant>
 
 #include "JoshUpscale/core.h"
+#include "JoshUpscale/core/utils.h"
 
 namespace JoshUpscale {
 
@@ -21,7 +22,7 @@ constexpr std::ptrdiff_t getPlainStride(std::size_t width) {
 class Tensor {
 public:
 	explicit Tensor(const Image &img)
-	    : m_Data(reinterpret_cast<char *>(img.ptr))
+	    : m_Data(reinterpret_cast<std::uint8_t *>(img.ptr))
 	    , m_Stride(img.stride)
 	    , m_Width(img.width)
 	    , m_Height(img.height) {
@@ -53,12 +54,12 @@ public:
 	std::ptrdiff_t getStride() const {
 		return m_Stride;
 	}
-	char *data() const {
+	std::uint8_t *data() const {
 		return m_Data;
 	}
 
 private:
-	char *m_Data;
+	std::uint8_t *m_Data;
 	std::ptrdiff_t m_Stride;
 	std::size_t m_Width;
 	std::size_t m_Height;
@@ -88,8 +89,30 @@ struct CudaTensor : Tensor {
 
 class GenericTensor {
 public:
-	explicit GenericTensor(const Image &img)
-	    : m_Location(img.location), m_Tensor{getTensor(img)} {
+	explicit GenericTensor(const Image &img) : m_Location(img.location) {
+		switch (m_Location) {
+		case DataLocation::CPU:
+			new (m_Storage.getPtr()) CpuTensor(img);
+			break;
+		case DataLocation::CUDA:
+			new (m_Storage.getPtr()) CudaTensor(img);
+			break;
+		default:
+			unreachable();
+		}
+	}
+
+	~GenericTensor() {
+		switch (m_Location) {
+		case DataLocation::CPU:
+			reinterpret_cast<CpuTensor *>(m_Storage.getPtr())->~CpuTensor();
+			break;
+		case DataLocation::CUDA:
+			reinterpret_cast<CudaTensor *>(m_Storage.getPtr())->~CudaTensor();
+			break;
+		default:
+			unreachable();
+		}
 	}
 
 	// Default-copyable, default-movable
@@ -98,38 +121,31 @@ public:
 	GenericTensor &operator=(const GenericTensor &) = default;
 	GenericTensor &operator=(GenericTensor &&) noexcept = default;
 
-	CpuTensor &getCpuTensor() {
-		return std::get<CpuTensor>(m_Tensor);
+	operator CpuTensor &() {
+		assert(m_Location == DataLocation::CPU);
+		return *reinterpret_cast<CpuTensor *>(m_Storage.getPtr());
 	}
-	const CpuTensor &getCpuTensor() const {
-		return std::get<CpuTensor>(m_Tensor);
+	operator const CpuTensor &() const {
+		assert(m_Location == DataLocation::CPU);
+		return *reinterpret_cast<CpuTensor *>(m_Storage.getPtr());
 	}
-	CudaTensor &getCudaTensor() {
-		return std::get<CudaTensor>(m_Tensor);
+	operator CudaTensor &() {
+		assert(m_Location == DataLocation::CUDA);
+		return *reinterpret_cast<CudaTensor *>(m_Storage.getPtr());
 	}
-	const CudaTensor &getCudaTensor() const {
-		return std::get<CudaTensor>(m_Tensor);
+	operator const CudaTensor &() const {
+		assert(m_Location == DataLocation::CUDA);
+		return *reinterpret_cast<CudaTensor *>(m_Storage.getPtr());
 	}
+
 	DataLocation getLocation() const {
 		return m_Location;
 	}
 
 private:
-	using TensorVarint = std::variant<CpuTensor, CudaTensor, std::nullptr_t>;
-
 	DataLocation m_Location;
-	TensorVarint m_Tensor;
 
-	static TensorVarint getTensor(const Image &img) {
-		switch (img.location) {
-		case DataLocation::CPU:
-			return CpuTensor(img);
-		case DataLocation::CUDA:
-			return CudaTensor(img);
-		default:
-			return nullptr;
-		}
-	}
+	MultiClassStorage<CpuTensor, CudaTensor> m_Storage;
 };
 
 }  // namespace core
