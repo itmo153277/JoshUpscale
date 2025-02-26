@@ -160,6 +160,92 @@ private:
 
 using GenericCudaBuffer = CudaBuffer<DynamicType>;
 
+class CudaGraphExec {
+public:
+	explicit CudaGraphExec(::cudaGraphExec_t instance) : m_GraphExec{instance} {
+	}
+	explicit CudaGraphExec(std::nullptr_t) {
+	}
+	~CudaGraphExec() {
+		if (m_GraphExec != nullptr) {
+			::cudaGraphExecDestroy(m_GraphExec);
+		}
+	}
+
+	// Non-copyable, movable
+	CudaGraphExec(const CudaGraphExec &) = delete;
+	CudaGraphExec(CudaGraphExec &&s) noexcept {
+		m_GraphExec = s.m_GraphExec;
+		s.m_GraphExec = nullptr;
+	}
+	CudaGraphExec &operator=(const CudaGraphExec &) = delete;
+	CudaGraphExec &operator=(CudaGraphExec &&s) noexcept {
+		if (this != &s) {
+			this->~CudaGraphExec();
+			new (this) CudaGraphExec(std::move(s));
+		}
+		return *this;
+	}
+
+	::cudaGraphExec_t get() const {
+		return m_GraphExec;
+	}
+	operator ::cudaGraphExec_t() const {
+		return m_GraphExec;
+	}
+
+	void launch(::cudaStream_t stream) const {
+		cudaCheck(::cudaGraphLaunch(m_GraphExec, stream));
+	}
+
+private:
+	::cudaGraphExec_t m_GraphExec = nullptr;
+};
+
+class CudaGraph {
+public:
+	explicit CudaGraph(::cudaGraph_t graph) : m_Graph(graph) {
+	}
+	explicit CudaGraph(std::nullptr_t) {
+	}
+	~CudaGraph() {
+		if (m_Graph != nullptr) {
+			::cudaGraphDestroy(m_Graph);
+		}
+	}
+
+	// Non-copyable, movable
+	CudaGraph(const CudaGraph &) = delete;
+	CudaGraph(CudaGraph &&s) noexcept {
+		m_Graph = s.m_Graph;
+		s.m_Graph = nullptr;
+	}
+	CudaGraph &operator=(const CudaGraph &) = delete;
+	CudaGraph &operator=(CudaGraph &&s) noexcept {
+		if (this != &s) {
+			this->~CudaGraph();
+			new (this) CudaGraph(std::move(s));
+		}
+		return *this;
+	}
+
+	::cudaGraph_t get() const {
+		return m_Graph;
+	}
+	operator ::cudaGraph_t() const {
+		return m_Graph;
+	}
+
+	CudaGraphExec instantieate() const {
+		::cudaGraphExec_t instance;
+		cudaCheck(::cudaGraphInstantiate(&instance, m_Graph));
+		return CudaGraphExec(instance);
+	}
+
+private:
+	::cudaGraph_t m_Graph = nullptr;
+};
+
 class CudaStream {
 public:
 	CudaStream() {
@@ -197,6 +283,17 @@ public:
 
 	void synchronize() const {
 		cudaCheck(::cudaStreamSynchronize(m_Stream));
+	}
+
+	void beginCapture() const {
+		cudaCheck(
+		    ::cudaStreamBeginCapture(m_Stream, ::cudaStreamCaptureModeGlobal));
+	}
+
+	CudaGraph endCapture() const {
+		::cudaGraph_t graph;
+		cudaCheck(::cudaStreamEndCapture(m_Stream, &graph));
+		return CudaGraph(graph);
 	}
 
 private:
