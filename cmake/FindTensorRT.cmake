@@ -99,7 +99,8 @@ find_library(TensorRT_nvinfer_lean_LIBRARY
 find_library(TensorRT_nvinfer_dispatch_LIBRARY
   nvinfer_dispatch${TensorRT_SUFFIX}
   PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
-find_library(TensorRT_nvonnxparser_LIBRARY nvonnxparser
+find_library(TensorRT_nvonnxparser_LIBRARY
+  nvonnxparser${TensorRT_SUFFIX}
   PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
 
 if(TensorRT_nvinfer_LIBRARY)
