@@ -6,14 +6,18 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <string>
+
+#include "JoshUpscale/core.h"
+#include "JoshUpscale/core/utils.h"
 
 namespace JoshUpscale {
 
 namespace core {
 
 namespace logging {
+
+using LogTimestamp = std::chrono::system_clock::time_point;
 
 std::ostream &operator<<(std::ostream &os, const LogTimestamp &ts) {
 	auto timeStruct = LogTimestamp::clock::to_time_t(ts);
@@ -28,13 +32,40 @@ std::ostream &operator<<(std::ostream &os, const LogTimestamp &ts) {
 	return os;
 }
 
-std::string LogInterface::formatMessage() {
-	std::ostringstream ss;
-	ss << m_Timestamp << ' ' << m_Level << " [" << m_Tag << "] " << str();
-	return ss.str();
+const char *getLogLevelString(LogLevel level) {
+	switch (level) {
+	case LogLevel::INFO:
+		return "INFO";
+	case LogLevel::WARNING:
+		return "WARNING";
+	case LogLevel::ERROR:
+		return "ERROR";
+	default:
+		unreachable();
+	}
 }
 
+struct ConsoleLogSink : LogSink {
+	void operator()(const char *tag, LogLevel logLevel,
+	    const std::string &message) noexcept override {
+		std::clog << LogTimestamp::clock::now() << ' '
+		          << getLogLevelString(logLevel) << " [" << tag << "] "
+		          << message << std::endl;
+	}
+};
+
 }  // namespace logging
+
+logging::ConsoleLogSink consoleLogSink;
+LogSink *currentLogSink = &consoleLogSink;
+
+LogSink &getCurrentLogSink() noexcept {
+	return *currentLogSink;
+}
+
+void setLogSink(LogSink *logSink) {
+	currentLogSink = logSink;
+}
 
 }  // namespace core
 

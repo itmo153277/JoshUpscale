@@ -9,6 +9,8 @@
 #include <string>
 #include <typeinfo>
 
+#include "JoshUpscale/core.h"
+
 #ifdef __GNUG__
 #include <cxxabi.h>
 

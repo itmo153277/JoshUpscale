@@ -4,7 +4,6 @@
 
 #include <exception>
 #include <iostream>
-#include <string>
 #include <type_traits>
 #include <typeinfo>
 #include <utility>
@@ -43,8 +42,6 @@ void printException(
 void printException(std::ostream &os, const std::exception &e);
 
 void printException(std::ostream &os);
-
-std::string getExceptionString();
 
 }  // namespace core
 
