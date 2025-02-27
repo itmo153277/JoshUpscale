@@ -18,6 +18,7 @@ namespace JoshUpscale {
 namespace core {
 
 class TensorRTBackend {
+  public:
 	explicit TensorRTBackend(std::span<std::byte> engine);
 
 	void process(
