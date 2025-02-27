@@ -416,6 +416,12 @@ DECLARE_SPEC(CudaBuffer<DynamicType>, GenericTensor);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(CudaBuffer<float>, CudaBuffer<float>);
 DECLARE_SPEC(CudaBuffer<__half>, CudaBuffer<__half>);
+DECLARE_SPEC(CudaBuffer<std::uint8_t>, CudaBuffer<DynamicType>);
+DECLARE_SPEC(CudaBuffer<float>, CudaBuffer<DynamicType>);
+DECLARE_SPEC(CudaBuffer<__half>, CudaBuffer<DynamicType>);
+DECLARE_SPEC(CudaBuffer<DynamicType>, CudaBuffer<std::uint8_t>);
+DECLARE_SPEC(CudaBuffer<DynamicType>, CudaBuffer<float>);
+DECLARE_SPEC(CudaBuffer<DynamicType>, CudaBuffer<__half>);
 DECLARE_SPEC(CudaBuffer<DynamicType>, CudaBuffer<DynamicType>);
 
 #undef DECLARE_SPEC
