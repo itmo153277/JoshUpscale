@@ -38,6 +38,7 @@ private:
 	cuda::CudaBuffer<std::uint8_t> m_OutputBuffer;
 	cuda::GenericCudaBuffer m_OutputBufferFp;
 	std::vector<cuda::GenericCudaBuffer> m_InterBuffers;
+	std::vector<cuda::GenericCudaBuffer> m_ExtraBuffers;
 	int m_BindingsIdx;
 	trt::TrtPtr<::nvinfer1::ICudaEngine> m_Engine;
 	trt::TrtPtr<::nvinfer1::IExecutionContext> m_Contexts[2];

@@ -34,8 +34,6 @@ public:
 	Tensor &operator=(const Tensor &) = default;
 	Tensor &operator=(Tensor &&) noexcept = default;
 
-	void copyTo(Tensor *dst) const;
-
 	bool isPlain() const {
 		return m_Stride == detail::getPlainStride(m_Width);
 	}
@@ -145,7 +143,7 @@ public:
 private:
 	DataLocation m_Location;
 
-	MultiClassStorage<CpuTensor, CudaTensor> m_Storage;
+	MultiClassStorage<CpuTensor, CudaTensor> m_Storage = {};
 };
 
 }  // namespace core

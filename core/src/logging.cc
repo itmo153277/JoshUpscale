@@ -17,6 +17,8 @@ namespace core {
 
 namespace logging {
 
+namespace {
+
 using LogTimestamp = std::chrono::system_clock::time_point;
 
 std::ostream &operator<<(std::ostream &os, const LogTimestamp &ts) {
@@ -47,25 +49,19 @@ const char *getLogLevelString(LogLevel level) {
 
 struct ConsoleLogSink : LogSink {
 	void operator()(const char *tag, LogLevel logLevel,
-	    const std::string &message) noexcept override {
+	    const std::string &message) override {
 		std::clog << LogTimestamp::clock::now() << ' '
 		          << getLogLevelString(logLevel) << " [" << tag << "] "
-		          << message << std::endl;
+		          << message << '\n';
 	}
 };
 
-}  // namespace logging
+}  // namespace
 
-logging::ConsoleLogSink consoleLogSink;
+ConsoleLogSink consoleLogSink;
 LogSink *currentLogSink = &consoleLogSink;
 
-LogSink &getCurrentLogSink() noexcept {
-	return *currentLogSink;
-}
-
-void setLogSink(LogSink *logSink) {
-	currentLogSink = logSink;
-}
+}  // namespace logging
 
 }  // namespace core
 

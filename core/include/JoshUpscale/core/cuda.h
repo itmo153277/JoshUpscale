@@ -72,7 +72,8 @@ struct CudaBuffer : std::unique_ptr<T, detail::CudaDeleter<T>> {
 	using unique_ptr = std::unique_ptr<T, detail::CudaDeleter<T>>;
 	using unique_ptr::get;
 
-	explicit CudaBuffer(std::nullptr_t) : unique_ptr(nullptr) {
+	CudaBuffer(std::nullptr_t)  // NOLINT(runtime/explicit)
+	    : unique_ptr(nullptr) {
 	}
 	explicit CudaBuffer(std::size_t size)
 	    : unique_ptr(alloc(size)), m_Size(size) {
@@ -96,7 +97,7 @@ struct CudaBuffer : std::unique_ptr<T, detail::CudaDeleter<T>> {
 	}
 
 private:
-	std::size_t m_Size;
+	std::size_t m_Size = 0;
 
 	static T *alloc(std::size_t size) {
 		void *result;
@@ -111,7 +112,8 @@ struct CudaBuffer<DynamicType>
 	using unique_ptr = std::unique_ptr<void, detail::CudaDeleter<void>>;
 	using unique_ptr::get;
 
-	explicit CudaBuffer(std::nullptr_t) : unique_ptr(nullptr) {
+	CudaBuffer(std::nullptr_t)  // NOLINT(runtime/explicit)
+	    : unique_ptr(nullptr) {
 	}
 	explicit CudaBuffer(std::size_t size, DataType type)
 	    : unique_ptr(alloc(size, type)), m_Size(size), m_DataType(type) {
@@ -135,8 +137,8 @@ struct CudaBuffer<DynamicType>
 	}
 
 private:
-	std::size_t m_Size;
-	DataType m_DataType;
+	std::size_t m_Size = 0;
+	DataType m_DataType = DataType::UINT8;
 
 	static void *alloc(std::size_t size, DataType type) {
 		void *result;
@@ -165,7 +167,7 @@ public:
 	explicit CudaGraphExec(::cudaGraphExec_t graphExec)
 	    : m_GraphExec{graphExec} {
 	}
-	explicit CudaGraphExec(std::nullptr_t) {
+	CudaGraphExec(std::nullptr_t) {  // NOLINT(runtime/explicit)
 	}
 	~CudaGraphExec() {
 		if (m_GraphExec != nullptr) {
@@ -207,7 +209,7 @@ class CudaGraph {
 public:
 	explicit CudaGraph(::cudaGraph_t graph) : m_Graph(graph) {
 	}
-	explicit CudaGraph(std::nullptr_t) {
+	CudaGraph(std::nullptr_t) {  // NOLINT(runtime/explicit)
 	}
 	~CudaGraph() {
 		if (m_Graph != nullptr) {
@@ -252,7 +254,7 @@ public:
 	CudaStream() {
 		cudaCheck(::cudaStreamCreate(&m_Stream));
 	}
-	explicit CudaStream(std::nullptr_t) {
+	CudaStream(std::nullptr_t) {  // NOLINT(runtime/explicit)
 	}
 	~CudaStream() {
 		if (m_Stream != nullptr) {
@@ -344,11 +346,11 @@ void cudaConvert(const GenericTensor &from, const CudaBuffer<T> &to,
     const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
 	switch (from.getLocation()) {
 	case DataLocation::CPU:
-		cudaCopy(
+		cudaConvert(
 		    static_cast<const CpuTensor &>(from), to, internalBuffer, stream);
 		break;
 	case DataLocation::CUDA:
-		cudaCopy(
+		cudaConvert(
 		    static_cast<const CudaTensor &>(from), to, internalBuffer, stream);
 		break;
 	}

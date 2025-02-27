@@ -3,7 +3,6 @@
 #pragma once
 
 #include <sstream>
-#include <utility>
 
 #include "JoshUpscale/core.h"
 #include "JoshUpscale/core/exception.h"
@@ -22,23 +21,21 @@ namespace JoshUpscale {
 
 namespace core {
 
-LogSink &getCurrentLogSink() noexcept;
-
 namespace logging {
+
+extern LogSink *currentLogSink;
 
 class LogInterface : public std::ostringstream {
 public:
 	LogInterface(const char *tag, LogLevel level) : m_Tag{tag}, m_Level{level} {
 	}
 	LogInterface(const LogInterface &) = delete;
-	LogInterface(LogInterface &&s) noexcept
-	    : std::ostringstream(std::move(s)), m_Tag{s.m_Tag}, m_Level{s.m_Level} {
-	}
+	LogInterface(LogInterface &&s) noexcept = delete;
 	LogInterface &operator=(const LogInterface &) = delete;
-	LogInterface &operator=(LogInterface &&) = delete;
+	LogInterface &operator=(LogInterface &&) noexcept = delete;
 	~LogInterface() {
 		if (tellp() > 0) {
-			getCurrentLogSink()(m_Tag, m_Level, str());
+			currentLogSink->operator()(m_Tag, m_Level, str());
 		}
 	}
 
@@ -66,8 +63,11 @@ inline logging::LogInterface logError(const char *tag) {
 }
 
 inline void logException(const char *tag) noexcept {
-	auto logStream = logError(tag);
-	printException(logStream);
+	try {
+		auto logStream = logError(tag);
+		printException(logStream);
+	} catch (...) {  // NOLINT
+	}
 }
 
 #define LOG_INFO ::JoshUpscale::core::logInfo(FUNCTION_NAME)

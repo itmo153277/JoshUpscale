@@ -16,8 +16,8 @@ namespace core {
 enum class LogLevel : std::uint8_t { INFO, WARNING, ERROR };
 
 struct LogSink {
-	virtual void operator()(const char *tag, LogLevel logLevel,
-	    const std::string &message) noexcept = 0;
+	virtual void operator()(
+	    const char *tag, LogLevel logLevel, const std::string &message) = 0;
 };
 
 JOSHUPSCALE_EXPORT void setLogSink(LogSink *sink);

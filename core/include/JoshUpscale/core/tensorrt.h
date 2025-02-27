@@ -43,8 +43,9 @@ T *throwIfNull(T *val) {
 template <typename T>
 struct TrtPtr : std::unique_ptr<T> {
 	using unique_ptr = std::unique_ptr<T>;
+	using unique_ptr::get;
 
-	explicit TrtPtr(std::nullptr_t) : unique_ptr(nullptr) {
+	TrtPtr(std::nullptr_t) : unique_ptr(nullptr) {  // NOLINT(runtime/explicit)
 	}
 	explicit TrtPtr(T *obj) : unique_ptr(throwIfNull(obj)) {
 	}
@@ -56,7 +57,7 @@ struct TrtPtr : std::unique_ptr<T> {
 	TrtPtr &operator=(TrtPtr &&) noexcept = default;
 
 	operator T *() const {
-		return this->get();
+		return get();
 	}
 };
 
@@ -178,20 +179,23 @@ class Logger : public nvinfer1::ILogger {
 public:
 	void log(Severity severity, const char *msg) noexcept override {
 		static const char kTrtTag[] = "TensorRT";
-		switch (severity) {
-		case Severity::kERROR:
-			[[fallthrough]];
-		case Severity::kINTERNAL_ERROR:
-			logError(kTrtTag) << msg;
-			break;
-		case Severity::kINFO:
-			logInfo(kTrtTag) << msg;
-			break;
-		case Severity::kWARNING:
-			logWarn(kTrtTag) << msg;
-			break;
-		default:
-			break;
+		try {
+			switch (severity) {
+			case Severity::kERROR:
+				[[fallthrough]];
+			case Severity::kINTERNAL_ERROR:
+				logError(kTrtTag) << msg;
+				break;
+			case Severity::kINFO:
+				logInfo(kTrtTag) << msg;
+				break;
+			case Severity::kWARNING:
+				logWarn(kTrtTag) << msg;
+				break;
+			default:
+				break;
+			}
+		} catch (...) {  // NOLINT
 		}
 	}
 };

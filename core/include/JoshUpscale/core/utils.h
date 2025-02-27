@@ -20,7 +20,7 @@ private:
 
 [[noreturn]] inline void unreachable() {
 #ifdef _MSC_VER
-	__assume(0);
+	__assume(false);
 #else
 	__builtin_unreachable();
 #endif

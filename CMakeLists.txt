@@ -32,7 +32,7 @@ endif()
 option(ENABLE_LINT "Enable linting" OFF)
 if(ENABLE_LINT)
   if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX /external:anglebrackets /external:W0 /wd26495 /wd28251")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX /external:anglebrackets /external:W0 /wd26439")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=/W4 -Werror all-warnings")
     list(APPEND CMAKE_VS_GLOBALS
       "RunCodeAnalysis=true"

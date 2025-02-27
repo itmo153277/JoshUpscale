@@ -5,11 +5,8 @@
 #include <exception>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <typeinfo>
-
-#include "JoshUpscale/core.h"
 
 #ifdef __GNUG__
 #include <cxxabi.h>
@@ -79,12 +76,6 @@ void printException(std::ostream &os) {
 	} catch (...) {
 		os << "Unknown error";
 	}
-}
-
-std::string getExceptionString() {
-	std::ostringstream ss;
-	printException(ss);
-	return ss.str();
 }
 
 }  // namespace core
