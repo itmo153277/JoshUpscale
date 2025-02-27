@@ -3,7 +3,6 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime_api.h>
 
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -87,6 +86,7 @@ struct UnmanagedCudaBuffer {
 	template <typename Enable = std::enable_if<std::is_same_v<T, std::uint8_t>>>
 	explicit UnmanagedCudaBuffer(const CudaTensor &s)
 	    : UnmanagedCudaBuffer(s.getSize(), s.data()) {
+		assert(s.isPlain());
 	}
 };
 
@@ -300,7 +300,10 @@ void cudaCopy(
     const From &from, const CudaBuffer<T> &to, const CudaStream &stream) {
 	auto copyKind = CopyKind<From, CudaBuffer<T>>::value;
 	std::size_t size = from.getByteSize();
-	assert(from.getSize() >= size && to.getByteSize() >= size);
+	assert(from.getSize() == size && to.getByteSize() == size);
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		assert(to.getDataType() == DataType::UINT8);
+	}
 	if (from.isPlain()) {
 		cudaCheck(
 		    ::cudaMemcpyAsync(to.get(), from.data(), size, copyKind, stream));
@@ -317,7 +320,10 @@ void cudaCopy(
     const CudaBuffer<T> &from, const To &to, const CudaStream &stream) {
 	auto copyKind = CopyKind<CudaBuffer<T>, To>::value;
 	std::size_t size = to.getByteSize();
-	assert(from.getByteSize() >= size && to.getByteSize() >= size);
+	assert(from.getByteSize() == size && to.getByteSize() == size);
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		assert(from.getDataType() == DataType::UINT8);
+	}
 	if (to.isPlain()) {
 		cudaCheck(
 		    ::cudaMemcpyAsync(to.data(), from.get(), size, copyKind, stream));
@@ -342,12 +348,18 @@ template <typename From, typename To,
                                      std::is_same_v<From, To>>>
 void cudaCopy(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
     const CudaStream &stream) {
-	auto size = std::min(from.getByteSize(), to.getByteSize());
+	std::size_t size = from.getByteSize();
+	assert(from.getByteSize() == size && to.getByteSize() == size);
+	if constexpr (std::is_same_v<From, DynamicType> &&
+	              std::is_same_v<To, DynamicType>) {
+		assert(from.getDataType() == to.getDataType());
+	}
 	cudaCheck(::cudaMemcpyAsync(to.get(), from.get(), size,
 	    ::cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
 }
 
-void cudaCopy(const CudaBuffer<std::uint8_t> &from, const GenericTensor &to,
+template <typename T>
+void cudaCopy(const CudaBuffer<T> &from, const GenericTensor &to,
     const CudaStream &stream) {
 	switch (to.getLocation()) {
 	case DataLocation::CPU:
@@ -361,7 +373,8 @@ void cudaCopy(const CudaBuffer<std::uint8_t> &from, const GenericTensor &to,
 	}
 }
 
-void cudaCopy(const GenericTensor &from, const CudaBuffer<std::uint8_t> &to,
+template <typename T>
+void cudaCopy(const GenericTensor &from, const CudaBuffer<T> &to,
     const CudaStream &stream) {
 	switch (from.getLocation()) {
 	case DataLocation::CPU:
@@ -391,12 +404,19 @@ void cudaCopy(const From &from, const To &to, const CudaStream &stream) {
 DECLARE_SPEC(CpuTensor, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(CudaTensor, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(GenericTensor, CudaBuffer<std::uint8_t>);
+DECLARE_SPEC(CpuTensor, CudaBuffer<DynamicType>);
+DECLARE_SPEC(CudaTensor, CudaBuffer<DynamicType>);
+DECLARE_SPEC(GenericTensor, CudaBuffer<DynamicType>);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, CpuTensor);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, CudaTensor);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, GenericTensor);
+DECLARE_SPEC(CudaBuffer<DynamicType>, CpuTensor);
+DECLARE_SPEC(CudaBuffer<DynamicType>, CudaTensor);
+DECLARE_SPEC(CudaBuffer<DynamicType>, GenericTensor);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(CudaBuffer<float>, CudaBuffer<float>);
 DECLARE_SPEC(CudaBuffer<__half>, CudaBuffer<__half>);
+DECLARE_SPEC(CudaBuffer<DynamicType>, CudaBuffer<DynamicType>);
 
 #undef DECLARE_SPEC
 

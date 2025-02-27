@@ -162,7 +162,8 @@ using GenericCudaBuffer = CudaBuffer<DynamicType>;
 
 class CudaGraphExec {
 public:
-	explicit CudaGraphExec(::cudaGraphExec_t instance) : m_GraphExec{instance} {
+	explicit CudaGraphExec(::cudaGraphExec_t graphExec)
+	    : m_GraphExec{graphExec} {
 	}
 	explicit CudaGraphExec(std::nullptr_t) {
 	}
@@ -236,7 +237,7 @@ public:
 		return m_Graph;
 	}
 
-	CudaGraphExec instantieate() const {
+	CudaGraphExec instantiate() const {
 		::cudaGraphExec_t instance;
 		cudaCheck(::cudaGraphInstantiate(&instance, m_Graph));
 		return CudaGraphExec(instance);
@@ -307,9 +308,13 @@ template <typename From, typename To>
 void cudaCopy(const From &from, const To &to, const CudaStream &stream);
 
 template <typename T>
-void cudaCopy(const CpuTensor &from, const CudaBuffer<T> &to,
+void cudaConvert(const CpuTensor &from, const CudaBuffer<T> &to,
     const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
-	if constexpr (std::is_same_v<T, std::uint8_t>) {
+	bool compatible = std::is_same_v<T, std::uint8_t>;
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		compatible = to.getDataType() == DataType::UINT8;
+	}
+	if (compatible) {
 		cudaCopy(from, to, stream);
 	} else {
 		cudaCopy(from, internalBuffer, stream);
@@ -318,9 +323,13 @@ void cudaCopy(const CpuTensor &from, const CudaBuffer<T> &to,
 }
 
 template <typename T>
-void cudaCopy(const CudaTensor &from, const CudaBuffer<T> &to,
+void cudaConvert(const CudaTensor &from, const CudaBuffer<T> &to,
     const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
-	if constexpr (std::is_same_v<T, std::uint8_t>) {
+	bool compatible = std::is_same_v<T, std::uint8_t>;
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		compatible = to.getDataType() == DataType::UINT8;
+	}
+	if (compatible) {
 		cudaCopy(from, to, stream);
 	} else if (from.isPlain()) {
 		cudaCast(from, to, stream);
@@ -331,7 +340,7 @@ void cudaCopy(const CudaTensor &from, const CudaBuffer<T> &to,
 }
 
 template <typename T>
-void cudaCopy(const GenericTensor &from, const CudaBuffer<T> &to,
+void cudaConvert(const GenericTensor &from, const CudaBuffer<T> &to,
     const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
 	switch (from.getLocation()) {
 	case DataLocation::CPU:
@@ -346,9 +355,13 @@ void cudaCopy(const GenericTensor &from, const CudaBuffer<T> &to,
 }
 
 template <typename T>
-void cudaCopy(const CudaBuffer<T> &from, const CpuTensor &to,
+void cudaConvert(const CudaBuffer<T> &from, const CpuTensor &to,
     const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
-	if constexpr (std::is_same_v<T, std::uint8_t>) {
+	bool compatible = std::is_same_v<T, std::uint8_t>;
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		compatible = from.getDataType() == DataType::UINT8;
+	}
+	if (compatible) {
 		cudaCopy(from, to, stream);
 	} else {
 		cudaCast(from, internalBuffer, stream);
@@ -357,9 +370,13 @@ void cudaCopy(const CudaBuffer<T> &from, const CpuTensor &to,
 }
 
 template <typename T>
-void cudaCopy(const CudaBuffer<T> &from, const CudaTensor &to,
+void cudaConvert(const CudaBuffer<T> &from, const CudaTensor &to,
     const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
-	if constexpr (std::is_same_v<T, std::uint8_t>) {
+	bool compatible = std::is_same_v<T, std::uint8_t>;
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		compatible = from.getDataType() == DataType::UINT8;
+	}
+	if (compatible) {
 		cudaCopy(from, to, stream);
 	} else if (to.isPlain()) {
 		cudaCast(from, to, stream);
@@ -370,15 +387,15 @@ void cudaCopy(const CudaBuffer<T> &from, const CudaTensor &to,
 }
 
 template <typename T>
-void cudaCopy(const CudaBuffer<T> &from, const GenericTensor &to,
+void cudaConvert(const CudaBuffer<T> &from, const GenericTensor &to,
     const CudaBuffer<std::uint8_t> &internalBuffer, const CudaStream &stream) {
 	switch (to.getLocation()) {
 	case DataLocation::CPU:
-		cudaCopy(
+		cudaConvert(
 		    from, static_cast<const CpuTensor &>(to), internalBuffer, stream);
 		break;
 	case DataLocation::CUDA:
-		cudaCopy(
+		cudaConvert(
 		    from, static_cast<const CudaTensor &>(to), internalBuffer, stream);
 		break;
 	}

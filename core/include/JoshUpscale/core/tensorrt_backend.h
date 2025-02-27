@@ -18,7 +18,7 @@ namespace JoshUpscale {
 namespace core {
 
 class TensorRTBackend {
-	TensorRTBackend(std::span<std::byte> engine);
+	explicit TensorRTBackend(std::span<std::byte> engine);
 
 	void process(
 	    const GenericTensor &inputTensor, const GenericTensor &outputTensor);
@@ -36,7 +36,7 @@ private:
 	cuda::CudaBuffer<std::uint8_t> m_InputBuffer;
 	cuda::GenericCudaBuffer m_InputBufferFp;
 	cuda::CudaBuffer<std::uint8_t> m_OutputBuffer;
-	cuda::GenericCudaBuffer m_OoutputBufferFp;
+	cuda::GenericCudaBuffer m_OutputBufferFp;
 	std::vector<cuda::GenericCudaBuffer> m_InterBuffers;
 	int m_BindingsIdx;
 	trt::TrtPtr<::nvinfer1::ICudaEngine> m_Engine;
