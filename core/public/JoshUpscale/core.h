@@ -45,18 +45,18 @@ struct Runtime {
 	std::size_t getInputHeight() const {
 		return m_InputHeight;
 	}
-	std::size_t getOuputWWidth() const {
+	std::size_t getOuputWidth() const {
 		return m_OutputWidth;
 	}
-	std::size_t getOuputWHeight() const {
+	std::size_t getOuputHeight() const {
 		return m_outputHeight;
 	}
 
 protected:
-	std::size_t m_InputWidth;
-	std::size_t m_InputHeight;
-	std::size_t m_OutputWidth;
-	std::size_t m_outputHeight;
+	std::size_t m_InputWidth = 0;
+	std::size_t m_InputHeight = 0;
+	std::size_t m_OutputWidth = 0;
+	std::size_t m_outputHeight = 0;
 };
 
 JOSHUPSCALE_EXPORT Runtime *createRuntime(

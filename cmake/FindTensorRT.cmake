@@ -66,7 +66,7 @@ endif()
 
 set(TensorRT_SUFFIX "")
 
-if(WIN32 AND ${TensorRT_VERSION} VERSION_GREATER_EQUAL "10.0.0")
+if(WIN32 AND "${TensorRT_VERSION}" VERSION_GREATER_EQUAL "10.0.0")
   set(TensorRT_SUFFIX _${TensorRT_VERSION_MAJOR})
 endif()
 
@@ -124,7 +124,6 @@ include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
   TensorRT
   REQUIRED_VARS TensorRT_nvinfer_LIBRARY
-                TensorRT_ROOT
                 TensorRT_INCLUDE_DIR
   VERSION_VAR TensorRT_VERSION
   HANDLE_COMPONENTS

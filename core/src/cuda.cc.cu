@@ -120,7 +120,6 @@ template <typename From, typename To>
 void cudaCastUnmanaged(const UnmanagedCudaBuffer<From> &from,
     const UnmanagedCudaBuffer<To> &to, const CudaStream &stream) {
 	assert(from.size == to.size);
-	assert(from.size % ALIGN_SIZE == 0);
 	auto numElements = static_cast<unsigned int>(to.size);
 	auto numBlocks =
 	    static_cast<unsigned int>((numElements + kBlockSize - 1) / kBlockSize);

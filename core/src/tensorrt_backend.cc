@@ -83,10 +83,8 @@ cuda::GenericCudaBuffer allocateTensor(
 }
 
 void scaleShape(::nvinfer1::Dims *shape) {
-	for (std::size_t i = 0, size = static_cast<std::size_t>(shape->nbDims);
-	    i < size; ++i) {
-		shape->d[i] *= static_cast<std::int64_t>(kScale);
-	}
+	shape->d[1] *= static_cast<std::int64_t>(kScale);
+	shape->d[2] *= static_cast<std::int64_t>(kScale);
 }
 
 }  // namespace
@@ -114,8 +112,10 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 	}
 	bool hasReindex = false;
 	if (trtSize + numElements == engine.size()) {
-		trtSize -= static_cast<uint32_t>(numElements);
+		trtSize -= static_cast<std::uint32_t>(numElements);
 		hasReindex = true;
+	} else {
+		trtSize = static_cast<std::uint32_t>(engine.size());
 	}
 	try {
 		auto runtime = trt::TrtPtr(::nvinfer1::createInferRuntime(m_Logger));
@@ -182,7 +182,8 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 				throw std::invalid_argument("Engine I/O mismatch");
 			}
 			auto shape = m_Engine->getTensorShape(inputName);
-			if (shape.nbDims != 4 || shape.d[0] != 1 || shape.d[3] != 3) {
+			if (shape.nbDims != 4 || shape.d[0] != 1 ||
+			    (i == 0 && shape.d[3] != 3) || (i != 0 && shape.d[1] != 3)) {
 				throw std::invalid_argument("Unsupported input shape");
 			}
 			if (i == 0) {
@@ -203,8 +204,9 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 		        m_Engine->getIOTensorName(outputIndices[0]))));
 		m_OutputBufferFp = allocateTensor(m_Engine, outputIndices[0]);
 		for (std::size_t i = 0; i < 2; ++i) {
-			for (std::int32_t idx : inputIndices) {
-				m_InterBuffers.emplace_back(allocateTensor(m_Engine, idx));
+			for (std::size_t j = 1, size = inputIndices.size(); j < size; ++j) {
+				m_InterBuffers.emplace_back(
+				    allocateTensor(m_Engine, inputIndices[j]));
 			}
 		}
 		for (std::int32_t idx : extraIndices) {
@@ -223,21 +225,21 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 			    m_InputBufferFp.get());
 			m_Contexts[i]->setTensorAddress(
 			    m_Engine->getIOTensorName(outputIndices[0]),
-			    m_InputBufferFp.get());
+			    m_OutputBufferFp.get());
 			for (std::size_t j = 0, size = extraIndices.size(); j < size; ++j) {
 				m_Contexts[i]->setTensorAddress(
 				    m_Engine->getIOTensorName(extraIndices[j]),
 				    m_ExtraBuffers[j].get());
 			}
-			for (std::size_t j = 0, size = inputIndices.size(); j < size; ++j) {
-				std::size_t inputOffset = i * inputIndices.size();
-				std::size_t outputOffset = (i ^ 1) * inputIndices.size();
+			for (std::size_t j = 1, size = inputIndices.size(); j < size; ++j) {
+				std::size_t inputOffset = i * (inputIndices.size() - 1);
+				std::size_t outputOffset = (i ^ 1) * (inputIndices.size() - 1);
 				m_Contexts[i]->setTensorAddress(
 				    m_Engine->getIOTensorName(inputIndices[j]),
-				    m_InterBuffers[inputOffset + j].get());
+				    m_InterBuffers[inputOffset + j - 1].get());
 				m_Contexts[i]->setTensorAddress(
 				    m_Engine->getIOTensorName(outputIndices[j]),
-				    m_InterBuffers[outputOffset + j].get());
+				    m_InterBuffers[outputOffset + j - 1].get());
 			}
 			m_Stream.beginCapture();
 			if (!m_Contexts[i]->enqueueV3(m_Stream)) {

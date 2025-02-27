@@ -23,7 +23,6 @@ namespace core {
 namespace cuda {
 
 constexpr int WARP_SIZE = 32;
-constexpr int ALIGN_SIZE = WARP_SIZE * 4;
 
 struct CudaException : std::runtime_error {
 	CudaException() : CudaException("CUDA general failure") {
@@ -39,11 +38,6 @@ inline void cudaCheck(::cudaError_t error) {
 	if (error != ::cudaSuccess) {
 		throw CudaException(error);
 	}
-}
-
-inline std::size_t getPaddedSize(
-    std::size_t size, std::size_t align = ALIGN_SIZE) {
-	return ((size + align - 1) / align) * align;
 }
 
 inline int getDevice() {

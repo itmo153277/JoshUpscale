@@ -21,8 +21,8 @@ constexpr std::size_t CACHE_SIZE = 16;
 
 class JoshUpscaleFilter : public GenericVideoFilter {
 public:
-	JoshUpscaleFilter(PClip _child, IScriptEnvironment *env,
-	    const char *modelPath, core::Quantization quantization);
+	JoshUpscaleFilter(
+	    PClip _child, IScriptEnvironment *env, const char *modelPath);
 	~JoshUpscaleFilter();
 	PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env) override;
 	int __stdcall SetCacheHints(int cacheHints, int frameRange) override;
@@ -39,19 +39,24 @@ private:
 };
 
 JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
-    IScriptEnvironment *env, const char *modelPath,
-    core::Quantization quantization)
+    IScriptEnvironment *env, const char *modelPath)
     : GenericVideoFilter(_child) {
 	if (!vi.IsRGB24()) {
 		env->ThrowError("JoshUpscale: only RGB24 format is supported");
 	}
-	if (vi.width != core::INPUT_WIDTH || vi.height != core::INPUT_HEIGHT) {
+	try {
+		m_Runtime.reset(core::createRuntime(0, modelPath));
+	} catch (...) {
+		auto exception = core::getExceptionString();
+		env->ThrowError("JoshUpscale: %s", exception.c_str());
+	}
+	if (vi.width != static_cast<int>(m_Runtime->getInputWidth()) ||
+	    vi.height != static_cast<int>(m_Runtime->getInputHeight())) {
 		env->ThrowError("JoshUpscale: unsupported video size");
 	}
 	env->CheckVersion(8);
-	vi.width = core::OUTPUT_WIDTH;
-	vi.height = core::OUTPUT_HEIGHT;
-	m_Runtime.reset(core::createRuntime(0, modelPath, quantization));
+	vi.width = static_cast<int>(m_Runtime->getOuputWidth());
+	vi.height = static_cast<int>(m_Runtime->getOuputHeight());
 	m_Cache.reserve(CACHE_SIZE);
 }
 
@@ -59,7 +64,7 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 }
 
 void JoshUpscaleFilter::resetStream(int n) {
-	std::clog << "[JoshUpscaleAvisynth] WARNING: Resetting stream" << std::endl;
+	std::clog << "[JoshUpscaleAvisynth] WARNING: Resetting stream\n";
 	m_NextFrame = n - MAX_BACKTRACK_SIZE;
 	m_Cache.clear();
 	m_CacheShift = 0;
@@ -82,7 +87,7 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 		}
 		if (!m_StopBacktrackWarning) {
 			std::clog << "[JoshUpscaleAvisynth] INFO: Backtracking stream from "
-			          << m_NextFrame << " to " << n << std::endl;
+			          << m_NextFrame << " to " << n << '\n';
 			m_StopBacktrackWarning = true;
 		}
 		// Backtrack to our frame
@@ -95,24 +100,31 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 	m_StopBacktrackWarning = false;
 	PVideoFrame src = child->GetFrame(n >= 0 ? n : -n, env);
 	PVideoFrame dst = env->NewVideoFrameP(vi, &src);
+	const auto &srcVi = child->GetVideoInfo();
 	core::Image inputImage = {
 	    .ptr = const_cast<BYTE *>(
 	        src->GetReadPtr() +
-	        (static_cast<std::ptrdiff_t>(core::INPUT_HEIGHT) - 1) *
-	            src->GetPitch()),
+	        ((static_cast<std::ptrdiff_t>(srcVi.height) - 1) *
+	            src->GetPitch())),
+	    .location = core::DataLocation::CPU,
 	    .stride = -src->GetPitch(),
-	    .width = core::INPUT_WIDTH,
-	    .height = core::INPUT_HEIGHT,
+	    .width = static_cast<std::size_t>(srcVi.width),
+	    .height = static_cast<std::size_t>(srcVi.height),
 	};
 	core::Image outputImage = {
 	    .ptr = dst->GetWritePtr() +
-	           (static_cast<std::ptrdiff_t>(core::OUTPUT_HEIGHT) - 1) *
-	               dst->GetPitch(),
+	           ((static_cast<std::ptrdiff_t>(vi.height) - 1) * dst->GetPitch()),
+	    .location = core::DataLocation::CPU,
 	    .stride = -dst->GetPitch(),
-	    .width = core::OUTPUT_WIDTH,
-	    .height = core::OUTPUT_HEIGHT,
+	    .width = static_cast<std::size_t>(vi.width),
+	    .height = static_cast<std::size_t>(vi.height),
 	};
-	m_Runtime->processImage(inputImage, outputImage);
+	try {
+		m_Runtime->processImage(inputImage, outputImage);
+	} catch (...) {
+		auto exception = core::getExceptionString();
+		env->ThrowError("JoshUpscale: %s", exception.c_str());
+	}
 	m_NextFrame = n + 1;
 	if (m_DontCache > 0) {
 		--m_DontCache;
@@ -151,14 +163,7 @@ AVSValue __cdecl CreateFilter(AVSValue args,  // NOLINT
     [[maybe_unused]] void *user_data, IScriptEnvironment *env) {
 	PClip clip = args[0].AsClip();
 	const char *model = args[1].AsString();
-	int quant = args[2].AsInt(static_cast<int>(core::Quantization::INT8));
-	if (quant != static_cast<int>(core::Quantization::NONE) &&
-	    quant != static_cast<int>(core::Quantization::FP16) &&
-	    quant != static_cast<int>(core::Quantization::INT8)) {
-		env->ThrowError("JoshUpscale: Invalid quantization value: %d", quant);
-	}
-	return new JoshUpscaleFilter(
-	    clip, env, model, static_cast<core::Quantization>(quant));
+	return new JoshUpscaleFilter(clip, env, model);
 }
 
 }  // namespace
@@ -172,7 +177,7 @@ const AVS_Linkage *AVS_linkage = nullptr;
 extern "C" __declspec(dllexport) const char *__stdcall AvisynthPluginInit3(
     IScriptEnvironment *env, const AVS_Linkage *const vectors) {
 	AVS_linkage = vectors;
-	env->AddFunction("JoshUpscale", "[clip]c[model_path]s[quant]i",
+	env->AddFunction("JoshUpscale", "[clip]c[model_path]s",
 	    &JoshUpscale::avisynth::CreateFilter, nullptr);
 	return "JoshUpscale plugin";
 }
