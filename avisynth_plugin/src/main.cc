@@ -99,6 +99,18 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 	}
 	m_StopBacktrackWarning = false;
 	PVideoFrame src = child->GetFrame(n >= 0 ? n : -n, env);
+	core::DataLocation location{};
+	switch (src->GetDevice().GetType()) {
+	case DEV_TYPE_CPU:
+		location = core::DataLocation::CPU;
+		break;
+	case DEV_TYPE_CUDA:
+		location = core::DataLocation::CUDA;
+		break;
+	default:
+		env->ThrowError("JoshUpscale: unsupported device");
+	}
+
 	PVideoFrame dst = env->NewVideoFrameP(vi, &src);
 	const auto &srcVi = child->GetVideoInfo();
 	core::Image inputImage = {
@@ -106,7 +118,7 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 	        src->GetReadPtr() +
 	        ((static_cast<std::ptrdiff_t>(srcVi.height) - 1) *
 	            src->GetPitch())),
-	    .location = core::DataLocation::CPU,
+	    .location = location,
 	    .stride = -src->GetPitch(),
 	    .width = static_cast<std::size_t>(srcVi.width),
 	    .height = static_cast<std::size_t>(srcVi.height),
@@ -114,7 +126,7 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 	core::Image outputImage = {
 	    .ptr = dst->GetWritePtr() +
 	           ((static_cast<std::ptrdiff_t>(vi.height) - 1) * dst->GetPitch()),
-	    .location = core::DataLocation::CPU,
+	    .location = location,
 	    .stride = -dst->GetPitch(),
 	    .width = static_cast<std::size_t>(vi.width),
 	    .height = static_cast<std::size_t>(vi.height),
@@ -147,10 +159,9 @@ int __stdcall JoshUpscaleFilter::SetCacheHints(
 		return CACHE_THREAD_CLASS;
 	case CACHE_GETCHILD_ACCESS_COST:
 		return CACHE_ACCESS_SEQ1;
-	// We run on CUDA, but accept and output for CPU
 	case CACHE_GET_DEV_TYPE:
 	case CACHE_GET_CHILD_DEV_TYPE:
-		return DEV_TYPE_CPU;
+		return DEV_TYPE_CPU | DEV_TYPE_CUDA;
 	// Can't run in parallel
 	case CACHE_GET_MTMODE:
 		return MT_SERIALIZED;
