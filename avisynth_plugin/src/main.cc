@@ -2,10 +2,17 @@
 
 #include <JoshUpscale/core.h>
 #include <avisynth.h>
+#include <d3d12.h>
+#include <dxgi1_4.h>
+#include <wrl/client.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <numeric>
+#include <stdexcept>
 #include <vector>
 
 namespace JoshUpscale {
@@ -13,6 +20,25 @@ namespace JoshUpscale {
 namespace avisynth {
 
 namespace {
+
+using Microsoft::WRL::ComPtr;
+
+ComPtr<ID3D12Device> createD3D12Device() {
+	ComPtr<IDXGIFactory4> dxgiFactory;
+	if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(dxgiFactory.GetAddressOf())))) {
+		throw std::runtime_error("Failed to create DXGI factory");
+	}
+	ComPtr<IDXGIAdapter> adapter;
+	if (FAILED(dxgiFactory->EnumAdapters(0, adapter.GetAddressOf()))) {
+		throw std::runtime_error("Failed to get DXGI adapter");
+	}
+	ComPtr<ID3D12Device> device;
+	if (FAILED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0,
+	        IID_PPV_ARGS(device.GetAddressOf())))) {
+		throw std::runtime_error("Failed to d3d12 device");
+	}
+	return device;
+}
 
 constexpr int MAX_BACKTRACK_SIZE = 16;
 constexpr std::size_t CACHE_SIZE = 16;
@@ -37,14 +63,17 @@ public:
 	int __stdcall SetCacheHints(int cacheHints, int frameRange) override;
 
 private:
+	ComPtr<ID3D12Device> m_D3D12Device;
 	std::unique_ptr<core::Runtime> m_Runtime;
 	int m_NextFrame = -MAX_BACKTRACK_SIZE;
 	bool m_StopBacktrackWarning = false;
 	std::vector<PVideoFrame> m_Cache;
 	std::size_t m_CacheShift = 0;
 	std::size_t m_DontCache = MAX_BACKTRACK_SIZE;
+	std::vector<double> m_Timings;
 
 	void resetStream(int n);
+	void printStats();
 };
 
 JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
@@ -53,6 +82,13 @@ JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
 	if (!vi.IsRGB32()) {
 		env->ThrowError("JoshUpscale: only RGB32 format is supported");
 	}
+	m_D3D12Device = createD3D12Device();
+	if (FAILED(m_D3D12Device->SetStablePowerState(true))) {
+		env->ThrowError(
+		    "Failed to set stable power state. Is developer mode enabled?");
+	}
+	std::clog
+	    << "[JoshUpscaleAvisynth] WARNING: GPU is locked to base clocks\n";
 	try {
 		m_Runtime.reset(core::createRuntime(0, modelPath));
 	} catch (...) {
@@ -70,6 +106,9 @@ JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
+	if (m_Timings.size() % 300 != 0) {
+		printStats();
+	}
 }
 
 void JoshUpscaleFilter::resetStream(int n) {
@@ -78,6 +117,32 @@ void JoshUpscaleFilter::resetStream(int n) {
 	m_Cache.clear();
 	m_CacheShift = 0;
 	m_DontCache = MAX_BACKTRACK_SIZE;
+}
+
+void JoshUpscaleFilter::printStats() {
+	std::clog << "[JoshUpscaleAvisynth] INFO: Frames: " << m_Timings.size()
+	          << '\n';
+	if (m_Timings.empty()) {
+		return;
+	}
+	std::size_t p95i =
+	    static_cast<std::size_t>(static_cast<double>(m_Timings.size()) * 0.05);
+	std::size_t p99i =
+	    static_cast<std::size_t>(static_cast<double>(m_Timings.size()) * 0.01);
+	std::partial_sort(m_Timings.begin(),
+	    m_Timings.begin() + static_cast<std::ptrdiff_t>(p95i + 1),
+	    m_Timings.end(), std::greater{});
+
+	auto avg = std::accumulate(m_Timings.begin(), m_Timings.end(), .0) /
+	           m_Timings.size();
+	auto p95 = m_Timings[p95i];
+	auto p99 = m_Timings[p99i];
+	std::clog << "[JoshUpscaleAvisynth] INFO: Average time: " << avg
+	          << " (FPS: " << (1 / avg) << ")\n";
+	std::clog << "[JoshUpscaleAvisynth] INFO: 95%: " << p95
+	          << " (FPS: " << (1 / p95) << ")\n";
+	std::clog << "[JoshUpscaleAvisynth] INFO: 99%: " << p99
+	          << " (FPS: " << (1 / p99) << ")\n";
 }
 
 PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
@@ -140,11 +205,18 @@ PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
 	    .width = static_cast<std::size_t>(vi.width),
 	    .height = static_cast<std::size_t>(vi.height),
 	};
+	auto startTimestamp = std::chrono::high_resolution_clock::now();
 	try {
 		m_Runtime->processImage(inputImage, outputImage);
 	} catch (...) {
 		auto exception = core::getExceptionString();
 		env->ThrowError("JoshUpscale: %s", exception.c_str());
+	}
+	m_Timings.push_back(std::chrono::duration<double>(
+	    std::chrono::high_resolution_clock::now() - startTimestamp)
+	        .count());
+	if (m_Timings.size() % 300 == 0) {
+		printStats();
 	}
 	m_NextFrame = n + 1;
 	if (m_DontCache > 0) {
