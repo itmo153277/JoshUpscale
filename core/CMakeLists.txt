@@ -1,5 +1,5 @@
 find_package(CUDAToolkit 12 REQUIRED)
-find_package(TensorRT 10 REQUIRED COMPONENTS nvinfer)
+find_package(TensorRT 10 REQUIRED COMPONENTS nvinfer_lean)
 
 include(GenerateExportHeader)
 
@@ -25,5 +25,5 @@ target_include_directories(JoshUpscale PUBLIC
 )
 target_link_libraries(JoshUpscale PRIVATE
   CUDA::cudart
-  TensorRT::nvinfer
+  TensorRT::nvinfer_lean
 )
