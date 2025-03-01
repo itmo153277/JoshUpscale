@@ -19,6 +19,17 @@ namespace {
 constexpr int MAX_BACKTRACK_SIZE = 16;
 constexpr std::size_t CACHE_SIZE = 16;
 
+int getDeviceTypes(const PClip &child) {
+	if (child->GetVersion() < 5) {
+		return DEV_TYPE_CPU;
+	}
+	int types = child->SetCacheHints(CACHE_GET_DEV_TYPE, 0);
+	if (types == 0) {
+		return DEV_TYPE_CPU;
+	}
+	return types;
+}
+
 class JoshUpscaleFilter : public GenericVideoFilter {
 public:
 	JoshUpscaleFilter(
@@ -159,9 +170,10 @@ int __stdcall JoshUpscaleFilter::SetCacheHints(
 		return CACHE_THREAD_CLASS;
 	case CACHE_GETCHILD_ACCESS_COST:
 		return CACHE_ACCESS_SEQ1;
+	// Support CPU & CUDA
 	case CACHE_GET_DEV_TYPE:
 	case CACHE_GET_CHILD_DEV_TYPE:
-		return DEV_TYPE_CPU | DEV_TYPE_CUDA;
+		return getDeviceTypes(child) & (DEV_TYPE_CPU | DEV_TYPE_CUDA);
 	// Can't run in parallel
 	case CACHE_GET_MTMODE:
 		return MT_SERIALIZED;
