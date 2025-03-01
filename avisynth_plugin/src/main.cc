@@ -109,6 +109,8 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 	if (m_Timings.size() % 300 != 0) {
 		printStats();
 	}
+	std::clog << "[JoshUpscaleAvisynth] INFO: Count: " << m_Timings.size()
+	          << '\n';
 }
 
 void JoshUpscaleFilter::resetStream(int n) {
@@ -120,8 +122,6 @@ void JoshUpscaleFilter::resetStream(int n) {
 }
 
 void JoshUpscaleFilter::printStats() {
-	std::clog << "[JoshUpscaleAvisynth] INFO: Frames: " << m_Timings.size()
-	          << '\n';
 	if (m_Timings.empty()) {
 		return;
 	}
@@ -137,12 +137,11 @@ void JoshUpscaleFilter::printStats() {
 	           m_Timings.size();
 	auto p95 = m_Timings[p95i];
 	auto p99 = m_Timings[p99i];
-	std::clog << "[JoshUpscaleAvisynth] INFO: Average time: " << avg
-	          << " (FPS: " << (1 / avg) << ")\n";
-	std::clog << "[JoshUpscaleAvisynth] INFO: 95%: " << p95
-	          << " (FPS: " << (1 / p95) << ")\n";
-	std::clog << "[JoshUpscaleAvisynth] INFO: 99%: " << p99
-	          << " (FPS: " << (1 / p99) << ")\n";
+
+	std::clog << std::format(
+	    "avg {:.6f} (FPS {:.3f})\tp95 {:.6f} (FPS {:.3f})\tp99 {:.6f} (FPS "
+	    "{:.3f})\n",
+	    avg, 1 / avg, p95, 1 / p95, p99, 1 / p99);
 }
 
 PVideoFrame __stdcall JoshUpscaleFilter::GetFrame(
