@@ -22,7 +22,7 @@ namespace core {
 
 namespace {
 
-constexpr int kScale = 4;
+constexpr std::int64_t kScale = 4;
 
 cuda::DataType convertDataType(::nvinfer1::DataType type) {
 	switch (type) {
@@ -82,9 +82,32 @@ cuda::GenericCudaBuffer allocateTensor(
 	unreachable();
 }
 
-void scaleShape(::nvinfer1::Dims *shape) {
-	shape->d[1] *= static_cast<std::int64_t>(kScale);
-	shape->d[2] *= static_cast<std::int64_t>(kScale);
+void validateEngineIO(::nvinfer1::ICudaEngine *const engine,
+    const std::vector<std::int32_t> &inputIndices,
+    const std::vector<std::int32_t> &outputIndices) {
+	if (inputIndices.size() != outputIndices.size()) {
+		throw std::invalid_argument("Engine I/O mismatch");
+	}
+	for (std::size_t i = 0, size = inputIndices.size(); i < size; ++i) {
+		const char *inputName = engine->getIOTensorName(inputIndices[i]);
+		const char *outputName = engine->getIOTensorName(outputIndices[i]);
+		if (engine->getTensorDataType(inputName) !=
+		    engine->getTensorDataType(outputName)) {
+			throw std::invalid_argument("Engine I/O mismatch");
+		}
+		auto shape = engine->getTensorShape(inputName);
+		if (shape.nbDims != 4 || shape.d[0] != 1 ||
+		    (i == 0 && shape.d[3] != 3) || (i != 0 && shape.d[1] != 3)) {
+			throw std::invalid_argument("Unsupported input shape");
+		}
+		if (i == 0) {
+			shape.d[1] *= kScale;
+			shape.d[2] *= kScale;
+		}
+		if (!compareShapes(shape, engine->getTensorShape(outputName))) {
+			throw std::invalid_argument("Engine I/O mismatch");
+		}
+	}
 }
 
 }  // namespace
@@ -107,11 +130,11 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 	std::uint32_t trtSize;
 	std::memcpy(&trtSize, engine.data() + 16, sizeof(trtSize));
 	std::size_t numElements = static_cast<std::size_t>(engine.back()) + 1;
-	if (trtSize + numElements != engine.size()) {
+	if (static_cast<std::size_t>(trtSize) + numElements != engine.size()) {
 		trtSize += 24;
 	}
 	bool hasReindex = false;
-	if (trtSize + numElements == engine.size()) {
+	if (static_cast<std::size_t>(trtSize) + numElements == engine.size()) {
 		trtSize -= static_cast<std::uint32_t>(numElements);
 		hasReindex = true;
 	} else {
@@ -139,22 +162,15 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 			}
 		}
 		std::vector<std::int32_t> extraIndices;
-		{
+		if (hasReindex) {
 			std::vector<std::int32_t> newOutputIndices;
 			newOutputIndices.reserve(inputIndices.size());
-			if (hasReindex) {
-				for (auto iter = engine.end() -
-				                 static_cast<std::ptrdiff_t>(numElements),
-				          end = engine.end() - 1;
-				    iter != end; ++iter) {
-					newOutputIndices.push_back(
-					    outputIndices.at(static_cast<std::size_t>(*iter)));
-				}
-			} else {
-				for (std::size_t i = 0, size = inputIndices.size(); i < size;
-				    ++i) {
-					newOutputIndices.push_back(outputIndices.at(i));
-				}
+			for (auto iter = engine.end() -
+			                 static_cast<std::ptrdiff_t>(numElements),
+			          end = engine.end() - 1;
+			    iter != end; ++iter) {
+				newOutputIndices.push_back(
+				    outputIndices.at(static_cast<std::size_t>(*iter)));
 			}
 			for (std::int32_t idx : outputIndices) {
 				bool found = false;
@@ -169,30 +185,13 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 				}
 			}
 			outputIndices = std::move(newOutputIndices);
+		} else if (outputIndices.size() >= inputIndices.size()) {
+			auto outputEnd = outputIndices.begin() +
+			                 static_cast<std::ptrdiff_t>(inputIndices.size());
+			extraIndices = {outputEnd, outputIndices.end()};
+			outputIndices = {outputIndices.begin(), outputEnd};
 		}
-		if (inputIndices.size() != outputIndices.size()) {
-			throw std::invalid_argument("Engine I/O mismatch");
-		}
-		for (std::size_t i = 0, size = inputIndices.size(); i < size; ++i) {
-			const char *inputName = m_Engine->getIOTensorName(inputIndices[i]);
-			const char *outputName =
-			    m_Engine->getIOTensorName(outputIndices[i]);
-			if (m_Engine->getTensorDataType(inputName) !=
-			    m_Engine->getTensorDataType(outputName)) {
-				throw std::invalid_argument("Engine I/O mismatch");
-			}
-			auto shape = m_Engine->getTensorShape(inputName);
-			if (shape.nbDims != 4 || shape.d[0] != 1 ||
-			    (i == 0 && shape.d[3] != 3) || (i != 0 && shape.d[1] != 3)) {
-				throw std::invalid_argument("Unsupported input shape");
-			}
-			if (i == 0) {
-				scaleShape(&shape);
-			}
-			if (!compareShapes(shape, m_Engine->getTensorShape(outputName))) {
-				throw std::invalid_argument("Engine I/O mismatch");
-			}
-		}
+		validateEngineIO(m_Engine, inputIndices, outputIndices);
 		m_DeviceMemory = cuda::CudaBuffer<std::uint8_t>(
 		    static_cast<std::size_t>(m_Engine->getDeviceMemorySizeV2()));
 		m_InputBuffer = cuda::CudaBuffer<std::uint8_t>(
@@ -256,18 +255,12 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 
 void TensorRTBackend::process(
     const GenericTensor &inputTensor, const GenericTensor &outputTensor) {
-	try {
-		cuda::DeviceContext deviceCtx(m_Device);
-		cuda::cudaConvert(
-		    inputTensor, m_InputBufferFp, m_InputBuffer, m_Stream);
-		m_CudaGraphExec[m_BindingsIdx].launch(m_Stream);
-		cuda::cudaConvert(
-		    m_OutputBufferFp, outputTensor, m_OutputBuffer, m_Stream);
-		m_Stream.synchronize();
-		m_BindingsIdx ^= 1;
-	} catch (...) {
-		m_ErrorRecorder.rethrowException();
-	}
+	cuda::DeviceContext deviceCtx(m_Device);
+	cuda::cudaConvert(inputTensor, m_InputBufferFp, m_InputBuffer, m_Stream);
+	m_CudaGraphExec[m_BindingsIdx].launch(m_Stream);
+	cuda::cudaConvert(m_OutputBufferFp, outputTensor, m_OutputBuffer, m_Stream);
+	m_Stream.synchronize();
+	m_BindingsIdx ^= 1;
 }
 
 std::size_t TensorRTBackend::getInputWidth() const {
@@ -280,13 +273,11 @@ std::size_t TensorRTBackend::getInputHeight() const {
 }
 std::size_t TensorRTBackend::getOutputWidth() const {
 	auto shape = getInputShape(m_Engine);
-	scaleShape(&shape);
-	return static_cast<std::size_t>(shape.d[2]);
+	return static_cast<std::size_t>(shape.d[2] * kScale);
 }
 std::size_t TensorRTBackend::getOutputHeight() const {
 	auto shape = getInputShape(m_Engine);
-	scaleShape(&shape);
-	return static_cast<std::size_t>(shape.d[1]);
+	return static_cast<std::size_t>(shape.d[1] * kScale);
 }
 
 }  // namespace core
