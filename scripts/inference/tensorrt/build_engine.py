@@ -145,7 +145,7 @@ def create_builder_config(builder: trt.Builder,
                 if tensor.is_network_input or tensor.is_network_output:
                     tensor.dtype = dtype
                 else:
-                    layer.set_output_dtype(idx, dtype)
+                    layer.set_output_type(idx, dtype)
                 assert tensor.dtype == dtype, "Failed to set dtype"
             for k, v in precision_config.get("layers", {}).items():
                 layers[k].precision = enum_from_string(trt.DataType, v)

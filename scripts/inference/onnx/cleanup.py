@@ -51,6 +51,8 @@ def merge_conv_trans_mul(graph: Graph) -> None:
         if node.op_type != "Mul":
             continue
         parent = graph.find_node_by_output(node.input[0])
+        if not parent:
+            continue
         if parent.op_type != "ConvTranspose":
             continue
         if len(parent.input) > 2:

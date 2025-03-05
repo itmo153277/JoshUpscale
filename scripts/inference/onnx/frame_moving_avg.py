@@ -81,12 +81,19 @@ def parse_args() -> argparse.Namespace:
                         help="Limit pre_warp output to output range",
                         action="store_true",
                         default=False)
+    parser.add_argument("--luma-normalize",
+                        help="Normalize by luma value",
+                        action="store_true",
+                        default=False)
     return parser.parse_args()
 
 
 # Hardcoded nodes
 INPUT_NODE = "final_1/full_1/generator_1/space_to_depth_1/SpaceToDepth"
 TARGET_NODE = "final_1/full_1/generator_1/clip_1/clip_by_value"
+
+LUMA_NORM = np.array([0.1140, 0.5870, 0.2989],
+                     dtype=np.float32).reshape((1, 3, 1, 1)) * 3
 
 
 def main(
@@ -99,6 +106,7 @@ def main(
     gain: float,
     norm: NormType,
     limit: bool,
+    luma_normalize: bool,
 ) -> int:
     """
     Run CLI.
@@ -123,6 +131,8 @@ def main(
         Scene detection norm type
     limit: bool
         Limit pre_warp to output range
+    luma_normalize: bool
+        Normalize by luma value
 
     Returns
     -------
@@ -170,18 +180,33 @@ def main(
     else:
         raise ValueError(f"Unknown norm type {norm}")
     if window == 0:
-        graph.create_node(
-            "output_diff_mean", "ReduceMean", ["output_diff_abs"]
-        )
-        if gain == 0:
+        if luma_normalize:
+            kernel = LUMA_NORM * gain_coef
+            if norm == NormType.L2:
+                kernel *= LUMA_NORM
+            graph.create_constant("output_diff_gain", kernel)
+            graph.create_node(
+                "output_diff_abs_g", "Mul",
+                ["output_diff_abs", "output_diff_gain"]
+            )
+            graph.create_node(
+                "output_diff_mean", "ReduceMean", ["output_diff_abs_g"]
+            )
             output_diff_mean = "output_diff_mean"
         else:
-            graph.create_constant("output_diff_gain", np.float32(gain_coef))
             graph.create_node(
-                "output_diff_mean_g", "Mul",
-                ["output_diff_mean", "output_diff_gain"]
+                "output_diff_mean", "ReduceMean", ["output_diff_abs"]
             )
-            output_diff_mean = "output_diff_mean_g"
+            if gain == 0:
+                output_diff_mean = "output_diff_mean"
+            else:
+                graph.create_constant("output_diff_gain",
+                                      np.float32(gain_coef))
+                graph.create_node(
+                    "output_diff_mean_g", "Mul",
+                    ["output_diff_mean", "output_diff_gain"]
+                )
+                output_diff_mean = "output_diff_mean_g"
     else:
         output_shape = [
             ((x + window - 1) // window) * window
@@ -191,11 +216,13 @@ def main(
             [(x - y) // 2, x - y - (x - y) // 2]
             for x, y in zip(output_shape, [height, width])
         ]
-        graph.create_value(
-            "output_diff_mean_kernel",
-            (np.ones(shape=[1, 3, window, window]) /
-             1 / 3 / window / window * gain_coef).astype(np.float32),
-        )
+        kernel = (np.ones(shape=[1, 3, window, window]) /
+                  3 / window / window * gain_coef).astype(np.float32)
+        if luma_normalize:
+            kernel *= LUMA_NORM
+            if norm == NormType.L2:
+                kernel *= LUMA_NORM
+        graph.create_value("output_diff_mean_kernel", kernel)
         graph.create_node(
             "output_diff_mean", "Conv",
             ["output_diff_abs", "output_diff_mean_kernel"],
