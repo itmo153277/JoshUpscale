@@ -15,7 +15,7 @@ namespace core {
 namespace detail {
 
 constexpr std::ptrdiff_t getPlainStride(std::size_t width) {
-	return static_cast<std::ptrdiff_t>(width) * 3;
+	return static_cast<std::ptrdiff_t>(width) * 4;
 }
 }  // namespace detail
 
@@ -38,7 +38,7 @@ public:
 		return m_Stride == detail::getPlainStride(m_Width);
 	}
 	std::size_t getSize() const {
-		return m_Width * m_Height * 3;
+		return m_Width * m_Height * 4;
 	}
 	std::size_t getByteSize() const {
 		return getSize() * sizeof(char);

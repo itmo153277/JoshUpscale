@@ -3,6 +3,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 
 namespace JoshUpscale {
 
@@ -19,10 +20,14 @@ private:
 };
 
 [[noreturn]] inline void unreachable() {
+#ifdef NDEBUG
 #ifdef _MSC_VER
 	__assume(false);
 #else
 	__builtin_unreachable();
+#endif
+#else
+	assert(false);
 #endif
 }
 

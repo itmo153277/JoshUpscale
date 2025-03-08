@@ -52,8 +52,8 @@ private:
 JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
     IScriptEnvironment *env, const char *modelPath)
     : GenericVideoFilter(_child) {
-	if (!vi.IsRGB24()) {
-		env->ThrowError("JoshUpscale: only RGB24 format is supported");
+	if (!vi.IsRGB32()) {
+		env->ThrowError("JoshUpscale: only RGB32 format is supported");
 	}
 	try {
 		m_Runtime.reset(core::createRuntime(0, modelPath));

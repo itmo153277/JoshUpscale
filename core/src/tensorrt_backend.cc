@@ -196,11 +196,13 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 		    static_cast<std::size_t>(m_Engine->getDeviceMemorySizeV2()));
 		m_InputBuffer = cuda::CudaBuffer<std::uint8_t>(
 		    calculateShapeSize(m_Engine->getTensorShape(
-		        m_Engine->getIOTensorName(inputIndices[0]))));
+		        m_Engine->getIOTensorName(inputIndices[0]))) /
+		    3 * 4);
 		m_InputBufferFp = allocateTensor(m_Engine, inputIndices[0]);
 		m_OutputBuffer = cuda::CudaBuffer<std::uint8_t>(
 		    calculateShapeSize(m_Engine->getTensorShape(
-		        m_Engine->getIOTensorName(outputIndices[0]))));
+		        m_Engine->getIOTensorName(outputIndices[0]))) /
+		    3 * 4);
 		m_OutputBufferFp = allocateTensor(m_Engine, outputIndices[0]);
 		for (std::size_t i = 0; i < 2; ++i) {
 			for (std::size_t j = 1, size = inputIndices.size(); j < size; ++j) {
