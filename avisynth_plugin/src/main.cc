@@ -81,8 +81,8 @@ private:
 JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
     IScriptEnvironment *env, const char *modelPath)
     : GenericVideoFilter(_child) {
-	if (!vi.IsRGB24()) {
-		env->ThrowError("JoshUpscale: only RGB24 format is supported");
+	if (!vi.IsRGB32()) {
+		env->ThrowError("JoshUpscale: only RGB32 format is supported");
 	}
 	m_D3D12Device = createD3D12Device();
 	if (FAILED(m_D3D12Device->SetStablePowerState(true))) {

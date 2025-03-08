@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <type_traits>
 
 #include "JoshUpscale/core.h"
@@ -23,18 +24,66 @@ namespace detail {
 
 namespace {
 
+template <class T2, class T1>
+__device__ T2 cuda_bit_cast(T1 t1) {
+	T2 t2{};
+	std::memcpy(&t2, &t1, sizeof(T1));
+	return t2;
+}
+
+template <typename T, typename StorageType>
+struct BaseDataTypeTraits {
+	using storage_type = StorageType;
+
+	__device__ static storage_type store(T val1, T val2, T val3) {
+		storage_type val{};
+		val.x = val1;
+		val.y = val2;
+		val.z = val3;
+		return val;
+	}
+	__device__ static T get(T val) {
+		return val;
+	}
+};
+
+template <typename T>
+struct DataTypeTraits;
+
+template <>
+struct DataTypeTraits<std::uint8_t> : BaseDataTypeTraits<std::uint8_t, uchar4> {
+};
+
+template <>
+struct DataTypeTraits<__half> {
+	using storage_type = ushort3;
+
+	__device__ static ushort3 store(__half val1, __half val2, __half val3) {
+		return make_ushort3(cuda_bit_cast<std::uint16_t>(val1),
+		    cuda_bit_cast<std::uint16_t>(val2),
+		    cuda_bit_cast<std::uint16_t>(val3));
+	}
+
+	__device__ static __half get(std::uint16_t val) {
+		return cuda_bit_cast<__half>(val);
+	}
+};
+
+template <>
+struct DataTypeTraits<float> : BaseDataTypeTraits<float, float3> {};
+
 template <typename From, typename To>
-struct CastTrait {
+struct CastTraits {
 	__device__ static To convert(From value) {
 		return static_cast<To>(value);
 	}
 };
 
 template <typename T>
-struct CastTrait<T, T> {};
+struct CastTraits<T, T> {};
 
 template <>
-struct CastTrait<std::uint8_t, __half> {
+struct CastTraits<std::uint8_t, __half> {
 	__device__ static __half convert(std::uint8_t value) {
 		return static_cast<__half>(static_cast<int>(value));
 	}
@@ -48,9 +97,13 @@ __global__ void castKernel(From *from, To *to, unsigned int numElements) {
 	if (idx >= numElements) {
 		return;
 	}
-	auto *srcPtr = from + idx;
-	auto *dstPtr = to + idx;
-	*dstPtr = CastTrait<From, To>::convert(*srcPtr);
+	using src_storage = DataTypeTraits<From>::storage_type;
+	using dst_storage = DataTypeTraits<To>::storage_type;
+	src_storage src = reinterpret_cast<src_storage *>(from)[idx];
+	reinterpret_cast<dst_storage *>(to)[idx] = DataTypeTraits<To>::store(
+	    CastTraits<From, To>::convert(DataTypeTraits<From>::get(src.x)),
+	    CastTraits<From, To>::convert(DataTypeTraits<From>::get(src.y)),
+	    CastTraits<From, To>::convert(DataTypeTraits<From>::get(src.z)));
 }
 
 #define DECLARE_SPEC(From, To)                     \
@@ -71,8 +124,16 @@ struct UnmanagedCudaBuffer {
 	std::size_t size;
 	T *ptr;
 
-	std::size_t getByteSize() {
+	std::size_t getByteSize() const {
 		return size * sizeof(T);
+	}
+
+	std::size_t getNumElements() const {
+		if constexpr (std::is_same_v<T, std::uint8_t>) {
+			return size / 4;
+		} else {
+			return size / 3;
+		}
 	}
 
 	UnmanagedCudaBuffer(std::size_t size, T *ptr) : size{size}, ptr{ptr} {
@@ -91,27 +152,27 @@ struct UnmanagedCudaBuffer {
 };
 
 template <typename T>
-struct DataTypeTrait;
+struct ContainerTraits;
 
 template <typename T>
-struct DataTypeTrait<CudaBuffer<T>> {
+struct ContainerTraits<CudaBuffer<T>> {
 	using dataType = T;
 };
 
 template <>
-struct DataTypeTrait<CudaBuffer<DynamicType>> {};
+struct ContainerTraits<CudaBuffer<DynamicType>> {};
 
 template <>
-struct DataTypeTrait<CudaTensor> {
+struct ContainerTraits<CudaTensor> {
 	using dataType = std::uint8_t;
 };
 
 template <typename T>
-struct DataTypeTrait<UnmanagedCudaBuffer<T>> {
+struct ContainerTraits<UnmanagedCudaBuffer<T>> {
 	using dataType = T;
 };
 
-template <typename T, typename DataType = DataTypeTrait<T>::dataType>
+template <typename T, typename DataType = ContainerTraits<T>::dataType>
 UnmanagedCudaBuffer<DataType> toUnmanaged(const T &s) {
 	return UnmanagedCudaBuffer<DataType>(s);
 }
@@ -119,8 +180,9 @@ UnmanagedCudaBuffer<DataType> toUnmanaged(const T &s) {
 template <typename From, typename To>
 void cudaCastUnmanaged(const UnmanagedCudaBuffer<From> &from,
     const UnmanagedCudaBuffer<To> &to, const CudaStream &stream) {
-	assert(from.size == to.size);
-	auto numElements = static_cast<unsigned int>(to.size);
+	assert(from.getNumElements() == to.getNumElements());
+	auto numElements = static_cast<unsigned int>(to.getNumElements());
+	assert(numElements % WARP_SIZE == 0);
 	auto numBlocks =
 	    static_cast<unsigned int>((numElements + kBlockSize - 1) / kBlockSize);
 	castKernel<From, To>
@@ -142,7 +204,7 @@ void cudaCast(
 template <typename T>
 void cudaCast(const CudaBuffer<DynamicType> &from, const T &to,
     const CudaStream &stream) {
-	using dataType = DataTypeTrait<T>::dataType;
+	using dataType = ContainerTraits<T>::dataType;
 	switch (from.getDataType()) {
 	case DataType::UINT8:
 		if constexpr (std::is_same_v<dataType, std::uint8_t>) {
@@ -176,7 +238,7 @@ void cudaCast(const CudaBuffer<DynamicType> &from, const T &to,
 template <typename T>
 void cudaCast(const T &from, const CudaBuffer<DynamicType> &to,
     const CudaStream &stream) {
-	using dataType = DataTypeTrait<T>::dataType;
+	using dataType = ContainerTraits<T>::dataType;
 	switch (to.getDataType()) {
 	case DataType::UINT8:
 		if constexpr (std::is_same_v<dataType, std::uint8_t>) {
@@ -307,7 +369,7 @@ void cudaCopy(
 		cudaCheck(
 		    ::cudaMemcpyAsync(to.get(), from.data(), size, copyKind, stream));
 	} else {
-		std::size_t lineLength = from.getWidth() * 3 * sizeof(std::byte);
+		std::size_t lineLength = from.getWidth() * 4 * sizeof(std::byte);
 		cudaCheck(::cudaMemcpy2DAsync(to.get(), lineLength, from.data(),
 		    static_cast<std::size_t>(from.getStride()), lineLength,
 		    from.getHeight(), copyKind, stream));
@@ -327,7 +389,7 @@ void cudaCopy(
 		cudaCheck(
 		    ::cudaMemcpyAsync(to.data(), from.get(), size, copyKind, stream));
 	} else {
-		std::size_t lineLength = to.getWidth() * 3 * sizeof(std::byte);
+		std::size_t lineLength = to.getWidth() * 4 * sizeof(std::byte);
 		cudaCheck(::cudaMemcpy2DAsync(to.data(),
 		    static_cast<std::size_t>(to.getStride()), from.get(), lineLength,
 		    lineLength, to.getHeight(), copyKind, stream));
