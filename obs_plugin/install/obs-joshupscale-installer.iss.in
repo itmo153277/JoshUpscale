@@ -39,7 +39,6 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 [Code]
 const
   UseNvVfx = @USE_NVVFX@;
-  RequiredObsDlls = '@REQUIRED_DLLS@';
   MinObsVersion = @MIN_OBS_VERSION@;
 
 function GetNvVfxPath: String;
@@ -57,7 +56,7 @@ begin
   NvVfxPath := GetNvVfxPath;
   if not DirExists(NvVfxPath) then
     Exit;
-  if not FileExists(NvVfxPath + '\nvinfer.dll') then
+  if not FileExists(NvVfxPath + '\nvinfer_10.dll') then
     Exit;
   Result := True;
 end;
@@ -103,41 +102,9 @@ begin
     Result := GetOBSPath;
 end;
 
-function CheckOldInstall: Boolean;
-var OBSPath: String;
-begin
-  OBSPath := GetTargetOBSPath;
-  Result := True;
-  if FileExists(OBSPath + '\bin\64bit\JoshUpscale.dll') or
-    FileExists(OBSPath + '\bin\64bit\nvinfer.dll') or
-    FileExists(OBSPath + '\bin\64bit\nvinfer_builder_resource.dll') then
-    Exit;
-  Result := False;
-end;
-
-function SplitStr(s: String; const Delim: String): TArrayOfString;
-var p, c: Integer;
-begin
-  c := 0;
-  while Length(s) > 0 do
-  begin
-    SetArrayLength(Result, c + 1);
-    p := Pos(Delim, s);
-    if p = 0 then
-    begin
-      Result[c] := s;
-      Break;
-    end;
-    Result[c] := Copy(s, 1, p - 1);
-    s := Copy(s, p + 1, Length(s) - p);
-    c := c + 1;
-  end;
-end;
-
-function CheckRequiredDlls: Boolean;
+function CheckOBSVersion: Boolean;
 var
   OBSPath: String;
-  DllList: TArrayOfString;
   i: Integer;
   MajorVer, MinorVer, RevVer, BuildVer: Word;
 begin
@@ -148,10 +115,6 @@ begin
     Exit;
   end;
   Result := False;
-  DllList := SplitStr(RequiredObsDlls, ':');
-  for i := 0 to Length(DllList) - 1 do
-    if not FileExists(OBSPath + '\bin\64bit\' + DllList[i]) then
-      Exit;
   if not GetVersionComponents(OBSPath + '\bin\64bit\obs.dll', MajorVer, MinorVer, RevVer, BuildVer) then
     Exit;
   if MajorVer < MinObsVersion then
@@ -161,12 +124,7 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  if CheckOldInstall then
-  begin
-    Result := 'Previous installation detected. Remove old files before continuing';
-    Exit;
-  end;
-  if not CheckRequiredDlls then
+  if not CheckOBSVersion then
   begin
     Result := 'OBS version mismatch';
     Exit;

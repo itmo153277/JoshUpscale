@@ -1,4 +1,3 @@
-find_package(FFMPEG REQUIRED)
 find_package(libobs QUIET)
 if(NOT TARGET OBS::libobs)
   find_package(LibObs REQUIRED)
@@ -23,16 +22,16 @@ target_include_directories(obs-joshupscale PRIVATE
 target_include_directories(obs-joshupscale SYSTEM PRIVATE
   ${FFMPEG_INCLUDE_DIRS}
 )
-if (WIN32)
+if(WIN32)
   option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
   if(USE_NVVFX)
-    find_package(CUDAToolkit 11 REQUIRED)
-    find_package(TensorRT 8.4 REQUIRED COMPONENTS nvinfer)
-    if(NOT CUDAToolkit_VERSION_MAJOR EQUAL 11)
-      message(FATAL_ERROR "Need CUDA 11 to use NVVFX, found ${CUDAToolkit_VERSION}")
+    find_package(CUDAToolkit 12 REQUIRED)
+    find_package(TensorRT 10 REQUIRED COMPONENTS nvinfer)
+    if(NOT CUDAToolkit_VERSION_MAJOR EQUAL 12)
+      message(FATAL_ERROR "Need CUDA 12 to use NVVFX, found ${CUDAToolkit_VERSION}")
     endif()
-    if(NOT (TensorRT_VERSION_MAJOR EQUAL 8 AND TensorRT_VERSION_MINOR EQUAL 4))
-      message(FATAL_ERROR "Need TensorRT 8.4 to use NVVFX, found ${TensorRT_VERSION}")
+    if(NOT TensorRT_VERSION_MAJOR EQUAL 10)
+      message(FATAL_ERROR "Need TensorRT 10 to use NVVFX, found ${TensorRT_VERSION}")
     endif()
     target_compile_definitions(obs-joshupscale PRIVATE JOSHUPSCALE_NVVFX)
   endif()
@@ -41,7 +40,6 @@ target_link_directories(obs-joshupscale PRIVATE ${FFMPEG_LIBRARY_DIRS})
 target_link_libraries(obs-joshupscale PRIVATE
   JoshUpscale
   OBS::libobs
-  ${FFMPEG_LIBRARIES}
 )
 if(MSVC)
   target_link_options(obs-joshupscale PRIVATE /DELAYLOAD:JoshUpscale.dll)
@@ -50,9 +48,9 @@ endif()
 if(BUILD_OBS_PLUGIN_INSTALLER)
   find_program(ISCC_COMMAND "iscc"
     HINTS "$ENV{ProgramFiles}/Inno Setup 6"
+          "$ENV{ProgramFiles\(x86\)}/Inno Setup 6"
     REQUIRED
   )
-  set(OBS_PLUGIN_REQUIRED_DLLS "" CACHE STRING "Required dlls for OBS plugin")
   add_custom_command(
     OUTPUT obs-joshupscale-installer.iss
     MAIN_DEPENDENCY install/obs-joshupscale-installer.iss.in
@@ -66,17 +64,13 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DCORE_PATH=$<TARGET_FILE:JoshUpscale>
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
       -DUSE_NVVFX=$<IF:$<BOOL:USE_NVVFX>,True,False>
-      -DREQUIRED_DLLS=${OBS_PLUGIN_REQUIRED_DLLS}
-      -DMIN_OBS_VERSION=$<IF:$<VERSION_LESS:${libobs_VERSION},28.0.0>,0,28>
+      -DMIN_OBS_VERSION=${libobs_VERSION_MAJOR}
       -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
     COMMAND ${CMAKE_COMMAND}
       -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
   )
   file(GLOB_RECURSE DATA data/*)
-  file(GLOB_RECURSE DATA_MODELS data/*.yaml data/*.bin)
-  if(NOT DATA_MODELS)
-    message(FATAL_ERROR "No model data found. Please put data into ./data folder")
-  endif()
+  file(GLOB_RECURSE DATA_MODELS data/*.trt)
   add_custom_command(
     OUTPUT obs-joshupscale-installer.exe
     COMMAND ${ISCC_COMMAND}
