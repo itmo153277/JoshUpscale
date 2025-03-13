@@ -447,7 +447,7 @@ void cudaCopy(const CudaBuffer<From> &from, const CudaBuffer<To> &to,
 		assert(from.getDataType() == to.getDataType());
 	}
 	cudaCheck(::cudaMemcpyAsync(to.get(), from.get(), size,
-	    ::cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
+	    ::cudaMemcpyKind::cudaMemcpyDeviceToDevice, stream));
 }
 
 template <typename T>
