@@ -64,8 +64,8 @@ JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
 		env->ThrowError("JoshUpscale: unsupported video size");
 	}
 	env->CheckVersion(8);
-	vi.width = static_cast<int>(m_Runtime->getOuputWidth());
-	vi.height = static_cast<int>(m_Runtime->getOuputHeight());
+	vi.width = static_cast<int>(m_Runtime->getOutputWidth());
+	vi.height = static_cast<int>(m_Runtime->getOutputHeight());
 	m_Cache.reserve(CACHE_SIZE);
 }
 

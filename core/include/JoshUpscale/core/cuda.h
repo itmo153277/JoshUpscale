@@ -336,7 +336,7 @@ public:
 		return *this;
 	}
 
-	cudaArray_t get() const {
+	cudaArray_t getArray() const {
 		cudaArray_t ptr;
 		cudaCheck(
 		    cudaGraphicsSubResourceGetMappedArray(&ptr, m_Resource, 0, 0));

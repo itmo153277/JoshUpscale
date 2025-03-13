@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <graphics/graphics.h>
 extern "C" {
 #include <obs-module.h>
 }
@@ -54,7 +55,7 @@ Defer<T> operator*([[maybe_unused]] DeferOp op, T &&fn) {
 
 #define DEFER_OP_NAME_(LINE) _defer##LINE
 #define DEFER_OP_NAME(LINE) DEFER_OP_NAME_(LINE)
-#define defer auto DEFER_OP_NAME(__LINE__) = DeferOp{} *[&]()
+#define defer auto DEFER_OP_NAME(__LINE__) = DeferOp{} *[&]()  // NOLINT
 
 struct JoshUpscaleFilter {
 	static ::obs_source_info *getSourceInfo();
@@ -67,14 +68,15 @@ private:
 
 	static void *create(
 	    ::obs_data_t *settings, ::obs_source_t *source) noexcept;
-
-	static void destroy(void *data) noexcept;
-
+	void destroy() noexcept;
 	void render(::gs_effect_t *effect) noexcept;
+	void videoTick(float seconds) noexcept;
+	std::uint32_t getWidth() noexcept;
+	std::uint32_t getHeight() noexcept;
 
 	template <auto Ptr>
 	struct Callback {
-		static consteval decltype(Ptr) getPtr() noexcept {
+		static consteval decltype(Ptr) getPtr() {
 			return Ptr;
 		}
 	};
@@ -82,7 +84,7 @@ private:
 	template <typename R, typename... T,
 	    R (JoshUpscaleFilter::*Ptr)(T...) noexcept>
 	struct Callback<Ptr> {
-		static consteval R (*getPtr() noexcept)(void *, T...) noexcept {
+		static consteval R (*getPtr())(void *, T...) noexcept {
 			return [](void *self, T... params) noexcept -> R {
 				return (reinterpret_cast<JoshUpscaleFilter *>(self)->*Ptr)(
 				    params...);
@@ -90,7 +92,28 @@ private:
 		}
 	};
 
+	void createInputImage(::gs_texture_t *texture);
+	void createOutputImage();
+
 	::obs_source_t *m_Source;
+	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
+	::gs_texrender_t *m_RenderTarget = nullptr;
+	::gs_texrender_t *m_RenderInput = nullptr;
+	::gs_texture_t *m_TargetTexture = nullptr;
+	::gs_texture_t *m_OutputTexture = nullptr;
+	std::unique_ptr<core::GraphicsResourceImage> m_InputImage = nullptr;
+	std::unique_ptr<core::GraphicsResourceImage> m_OutputImage = nullptr;
+	std::uint32_t m_LastWidth = 0;
+	std::uint32_t m_LastHeight = 0;
+	::vec2 m_Dimension = {};
+	::vec2 m_DimensionInv = {};
+	::gs_effect_t *m_ScaleEffect = nullptr;
+	::gs_eparam_t *m_ScaleImgParam = nullptr;
+	::gs_eparam_t *m_ScaleDimensionParam = nullptr;
+	::gs_eparam_t *m_ScaleDimensionInvParam = nullptr;
+	::gs_effect_t *m_OutputEffect = nullptr;
+	::gs_eparam_t *m_OutputImgParam = nullptr;
+	bool m_FrameReady = false;
 };
 
 }  // namespace obs

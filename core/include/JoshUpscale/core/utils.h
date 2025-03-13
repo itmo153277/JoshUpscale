@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <exception>
 
 namespace JoshUpscale {
 
@@ -28,7 +29,7 @@ private:
 #endif
 #else
 	assert(false);
-	throw 0;
+	std::terminate();
 #endif
 }
 

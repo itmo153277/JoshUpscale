@@ -71,10 +71,10 @@ struct Runtime {
 	std::size_t getInputHeight() const {
 		return m_InputHeight;
 	}
-	std::size_t getOuputWidth() const {
+	std::size_t getOutputWidth() const {
 		return m_OutputWidth;
 	}
-	std::size_t getOuputHeight() const {
+	std::size_t getOutputHeight() const {
 		return m_OutputHeight;
 	}
 
