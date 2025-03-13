@@ -15,7 +15,6 @@
 #include "JoshUpscale/core/logging.h"
 #include "JoshUpscale/core/tensor.h"
 #include "JoshUpscale/core/tensorrt_backend.h"
-#include "JoshUpscale/core/utils.h"
 
 #ifdef _WIN32
 #include <cuda_d3d11_interop.h>
@@ -40,26 +39,14 @@ void setLogSink(LogSink *logSink) {
 namespace {
 
 struct D3D11ResourceImage : GraphicsResourceImage {
-	D3D11ResourceImage(
-	    ID3D11Texture2D *d3d11Texture, GraphicsResourceImageType type) {
+	explicit D3D11ResourceImage(ID3D11Texture2D *d3d11Texture) {
 		::cudaGraphicsResource_t resource;
 		D3D11_TEXTURE2D_DESC desc;
 		d3d11Texture->GetDesc(&desc);
 		assert(desc.Format == DXGI_FORMAT_B8G8R8X8_UNORM ||
 		       desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM);
-		unsigned int flags = 0;
-		switch (type) {
-		case GraphicsResourceImageType::INPUT:
-			flags |= ::cudaGraphicsRegisterFlagsReadOnly;
-			break;
-		case GraphicsResourceImageType::OUTPUT:
-			flags |= ::cudaGraphicsRegisterFlagsWriteDiscard;
-			break;
-		default:
-			unreachable();
-		}
 		cuda::cudaCheck(::cudaGraphicsD3D11RegisterResource(
-		    &resource, d3d11Texture, flags));
+		    &resource, d3d11Texture, ::cudaGraphicsRegisterFlagsNone));
 		m_Image.location = DataLocation::GRAPHICS_RESOURCE;
 		m_Image.ptr = resource;
 		m_Image.width = static_cast<std::size_t>(desc.Width);
@@ -74,9 +61,9 @@ struct D3D11ResourceImage : GraphicsResourceImage {
 
 }  // namespace
 
-GraphicsResourceImage *getD3D11Image(
-    ID3D11Texture2D *d3d11Texture, GraphicsResourceImageType type) {
-	return new D3D11ResourceImage(d3d11Texture, type);
+GraphicsResourceImage *getD3D11Image(ID3D11Texture2D *d3d11Texture,
+    [[maybe_unused]] GraphicsResourceImageType type) {
+	return new D3D11ResourceImage(d3d11Texture);
 }
 #endif
 
