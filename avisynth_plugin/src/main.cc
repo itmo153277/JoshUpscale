@@ -1,6 +1,4 @@
-// Copyright 2022 Ivanov Viktor
-
-#define WIN32_LEAN_AND_MEAN
+// Copyright 2025 Ivanov Viktor
 
 #include <JoshUpscale/core.h>
 #include <avisynth.h>

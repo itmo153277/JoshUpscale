@@ -9,6 +9,13 @@
 
 #include "JoshUpscale/core/export.h"
 
+#ifdef _WIN32
+#include <d3d11.h>
+#ifdef ERROR
+#undef ERROR
+#endif
+#endif
+
 namespace JoshUpscale {
 
 namespace core {
@@ -22,7 +29,7 @@ struct LogSink {
 
 JOSHUPSCALE_EXPORT void setLogSink(LogSink *sink);
 
-enum class DataLocation : std::uint8_t { CPU, CUDA };
+enum class DataLocation : std::uint8_t { CPU, CUDA, GRAPHICS_RESOURCE };
 
 struct Image {
 	void *ptr;
@@ -31,6 +38,25 @@ struct Image {
 	std::size_t width;
 	std::size_t height;
 };
+
+enum class GraphicsResourceImageType : std::uint8_t { INPUT, OUTPUT };
+
+struct GraphicsResourceImage {
+	virtual ~GraphicsResourceImage() {
+	}
+
+	Image getImage() const {
+		return m_Image;
+	}
+
+protected:
+	Image m_Image = {};
+};
+
+#ifdef _WIN32
+JOSHUPSCALE_EXPORT GraphicsResourceImage *getD3D11Image(
+    ID3D11Texture2D *d3d11Texture, GraphicsResourceImageType type);
+#endif
 
 struct Runtime {
 	virtual ~Runtime() {
@@ -49,14 +75,14 @@ struct Runtime {
 		return m_OutputWidth;
 	}
 	std::size_t getOuputHeight() const {
-		return m_outputHeight;
+		return m_OutputHeight;
 	}
 
 protected:
 	std::size_t m_InputWidth = 0;
 	std::size_t m_InputHeight = 0;
 	std::size_t m_OutputWidth = 0;
-	std::size_t m_outputHeight = 0;
+	std::size_t m_OutputHeight = 0;
 };
 
 JOSHUPSCALE_EXPORT Runtime *createRuntime(

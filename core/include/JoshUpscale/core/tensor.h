@@ -6,6 +6,7 @@
 #include <cstddef>
 
 #include "JoshUpscale/core.h"
+#include "JoshUpscale/core/cuda.h"
 #include "JoshUpscale/core/utils.h"
 
 namespace JoshUpscale {
@@ -85,6 +86,25 @@ struct CudaTensor : Tensor {
 	CudaTensor &operator=(CudaTensor &&) noexcept = default;
 };
 
+struct GraphicsResourceTensor {
+	explicit GraphicsResourceTensor(const Image &img)
+	    : m_Resource(reinterpret_cast<::cudaGraphicsResource_t>(img.ptr)) {
+	}
+
+	GraphicsResourceTensor(const GraphicsResourceTensor &) = default;
+	GraphicsResourceTensor(GraphicsResourceTensor &&) noexcept = default;
+	GraphicsResourceTensor &operator=(const GraphicsResourceTensor &) = default;
+	GraphicsResourceTensor &operator=(
+	    GraphicsResourceTensor &&) noexcept = default;
+
+	cuda::GraphicsResource getResource(::cudaStream_t stream) const {
+		return cuda::GraphicsResource(m_Resource, stream);
+	}
+
+private:
+	::cudaGraphicsResource_t m_Resource;
+};
+
 class GenericTensor {
 public:
 	explicit GenericTensor(const Image &img) : m_Location(img.location) {
@@ -94,6 +114,9 @@ public:
 			break;
 		case DataLocation::CUDA:
 			new (m_Storage.getPtr()) CudaTensor(img);
+			break;
+		case DataLocation::GRAPHICS_RESOURCE:
+			new (m_Storage.getPtr()) GraphicsResourceTensor(img);
 			break;
 		default:
 			unreachable();
@@ -107,6 +130,10 @@ public:
 			break;
 		case DataLocation::CUDA:
 			reinterpret_cast<CudaTensor *>(m_Storage.getPtr())->~CudaTensor();
+			break;
+		case DataLocation::GRAPHICS_RESOURCE:
+			reinterpret_cast<GraphicsResourceTensor *>(m_Storage.getPtr())
+			    ->~GraphicsResourceTensor();
 			break;
 		default:
 			unreachable();
@@ -135,6 +162,14 @@ public:
 		assert(m_Location == DataLocation::CUDA);
 		return *reinterpret_cast<CudaTensor *>(m_Storage.getPtr());
 	}
+	operator GraphicsResourceTensor &() {
+		assert(m_Location == DataLocation::GRAPHICS_RESOURCE);
+		return *reinterpret_cast<GraphicsResourceTensor *>(m_Storage.getPtr());
+	}
+	operator const GraphicsResourceTensor &() const {
+		assert(m_Location == DataLocation::GRAPHICS_RESOURCE);
+		return *reinterpret_cast<GraphicsResourceTensor *>(m_Storage.getPtr());
+	}
 
 	DataLocation getLocation() const {
 		return m_Location;
@@ -143,7 +178,8 @@ public:
 private:
 	DataLocation m_Location;
 
-	MultiClassStorage<CpuTensor, CudaTensor> m_Storage = {};
+	MultiClassStorage<CpuTensor, CudaTensor, GraphicsResourceTensor> m_Storage =
+	    {};
 };
 
 }  // namespace core

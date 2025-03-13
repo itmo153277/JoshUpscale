@@ -2,6 +2,7 @@
 
 #include "JoshUpscale/core.h"
 
+#include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -14,6 +15,12 @@
 #include "JoshUpscale/core/logging.h"
 #include "JoshUpscale/core/tensor.h"
 #include "JoshUpscale/core/tensorrt_backend.h"
+#include "JoshUpscale/core/utils.h"
+
+#ifdef _WIN32
+#include <cuda_d3d11_interop.h>
+#include <d3d11.h>
+#endif
 
 namespace JoshUpscale {
 
@@ -28,6 +35,50 @@ std::string getExceptionString() {
 void setLogSink(LogSink *logSink) {
 	logging::currentLogSink = logSink;
 }
+
+#ifdef _WIN32
+namespace {
+
+struct D3D11ResourceImage : GraphicsResourceImage {
+	D3D11ResourceImage(
+	    ID3D11Texture2D *d3d11Texture, GraphicsResourceImageType type) {
+		::cudaGraphicsResource_t resource;
+		D3D11_TEXTURE2D_DESC desc;
+		d3d11Texture->GetDesc(&desc);
+		assert(desc.Format == DXGI_FORMAT_B8G8R8X8_UNORM ||
+		       desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM);
+		unsigned int flags = 0;
+		switch (type) {
+		case GraphicsResourceImageType::INPUT:
+			flags |= ::cudaGraphicsRegisterFlagsReadOnly;
+			break;
+		case GraphicsResourceImageType::OUTPUT:
+			flags |= ::cudaGraphicsRegisterFlagsWriteDiscard;
+			break;
+		default:
+			unreachable();
+		}
+		cuda::cudaCheck(::cudaGraphicsD3D11RegisterResource(
+		    &resource, d3d11Texture, flags));
+		m_Image.location = DataLocation::GRAPHICS_RESOURCE;
+		m_Image.ptr = resource;
+		m_Image.width = static_cast<std::size_t>(desc.Width);
+		m_Image.height = static_cast<std::size_t>(desc.Height);
+	}
+	~D3D11ResourceImage() {
+		::cudaGraphicsResource_t resource =
+		    reinterpret_cast<::cudaGraphicsResource_t>(m_Image.ptr);
+		::cudaGraphicsUnregisterResource(resource);
+	}
+};
+
+}  // namespace
+
+GraphicsResourceImage *getD3D11Image(
+    ID3D11Texture2D *d3d11Texture, GraphicsResourceImageType type) {
+	return new D3D11ResourceImage(d3d11Texture, type);
+}
+#endif
 
 namespace {
 
@@ -47,11 +98,15 @@ struct TensorRTRuntime : Runtime {
 		m_InputWidth = m_Backend->getInputWidth();
 		m_InputHeight = m_Backend->getInputHeight();
 		m_OutputWidth = m_Backend->getOutputWidth();
-		m_outputHeight = m_Backend->getOutputHeight();
+		m_OutputHeight = m_Backend->getOutputHeight();
 	}
 
 	void processImage(
 	    const Image &inputImage, const Image &outputImage) override {
+		assert(inputImage.width == m_InputWidth &&
+		       inputImage.height == m_InputHeight &&
+		       outputImage.width == m_OutputWidth &&
+		       outputImage.height == m_OutputHeight);
 		GenericTensor inputTensor{inputImage};
 		GenericTensor outputTensor{outputImage};
 		m_Backend->process(inputTensor, outputTensor);

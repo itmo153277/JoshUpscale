@@ -11,6 +11,7 @@
 
 #include "JoshUpscale/core.h"
 #include "JoshUpscale/core/cuda.h"
+#include "JoshUpscale/core/cuda_convert.h"
 #include "JoshUpscale/core/tensor.h"
 #include "JoshUpscale/core/utils.h"
 
@@ -376,6 +377,21 @@ void cudaCopy(
 	}
 }
 
+template <typename T>
+void cudaCopy(const GraphicsResource &from, const CudaBuffer<T> &to,
+    const CudaStream &stream) {
+	auto array = from.get();
+	::cudaExtent extent;
+	cudaCheck(::cudaArrayGetInfo(nullptr, &extent, nullptr, array));
+	assert(to.getByteSize() == extent.width * extent.height * extent.depth);
+	std::size_t lineLength = extent.width * 4 * sizeof(std::byte);
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		assert(to.getDataType() == DataType::UINT8);
+	}
+	cudaCheck(::cudaMemcpy2DFromArrayAsync(to.get(), lineLength, array, 0, 0,
+	    lineLength, extent.height, ::cudaMemcpyDeviceToDevice, stream));
+}
+
 template <typename To, typename T>
 void cudaCopy(
     const CudaBuffer<T> &from, const To &to, const CudaStream &stream) {
@@ -394,6 +410,21 @@ void cudaCopy(
 		    static_cast<std::size_t>(to.getStride()), from.get(), lineLength,
 		    lineLength, to.getHeight(), copyKind, stream));
 	}
+}
+
+template <typename T>
+void cudaCopy(const CudaBuffer<T> &from, const GraphicsResource &to,
+    const CudaStream &stream) {
+	auto array = to.get();
+	::cudaExtent extent;
+	cudaCheck(::cudaArrayGetInfo(nullptr, &extent, nullptr, array));
+	std::size_t lineLength = extent.width * 4 * sizeof(std::byte);
+	assert(from.getByteSize() == extent.width * extent.height * extent.depth);
+	if constexpr (std::is_same_v<T, DynamicType>) {
+		assert(from.getDataType() == DataType::UINT8);
+	}
+	cudaCheck(::cudaMemcpy2DToArrayAsync(array, 0, 0, from.get(), lineLength,
+	    lineLength, extent.height, ::cudaMemcpyDeviceToDevice, stream));
 }
 
 template <typename T>
@@ -465,15 +496,19 @@ void cudaCopy(const From &from, const To &to, const CudaStream &stream) {
 DECLARE_SPEC(CpuTensor, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(CudaTensor, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(GenericTensor, CudaBuffer<std::uint8_t>);
+DECLARE_SPEC(GraphicsResource, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(CpuTensor, CudaBuffer<DynamicType>);
 DECLARE_SPEC(CudaTensor, CudaBuffer<DynamicType>);
 DECLARE_SPEC(GenericTensor, CudaBuffer<DynamicType>);
+DECLARE_SPEC(GraphicsResource, CudaBuffer<DynamicType>);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, CpuTensor);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, CudaTensor);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, GenericTensor);
+DECLARE_SPEC(CudaBuffer<std::uint8_t>, GraphicsResource);
 DECLARE_SPEC(CudaBuffer<DynamicType>, CpuTensor);
 DECLARE_SPEC(CudaBuffer<DynamicType>, CudaTensor);
 DECLARE_SPEC(CudaBuffer<DynamicType>, GenericTensor);
+DECLARE_SPEC(CudaBuffer<DynamicType>, GraphicsResource);
 DECLARE_SPEC(CudaBuffer<std::uint8_t>, CudaBuffer<std::uint8_t>);
 DECLARE_SPEC(CudaBuffer<float>, CudaBuffer<float>);
 DECLARE_SPEC(CudaBuffer<__half>, CudaBuffer<__half>);

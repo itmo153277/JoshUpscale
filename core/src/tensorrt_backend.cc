@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "JoshUpscale/core/cuda.h"
+#include "JoshUpscale/core/cuda_convert.h"
+#include "JoshUpscale/core/tensor.h"
 #include "JoshUpscale/core/tensorrt.h"
 #include "JoshUpscale/core/utils.h"
 
