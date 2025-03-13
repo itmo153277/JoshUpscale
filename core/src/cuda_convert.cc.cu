@@ -380,7 +380,7 @@ void cudaCopy(
 template <typename T>
 void cudaCopy(const GraphicsResource &from, const CudaBuffer<T> &to,
     const CudaStream &stream) {
-	auto array = from.get();
+	auto *array = from.get();
 	::cudaExtent extent;
 	cudaCheck(::cudaArrayGetInfo(nullptr, &extent, nullptr, array));
 	assert(to.getByteSize() == extent.width * extent.height * extent.depth);
@@ -415,7 +415,7 @@ void cudaCopy(
 template <typename T>
 void cudaCopy(const CudaBuffer<T> &from, const GraphicsResource &to,
     const CudaStream &stream) {
-	auto array = to.get();
+	auto *array = to.get();
 	::cudaExtent extent;
 	cudaCheck(::cudaArrayGetInfo(nullptr, &extent, nullptr, array));
 	std::size_t lineLength = extent.width * 4 * sizeof(std::byte);

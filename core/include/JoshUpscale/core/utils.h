@@ -28,6 +28,7 @@ private:
 #endif
 #else
 	assert(false);
+	throw 0;
 #endif
 }
 
