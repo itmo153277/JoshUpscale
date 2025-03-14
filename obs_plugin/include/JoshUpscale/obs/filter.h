@@ -109,10 +109,9 @@ private:
 	::vec2 m_DimensionInv = {};
 	::gs_effect_t *m_ScaleEffect = nullptr;
 	::gs_eparam_t *m_ScaleImgParam = nullptr;
-	::gs_eparam_t *m_ScaleDimensionParam = nullptr;
-	::gs_eparam_t *m_ScaleDimensionInvParam = nullptr;
 	::gs_effect_t *m_OutputEffect = nullptr;
 	::gs_eparam_t *m_OutputImgParam = nullptr;
+	float m_FrameDuration = 0.0F;
 	bool m_FrameReady = false;
 };
 

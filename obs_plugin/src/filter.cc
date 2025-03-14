@@ -43,21 +43,13 @@ JoshUpscaleFilter::JoshUpscaleFilter(
     : m_Source{source} {
 	auto modelFile = OBSPtr(obs_module_file("model.trt"));
 	m_Runtime.reset(core::createRuntime(0, modelFile.get()));
-	float inputWidthFp = static_cast<float>(m_Runtime->getInputWidth());
-	float inputHeightFp = static_cast<float>(m_Runtime->getInputHeight());
-	::vec2_set(&m_Dimension, inputWidthFp, inputHeightFp);
-	::vec2_set(&m_DimensionInv, 1.0F / inputWidthFp, 1.0F / inputHeightFp);
 	{
 		::obs_enter_graphics();
 		defer {
 			::obs_leave_graphics();
 		};
-		m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BICUBIC);
+		m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BILINEAR_LOWRES);
 		m_ScaleImgParam = ::gs_effect_get_param_by_name(m_ScaleEffect, "image");
-		m_ScaleDimensionParam =
-		    ::gs_effect_get_param_by_name(m_ScaleEffect, "base_dimension");
-		m_ScaleDimensionInvParam =
-		    ::gs_effect_get_param_by_name(m_ScaleEffect, "base_dimension_i");
 		m_OutputEffect = ::obs_get_base_effect(OBS_EFFECT_DEFAULT);
 		m_OutputImgParam =
 		    ::gs_effect_get_param_by_name(m_OutputEffect, "image");
@@ -112,11 +104,19 @@ void JoshUpscaleFilter::render(
 	if (!m_FrameReady) {
 		::obs_source_t *const target = ::obs_filter_get_target(m_Source);
 		::obs_source_t *const parent = ::obs_filter_get_parent(m_Source);
+		if (target == nullptr || parent == nullptr) {
+			::obs_source_skip_video_filter(m_Source);
+			return;
+		}
 		const uint32_t target_flags = ::obs_source_get_output_flags(target);
 		bool custom_draw = (target_flags & OBS_SOURCE_CUSTOM_DRAW) != 0;
 		bool async = (target_flags & OBS_SOURCE_ASYNC) != 0;
 		const uint32_t width = ::obs_source_get_base_width(target);
 		const uint32_t height = ::obs_source_get_base_height(target);
+		if (width == 0 || height == 0) {
+			::obs_source_skip_video_filter(m_Source);
+			return;
+		}
 		if (width != m_LastWidth || height != m_LastHeight) {
 			m_LastWidth = width;
 			m_LastHeight = height;
@@ -160,13 +160,18 @@ void JoshUpscaleFilter::render(
 				m_RenderInput = nullptr;
 			}
 			if (m_TargetTexture == nullptr) {
-				m_TargetTexture =
-				    ::gs_texture_create(width, height, GS_BGRX_UNORM, 1, nullptr, 0);
+				m_TargetTexture = ::gs_texture_create(
+				    width, height, GS_BGRX_UNORM, 1, nullptr, 0);
 			}
 			::gs_copy_texture(
 			    m_TargetTexture, ::gs_texrender_get_texture(m_RenderTarget));
 			inputTexture = m_TargetTexture;
 		} else {
+			if (m_TargetTexture != nullptr) {
+				m_InputImage.reset();
+				::gs_texture_destroy(m_TargetTexture);
+				m_TargetTexture = nullptr;
+			}
 			if (m_RenderInput == nullptr) {
 				m_RenderInput =
 				    ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
@@ -175,15 +180,13 @@ void JoshUpscaleFilter::render(
 			::gs_blend_state_push();
 			::gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
 			if (::gs_texrender_begin(m_RenderInput, inWidth, inHeight)) {
-				::gs_ortho(0.0F, static_cast<float>(width), 0.0F,
-				    static_cast<float>(height), -100.0F, 100.0F);
+				::gs_ortho(0.0F, static_cast<float>(inWidth), 0.0F,
+				    static_cast<float>(inHeight), -100.0F, 100.0F);
 				::gs_texture_t *tex =
 				    ::gs_texrender_get_texture(m_RenderTarget);
 				::gs_effect_set_texture(m_ScaleImgParam, tex);
-				::gs_effect_set_vec2(m_ScaleDimensionParam, &m_Dimension);
-				::gs_effect_set_vec2(m_ScaleDimensionInvParam, &m_DimensionInv);
 				while (::gs_effect_loop(m_ScaleEffect, "Draw")) {
-					::gs_draw(GS_TRISTRIP, 0, 0);
+					::gs_draw_sprite(tex, 0, inWidth, inHeight);
 				}
 				::gs_texrender_end(m_RenderInput);
 			}
@@ -203,6 +206,7 @@ void JoshUpscaleFilter::render(
 			return;
 		}
 		m_FrameReady = true;
+		m_FrameDuration = 0;
 	}
 	::gs_blend_state_push();
 	::gs_reset_blend_state();
@@ -213,8 +217,11 @@ void JoshUpscaleFilter::render(
 	::gs_blend_state_pop();
 }
 
-void JoshUpscaleFilter::videoTick([[maybe_unused]] float seconds) noexcept {
-	m_FrameReady = false;
+void JoshUpscaleFilter::videoTick(float seconds) noexcept {
+	m_FrameDuration += seconds;
+	if (m_FrameDuration > 0.03F) {
+		m_FrameReady = false;
+	}
 }
 
 std::uint32_t JoshUpscaleFilter::getWidth() noexcept {
