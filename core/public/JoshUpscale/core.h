@@ -10,10 +10,7 @@
 #include "JoshUpscale/core/export.h"
 
 #ifdef _WIN32
-#include <d3d11.h>
-#ifdef ERROR
-#undef ERROR
-#endif
+struct ID3D11Texture2D;
 #endif
 
 namespace JoshUpscale {
