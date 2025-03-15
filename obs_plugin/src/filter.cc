@@ -2,10 +2,6 @@
 
 #include "JoshUpscale/obs/filter.h"
 
-#include <graphics/graphics.h>
-#include <obs.h>
-#include <util/base.h>
-
 #include <cstdint>
 
 #include "JoshUpscale/core.h"
@@ -48,11 +44,17 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 		defer {
 			::obs_leave_graphics();
 		};
+		m_RenderTarget = ::gs_texrender_create(GS_BGRX, GS_ZS_NONE);
+		m_RenderInput = ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
 		m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BILINEAR_LOWRES);
 		m_ScaleImgParam = ::gs_effect_get_param_by_name(m_ScaleEffect, "image");
 		m_OutputEffect = ::obs_get_base_effect(OBS_EFFECT_DEFAULT);
 		m_OutputImgParam =
 		    ::gs_effect_get_param_by_name(m_OutputEffect, "image");
+		m_TargetTexture = ::gs_texture_create(
+		    static_cast<std::uint32_t>(m_Runtime->getInputWidth()),
+		    static_cast<std::uint32_t>(m_Runtime->getInputHeight()),
+		    GS_BGRX_UNORM, 1, nullptr, 0);
 		m_OutputTexture = ::gs_texture_create(
 		    static_cast<std::uint32_t>(m_Runtime->getOutputWidth()),
 		    static_cast<std::uint32_t>(m_Runtime->getOutputHeight()),
@@ -63,6 +65,9 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
 	::obs_enter_graphics();
+	defer {
+		::obs_leave_graphics();
+	};
 	m_InputImage.reset();
 	m_OutputImage.reset();
 	if (m_RenderInput != nullptr) {
@@ -77,7 +82,6 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 	if (m_OutputTexture != nullptr) {
 		::gs_texture_destroy(m_OutputTexture);
 	}
-	::obs_leave_graphics();
 }
 
 const char *JoshUpscaleFilter::getName(
@@ -101,47 +105,37 @@ void JoshUpscaleFilter::destroy() noexcept {
 
 void JoshUpscaleFilter::render(
     [[maybe_unused]] ::gs_effect_t *effect) noexcept {
+	::obs_source_t *const target = ::obs_filter_get_target(m_Source);
+	::obs_source_t *const parent = ::obs_filter_get_parent(m_Source);
+	if (target == nullptr || parent == nullptr) {
+		::obs_source_skip_video_filter(m_Source);
+		return;
+	}
+	const uint32_t targetWidth = ::obs_source_get_base_width(target);
+	const uint32_t targetHeight = ::obs_source_get_base_height(target);
+	if (targetWidth == 0 || targetHeight == 0) {
+		::obs_source_skip_video_filter(m_Source);
+		return;
+	}
+	if (targetWidth != m_LastWidth || targetHeight != m_LastHeight) {
+		m_LastWidth = targetWidth;
+		m_LastHeight = targetHeight;
+		m_InputImage.reset();
+		m_FrameReady = false;
+	}
 	if (!m_FrameReady) {
-		::obs_source_t *const target = ::obs_filter_get_target(m_Source);
-		::obs_source_t *const parent = ::obs_filter_get_parent(m_Source);
-		if (target == nullptr || parent == nullptr) {
-			::obs_source_skip_video_filter(m_Source);
-			return;
-		}
-		const uint32_t target_flags = ::obs_source_get_output_flags(target);
-		bool custom_draw = (target_flags & OBS_SOURCE_CUSTOM_DRAW) != 0;
-		bool async = (target_flags & OBS_SOURCE_ASYNC) != 0;
-		const uint32_t width = ::obs_source_get_base_width(target);
-		const uint32_t height = ::obs_source_get_base_height(target);
-		if (width == 0 || height == 0) {
-			::obs_source_skip_video_filter(m_Source);
-			return;
-		}
-		if (width != m_LastWidth || height != m_LastHeight) {
-			m_LastWidth = width;
-			m_LastHeight = height;
-			if (m_TargetTexture != nullptr) {
-				m_InputImage.reset();
-				::gs_texture_destroy(m_TargetTexture);
-				m_TargetTexture = nullptr;
-			}
-			if (m_RenderTarget != nullptr) {
-				::gs_texrender_destroy(m_RenderTarget);
-				m_RenderTarget = nullptr;
-			}
-		}
-		if (m_RenderTarget == nullptr) {
-			m_RenderTarget = ::gs_texrender_create(GS_BGRX, GS_ZS_NONE);
-		}
+		const uint32_t targetFlags = ::obs_source_get_output_flags(target);
+		bool custom_draw = (targetFlags & OBS_SOURCE_CUSTOM_DRAW) != 0;
+		bool async = (targetFlags & OBS_SOURCE_ASYNC) != 0;
 		::gs_texrender_reset(m_RenderTarget);
 		::gs_blend_state_push();
 		::gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
-		if (::gs_texrender_begin(m_RenderTarget, width, height)) {
+		if (::gs_texrender_begin(m_RenderTarget, targetWidth, targetHeight)) {
 			::vec4 clear_color;
 			::vec4_zero(&clear_color);
 			::gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0F, 0);
-			::gs_ortho(0.0F, static_cast<float>(width), 0.0F,
-			    static_cast<float>(height), -100.0F, 100.0F);
+			::gs_ortho(0.0F, static_cast<float>(targetWidth), 0.0F,
+			    static_cast<float>(targetHeight), -100.0F, 100.0F);
 			if (target == parent && !custom_draw && !async) {
 				::obs_source_default_render(target);
 			} else {
@@ -150,43 +144,27 @@ void JoshUpscaleFilter::render(
 			::gs_texrender_end(m_RenderTarget);
 		}
 		::gs_blend_state_pop();
-		auto inWidth = static_cast<std::uint32_t>(m_Runtime->getInputWidth());
-		auto inHeight = static_cast<std::uint32_t>(m_Runtime->getInputHeight());
+		auto inputWidth =
+		    static_cast<std::uint32_t>(m_Runtime->getInputWidth());
+		auto inputHeight =
+		    static_cast<std::uint32_t>(m_Runtime->getInputHeight());
 		::gs_texture_t *inputTexture;
-		if (inWidth == width && inHeight == height) {
-			if (m_RenderInput != nullptr) {
-				m_InputImage.reset();
-				::gs_texrender_destroy(m_RenderInput);
-				m_RenderInput = nullptr;
-			}
-			if (m_TargetTexture == nullptr) {
-				m_TargetTexture = ::gs_texture_create(
-				    width, height, GS_BGRX_UNORM, 1, nullptr, 0);
-			}
+		if (targetWidth == inputWidth && targetHeight == inputHeight) {
 			::gs_copy_texture(
 			    m_TargetTexture, ::gs_texrender_get_texture(m_RenderTarget));
 			inputTexture = m_TargetTexture;
 		} else {
-			if (m_TargetTexture != nullptr) {
-				m_InputImage.reset();
-				::gs_texture_destroy(m_TargetTexture);
-				m_TargetTexture = nullptr;
-			}
-			if (m_RenderInput == nullptr) {
-				m_RenderInput =
-				    ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
-			}
 			::gs_texrender_reset(m_RenderInput);
 			::gs_blend_state_push();
 			::gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
-			if (::gs_texrender_begin(m_RenderInput, inWidth, inHeight)) {
-				::gs_ortho(0.0F, static_cast<float>(inWidth), 0.0F,
-				    static_cast<float>(inHeight), -100.0F, 100.0F);
+			if (::gs_texrender_begin(m_RenderInput, inputWidth, inputHeight)) {
+				::gs_ortho(0.0F, static_cast<float>(inputWidth), 0.0F,
+				    static_cast<float>(inputHeight), -100.0F, 100.0F);
 				::gs_texture_t *tex =
 				    ::gs_texrender_get_texture(m_RenderTarget);
 				::gs_effect_set_texture(m_ScaleImgParam, tex);
 				while (::gs_effect_loop(m_ScaleEffect, "Draw")) {
-					::gs_draw_sprite(tex, 0, inWidth, inHeight);
+					::gs_draw_sprite(tex, 0, inputWidth, inputHeight);
 				}
 				::gs_texrender_end(m_RenderInput);
 			}
