@@ -219,7 +219,6 @@ void JoshUpscaleFilter::render(
 	    static_cast<float>(m_MaskImage.cx) / static_cast<float>(targetWidth),
 	    static_cast<float>(m_MaskImage.cy) / static_cast<float>(targetHeight));
 	::gs_effect_set_vec2(m_BlendScaleParam, &scales);
-	::gs_blend_function(GS_BLEND_SRCALPHA, GS_BLEND_INVSRCALPHA);
 	while (::gs_effect_loop(m_BlendEffect, "Draw")) {
 		::gs_draw_sprite(tex, 0, getWidth(), getHeight());
 	}
