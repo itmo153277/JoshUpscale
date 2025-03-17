@@ -2,6 +2,11 @@
 
 #include "JoshUpscale/obs/filter.h"
 
+#include <graphics/graphics.h>
+#include <graphics/image-file.h>
+#include <graphics/vec2.h>
+#include <obs-module.h>
+
 #include <cstdint>
 
 #include "JoshUpscale/core.h"
@@ -39,6 +44,9 @@ JoshUpscaleFilter::JoshUpscaleFilter(
     : m_Source{source} {
 	auto modelFile = OBSPtr(obs_module_file("model.trt"));
 	m_Runtime.reset(core::createRuntime(0, modelFile.get()));
+	auto maskFile = OBSPtr(obs_module_file("mask.png"));
+	::gs_image_file_init(&m_MaskImage, maskFile.get());
+	auto blendEffectFile = OBSPtr(obs_module_file("effects/blend.effect"));
 	{
 		::obs_enter_graphics();
 		defer {
@@ -60,6 +68,13 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 		    static_cast<std::uint32_t>(m_Runtime->getOutputHeight()),
 		    GS_BGRX_UNORM, 1, nullptr, 0);
 		createOutputImage();
+		m_BlendEffect =
+		    ::gs_effect_create_from_file(blendEffectFile.get(), nullptr);
+		m_BlendImgParam = ::gs_effect_get_param_by_name(m_BlendEffect, "image");
+		m_BlendMaskParam = ::gs_effect_get_param_by_name(m_BlendEffect, "mask");
+		m_BlendScaleParam =
+		    ::gs_effect_get_param_by_name(m_BlendEffect, "scale");
+		::gs_image_file_init_texture(&m_MaskImage);
 	}
 }
 
@@ -82,6 +97,10 @@ JoshUpscaleFilter::~JoshUpscaleFilter() {
 	if (m_OutputTexture != nullptr) {
 		::gs_texture_destroy(m_OutputTexture);
 	}
+	if (m_BlendEffect != nullptr) {
+		::gs_effect_destroy(m_BlendEffect);
+	}
+	::gs_image_file_free(&m_MaskImage);
 }
 
 const char *JoshUpscaleFilter::getName(
@@ -191,6 +210,18 @@ void JoshUpscaleFilter::render(
 	::gs_effect_set_texture(m_OutputImgParam, m_OutputTexture);
 	while (::gs_effect_loop(m_OutputEffect, "Draw")) {
 		::gs_draw_sprite(m_OutputTexture, 0, 0, 0);
+	}
+	::gs_texture_t *tex = ::gs_texrender_get_texture(m_RenderTarget);
+	::gs_effect_set_texture(m_BlendImgParam, tex);
+	::gs_effect_set_texture(m_BlendMaskParam, m_MaskImage.texture);
+	::vec2 scales;
+	::vec2_set(&scales,
+	    static_cast<float>(m_MaskImage.cx) / static_cast<float>(targetWidth),
+	    static_cast<float>(m_MaskImage.cy) / static_cast<float>(targetHeight));
+	::gs_effect_set_vec2(m_BlendScaleParam, &scales);
+	::gs_blend_function(GS_BLEND_SRCALPHA, GS_BLEND_INVSRCALPHA);
+	while (::gs_effect_loop(m_BlendEffect, "Draw")) {
+		::gs_draw_sprite(tex, 0, getWidth(), getHeight());
 	}
 	::gs_blend_state_pop();
 }

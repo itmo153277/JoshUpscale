@@ -9,3 +9,5 @@ __pycache__
 
 /obs_plugin/data/*
 !/obs_plugin/data/locale
+!/obs_plugin/data/effects
+!/obs_plugin/data/mask.png

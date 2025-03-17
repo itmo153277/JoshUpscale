@@ -2,8 +2,12 @@
 
 #pragma once
 
+#include <graphics/graphics.h>
 extern "C" {
 #include <obs-module.h>
+
+// OBS image
+#include <graphics/image-file.h>
 }
 
 #include <JoshUpscale/core.h>
@@ -114,6 +118,11 @@ private:
 	::gs_eparam_t *m_ScaleImgParam = nullptr;
 	::gs_effect_t *m_OutputEffect = nullptr;
 	::gs_eparam_t *m_OutputImgParam = nullptr;
+	::gs_effect_t *m_BlendEffect = nullptr;
+	::gs_eparam_t *m_BlendImgParam = nullptr;
+	::gs_eparam_t *m_BlendMaskParam = nullptr;
+	::gs_eparam_t *m_BlendScaleParam = nullptr;
+	::gs_image_file_t m_MaskImage = {};
 	float m_FrameDuration = 0.0F;
 	bool m_FrameReady = false;
 };
