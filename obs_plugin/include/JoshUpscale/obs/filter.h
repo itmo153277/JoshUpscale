@@ -12,6 +12,7 @@ extern "C" {
 
 #include <JoshUpscale/core.h>
 
+#include <atomic>
 #include <memory>
 #include <utility>
 
@@ -78,6 +79,11 @@ private:
 	static void *create(
 	    ::obs_data_t *settings, ::obs_source_t *source) noexcept;
 	void destroy() noexcept;
+	void update(::obs_data_t *settings) noexcept;
+	static void getDefaults(void *typeData, ::obs_data_t *settings) noexcept;
+	static ::obs_properties_t *getProperties(
+	    void *data, void *typeData) noexcept;
+	void addProperties(::obs_properties_t *props, void *typeData) noexcept;
 	void render(::gs_effect_t *effect) noexcept;
 	void videoTick(float seconds) noexcept;
 	std::uint32_t getWidth() noexcept;
@@ -103,7 +109,11 @@ private:
 
 	void createInputImage(::gs_texture_t *texture);
 	void createOutputImage();
+	void initModel(const char *model) noexcept;
+	bool processFrame() noexcept;
+	void renderMaskedTarget() noexcept;
 
+	std::atomic<bool> m_Busy = false;
 	::obs_source_t *m_Source;
 	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
 	::gs_texrender_t *m_RenderTarget = nullptr;
@@ -124,7 +134,10 @@ private:
 	::gs_eparam_t *m_BlendScaleParam = nullptr;
 	::gs_image_file_t m_MaskImage = {};
 	float m_FrameDuration = 0.0F;
-	bool m_FrameReady = false;
+	bool m_FrameProcessed = false;
+	int m_Model = -1;
+	bool m_LimitFps = true;
+	bool m_RenderMaskedTarget = false;
 };
 
 }  // namespace obs
