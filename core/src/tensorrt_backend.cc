@@ -194,8 +194,13 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 			outputIndices = {outputIndices.begin(), outputEnd};
 		}
 		validateEngineIO(m_Engine, inputIndices, outputIndices);
+#if TENSORRT_VERSION >= 10000
 		m_DeviceMemory = cuda::CudaBuffer<std::uint8_t>(
 		    static_cast<std::size_t>(m_Engine->getDeviceMemorySizeV2()));
+#else
+		m_DeviceMemory =
+		    cuda::CudaBuffer<std::uint8_t>(m_Engine->getDeviceMemorySize());
+#endif
 		m_InputBuffer = cuda::CudaBuffer<std::uint8_t>(
 		    calculateShapeSize(m_Engine->getTensorShape(
 		        m_Engine->getIOTensorName(inputIndices[0]))) /
@@ -216,10 +221,16 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 			m_ExtraBuffers.emplace_back(allocateTensor(m_Engine, idx));
 		}
 		for (std::size_t i = 0; i < 2; ++i) {
+#if TENSORRT_VERSION >= 10000
 			m_Contexts[i] = trt::TrtPtr(m_Engine->createExecutionContext(
 			    ::nvinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED));
 			m_Contexts[i]->setDeviceMemoryV2(m_DeviceMemory.get(),
 			    static_cast<std::int64_t>(m_DeviceMemory.getByteSize()));
+#else
+			m_Contexts[i] = trt::TrtPtr(
+			    m_Engine->createExecutionContextWithoutDeviceMemory());
+			m_Contexts[i]->setDeviceMemory(m_DeviceMemory.get());
+#endif
 			m_Contexts[i]->setNvtxVerbosity(
 			    ::nvinfer1::ProfilingVerbosity::kNONE);
 			m_Contexts[i]->setEnqueueEmitsProfile(false);

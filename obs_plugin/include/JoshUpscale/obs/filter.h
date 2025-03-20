@@ -2,15 +2,9 @@
 
 #pragma once
 
-#include <graphics/graphics.h>
-extern "C" {
-#include <obs-module.h>
-
-// OBS image
-#include <graphics/image-file.h>
-}
-
 #include <JoshUpscale/core.h>
+#include <graphics/image-file.h>
+#include <obs-module.h>
 
 #include <atomic>
 #include <memory>

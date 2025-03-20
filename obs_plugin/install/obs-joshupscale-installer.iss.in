@@ -32,6 +32,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "@PLUGIN_PATH@"; DestDir: "{code:GetBinaryPath}"; Flags: ignoreversion
 Source: "@CORE_PATH@"; DestDir: "{code:GetDataPath}"; Flags: ignoreversion
 Source: "@DATA_PATH@\*"; DestDir: "{code:GetDataPath}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#ifexist "@TRT_PATH@"
+Source: "@TRT_PATH@"; DestDir: "{code:GetDataPath}"; Flags: ignoreversion
+#endif
 
 [Icons]
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"

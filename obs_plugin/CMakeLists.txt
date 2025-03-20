@@ -63,6 +63,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DLICENSE_PATH=${PROJECT_SOURCE_DIR}/LICENSE
       -DCORE_PATH=$<TARGET_FILE:JoshUpscale>
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
+      -DTRT_PATH=$<IF:$<BOOL:USE_NVVFX>,"",$<TARGET_FILE:${NVINFER_LIB}>>
       -DUSE_NVVFX=$<IF:$<BOOL:USE_NVVFX>,True,False>
       -DMIN_OBS_VERSION=${libobs_VERSION_MAJOR}
       -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
