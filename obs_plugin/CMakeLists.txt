@@ -25,6 +25,9 @@ target_include_directories(obs-joshupscale SYSTEM PRIVATE
 if(WIN32)
   option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
   if(USE_NVVFX)
+    if(USE_STATIC_CUDA OR USE_LEAN_RT)
+      message(FATAL_ERROR "Invalid config")
+    endif()
     find_package(CUDAToolkit 12 REQUIRED)
     find_package(TensorRT 10 REQUIRED COMPONENTS nvinfer)
     if(NOT CUDAToolkit_VERSION_MAJOR EQUAL 12)
@@ -55,6 +58,8 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     OUTPUT obs-joshupscale-installer.iss
     MAIN_DEPENDENCY install/obs-joshupscale-installer.iss.in
     DEPENDS JoshUpscale obs-joshupscale
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/dlls
+    COMMAND ${CMAKE_COMMAND} -E copy -t ${CMAKE_CURRENT_BINARY_DIR}/dlls $<TARGET_RUNTIME_DLLS:JoshUpscale>
     COMMAND ${CMAKE_COMMAND}
       -DTEMPLATE_IN=${CMAKE_CURRENT_SOURCE_DIR}/install/obs-joshupscale-installer.iss.in
       -DTEMPLATE_OUT=${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
@@ -63,8 +68,8 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DLICENSE_PATH=${PROJECT_SOURCE_DIR}/LICENSE
       -DCORE_PATH=$<TARGET_FILE:JoshUpscale>
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
-      -DTRT_PATH=$<IF:$<BOOL:USE_NVVFX>,"",$<TARGET_FILE:${NVINFER_LIB}>>
-      -DUSE_NVVFX=$<IF:$<BOOL:USE_NVVFX>,True,False>
+      -DUSE_NVVFX=$<IF:$<BOOL:${USE_NVVFX}>,True,False>
+      -DDEPS_PATH=${CMAKE_CURRENT_BINARY_DIR}/dlls
       -DMIN_OBS_VERSION=${libobs_VERSION_MAJOR}
       -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
     COMMAND ${CMAKE_COMMAND}
