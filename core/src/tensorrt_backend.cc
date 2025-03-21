@@ -137,7 +137,6 @@ TensorRTBackend::TensorRTBackend(std::span<std::byte> engine)
 	}
 	bool hasReindex = false;
 	if (static_cast<std::size_t>(trtSize) + numElements == engine.size()) {
-		trtSize -= static_cast<std::uint32_t>(numElements);
 		hasReindex = true;
 	} else {
 		trtSize = static_cast<std::uint32_t>(engine.size());

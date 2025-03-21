@@ -37,6 +37,6 @@ target_include_directories(JoshUpscale PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/generated/include
 )
 target_link_libraries(JoshUpscale PRIVATE
-  CUDA::$<IF:$<BOOL:USE_STATIC_CUDA>,cudart_static,cudart>
+  CUDA::$<IF:$<BOOL:${USE_STATIC_CUDA}>,cudart_static,cudart>
   TensorRT::${NVINFER_LIB}
 )
