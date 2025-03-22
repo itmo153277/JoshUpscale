@@ -118,6 +118,8 @@ def create_builder_config(builder: trt.Builder,
             config["optimization_level"]
     if config.get("direct_io", False):
         builder_config.set_flag(trt.BuilderFlag.DIRECT_IO)
+    if "max_aux_streams" in config:
+        builder_config.max_aux_streams = config["max_aux_streams"]
     for k, v in config.get("allowed_formats", {}).items():
         fmts = 0
         if not isinstance(v, list):

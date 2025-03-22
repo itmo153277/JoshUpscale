@@ -280,8 +280,8 @@ public:
 	}
 
 	void beginCapture() const {
-		cudaCheck(
-		    ::cudaStreamBeginCapture(m_Stream, ::cudaStreamCaptureModeGlobal));
+		cudaCheck(::cudaStreamBeginCapture(
+		    m_Stream, ::cudaStreamCaptureModeThreadLocal));
 	}
 
 	CudaGraph endCapture() const {
