@@ -3,7 +3,6 @@
 #include "JoshUpscale/obs/filter.h"
 
 #include <cstdint>
-#include <thread>
 
 #include "JoshUpscale/core.h"
 
@@ -112,11 +111,9 @@ void JoshUpscaleFilter::destroy() noexcept {
 }
 
 void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
-	while (m_Busy.exchange(true)) {
-		std::this_thread::yield();
-	}
+	m_Busy.lock();
 	defer {
-		m_Busy = false;
+		m_Busy.unlock();
 	};
 	std::int64_t preset = ::obs_data_get_int(settings, "preset");
 	std::int64_t resolution = ::obs_data_get_int(settings, "resolution");
@@ -145,17 +142,8 @@ void JoshUpscaleFilter::getDefaults(
 }
 
 ::obs_properties_t *JoshUpscaleFilter::getProperties(
-    void *data, void *typeData) noexcept {
+    [[maybe_unused]] void *data, [[maybe_unused]] void *typeData) noexcept {
 	::obs_properties_t *props = ::obs_properties_create();
-	if (data != nullptr) {
-		reinterpret_cast<JoshUpscaleFilter *>(data)->addProperties(
-		    props, typeData);
-	}
-	return props;
-}
-
-void JoshUpscaleFilter::addProperties(
-    ::obs_properties_t *props, [[maybe_unused]] void *typeData) noexcept {
 	::obs_property_t *presetProp = ::obs_properties_add_list(props, "preset",
 	    ::obs_module_text("Preset"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	::obs_property_list_add_int(
@@ -171,16 +159,17 @@ void JoshUpscaleFilter::addProperties(
 	    resolutionProp, ::obs_module_text("ResolutionPS2"), 1);
 	::obs_properties_add_bool(
 	    props, "limit_fps", ::obs_module_text("LimitFps"));
+	return props;
 }
 
 void JoshUpscaleFilter::render(
     [[maybe_unused]] ::gs_effect_t *effect) noexcept {
-	if (m_Busy.exchange(true)) {
+	if (!m_Busy.try_lock()) {
 		::obs_source_skip_video_filter(m_Source);
 		return;
 	}
 	defer {
-		m_Busy = false;
+		m_Busy.unlock();
 	};
 	if (m_Runtime == nullptr) {
 		::obs_source_skip_video_filter(m_Source);
@@ -225,11 +214,11 @@ void JoshUpscaleFilter::render(
 }
 
 void JoshUpscaleFilter::videoTick(float seconds) noexcept {
-	if (m_Busy.exchange(true)) {
+	if (!m_Busy.try_lock()) {
 		return;
 	}
 	defer {
-		m_Busy = false;
+		m_Busy.unlock();
 	};
 	m_FrameDuration += seconds;
 	if (m_FrameDuration > 0.03F || !m_LimitFps) {
@@ -240,11 +229,11 @@ void JoshUpscaleFilter::videoTick(float seconds) noexcept {
 std::uint32_t JoshUpscaleFilter::getWidth() noexcept {
 	const uint32_t targetWidth =
 	    ::obs_source_get_base_width(::obs_filter_get_target(m_Source));
-	if (m_Busy.exchange(true)) {
+	if (!m_Busy.try_lock()) {
 		return targetWidth;
 	}
 	defer {
-		m_Busy = false;
+		m_Busy.unlock();
 	};
 	if (m_Runtime == nullptr) {
 		return targetWidth;
@@ -255,11 +244,11 @@ std::uint32_t JoshUpscaleFilter::getWidth() noexcept {
 std::uint32_t JoshUpscaleFilter::getHeight() noexcept {
 	const uint32_t targetHeight =
 	    ::obs_source_get_base_height(::obs_filter_get_target(m_Source));
-	if (m_Busy.exchange(true)) {
+	if (!m_Busy.try_lock()) {
 		return targetHeight;
 	}
 	defer {
-		m_Busy = false;
+		m_Busy.unlock();
 	};
 	if (m_Runtime == nullptr) {
 		return targetHeight;

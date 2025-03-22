@@ -14,6 +14,9 @@ set_target_properties(obs-joshupscale PROPERTIES
 )
 if(NOT MSVC)
   target_link_options(obs-joshupscale PRIVATE -Wl,--exclude-libs,ALL)
+  target_compile_options(obs-joshupscale PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-Wno-interference-size -Wno-unknown-warning-option>
+  )
 endif()
 target_compile_features(obs-joshupscale PUBLIC cxx_std_20)
 target_include_directories(obs-joshupscale PRIVATE

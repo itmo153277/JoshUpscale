@@ -8,6 +8,8 @@
 
 #include <atomic>
 #include <memory>
+#include <new>
+#include <thread>
 #include <utility>
 
 namespace JoshUpscale {
@@ -49,17 +51,54 @@ struct Defer {
 struct DeferOp {};
 
 template <typename T>
-Defer<T> operator+([[maybe_unused]] DeferOp op, T &&fn) {
+auto operator+([[maybe_unused]] DeferOp op, T &&fn) {
 	return Defer{std::forward<T>(fn)};
 }
 
 }  // namespace detail
 
+// NOLINTBEGIN
 #define DEFER_OP_NAME_(LINE) _defer##LINE
 #define DEFER_OP_NAME(LINE) DEFER_OP_NAME_(LINE)
 #define defer                      \
 	auto DEFER_OP_NAME(__LINE__) = \
-	    ::JoshUpscale::obs::detail::DeferOp{} + [&]() -> void  // NOLINT
+	    ::JoshUpscale::obs::detail::DeferOp{} + [&]() noexcept -> void
+// NOLINTEND
+
+struct AtomicLockable {
+	void lock() noexcept {
+		while (m_Flag.test_and_set(std::memory_order_acquire)) {
+#ifdef __cpp_lib_atomic_wait
+			m_Flag.wait(true, std::memory_order_relaxed);
+#else
+			threadSleep();
+#endif
+		}
+	}
+
+	bool try_lock() noexcept {
+		return !m_Flag.test_and_set(std::memory_order_acquire);
+	}
+
+	void unlock() noexcept {
+		m_Flag.clear(std::memory_order_release);
+#ifdef __cpp_lib_atomic_wait
+		m_Flag.notify_one();
+#endif
+	}
+
+private:
+#ifdef __cpp_lib_hardware_interference_size
+	static constexpr auto align = std::hardware_destructive_interference_size;
+#else
+	static constexpr auto align = 64;
+#endif
+	alignas(align) std::atomic_flag m_Flag;
+
+	static void threadSleep() noexcept {
+		std::this_thread::yield();
+	}
+};
 
 struct JoshUpscaleFilter {
 	static ::obs_source_info *getSourceInfo();
@@ -77,7 +116,6 @@ private:
 	static void getDefaults(void *typeData, ::obs_data_t *settings) noexcept;
 	static ::obs_properties_t *getProperties(
 	    void *data, void *typeData) noexcept;
-	void addProperties(::obs_properties_t *props, void *typeData) noexcept;
 	void render(::gs_effect_t *effect) noexcept;
 	void videoTick(float seconds) noexcept;
 	std::uint32_t getWidth() noexcept;
@@ -107,7 +145,7 @@ private:
 	bool processFrame() noexcept;
 	void renderMaskedTarget() noexcept;
 
-	std::atomic<bool> m_Busy = false;
+	AtomicLockable m_Busy;
 	::obs_source_t *m_Source;
 	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
 	::gs_texrender_t *m_RenderTarget = nullptr;
