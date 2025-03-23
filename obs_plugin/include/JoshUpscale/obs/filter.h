@@ -19,7 +19,7 @@ namespace obs {
 namespace detail {
 
 struct OBSDeleter {
-	void operator()(void *data) {
+	void operator()(void *data) noexcept {
 		::bfree(data);
 	}
 };
@@ -30,7 +30,7 @@ template <class T>
 struct OBSPtr : std::unique_ptr<T, detail::OBSDeleter> {
 	using unique_ptr = std::unique_ptr<T, detail::OBSDeleter>;
 
-	explicit OBSPtr(T *val) : unique_ptr(val) {
+	explicit OBSPtr(T *val) noexcept : unique_ptr(val) {
 	}
 };
 
@@ -39,7 +39,7 @@ namespace detail {
 template <typename T>
 struct Defer {
 	T m_DeferFn;
-	explicit Defer(T &&fn) : m_DeferFn(std::move(fn)) {
+	explicit Defer(T &&fn) noexcept : m_DeferFn(std::move(fn)) {
 	}
 	Defer(const Defer &) = delete;
 	Defer(Defer &&) noexcept = delete;
@@ -51,7 +51,7 @@ struct Defer {
 struct DeferOp {};
 
 template <typename T>
-auto operator+([[maybe_unused]] DeferOp op, T &&fn) {
+auto operator+([[maybe_unused]] DeferOp op, T &&fn) noexcept {
 	return Defer{std::forward<T>(fn)};
 }
 

@@ -82,10 +82,11 @@ struct TensorRTRuntime : Runtime {
 		inputFile.read(reinterpret_cast<char *>(engine.data()),
 		    static_cast<std::streamsize>(size));
 		m_Backend = std::make_unique<TensorRTBackend>(engine);
-		m_InputWidth = m_Backend->getInputWidth();
-		m_InputHeight = m_Backend->getInputHeight();
-		m_OutputWidth = m_Backend->getOutputWidth();
-		m_OutputHeight = m_Backend->getOutputHeight();
+		auto frameSize = m_Backend->getFrameSize();
+		m_InputWidth = frameSize.inputWidth;
+		m_InputHeight = frameSize.inputHeight;
+		m_OutputWidth = frameSize.outputWidth;
+		m_OutputHeight = frameSize.outputHeight;
 	}
 
 	void processImage(

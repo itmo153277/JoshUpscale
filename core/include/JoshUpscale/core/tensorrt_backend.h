@@ -24,10 +24,14 @@ public:
 	void process(
 	    const GenericTensor &inputTensor, const GenericTensor &outputTensor);
 
-	std::size_t getInputWidth() const;
-	std::size_t getInputHeight() const;
-	std::size_t getOutputWidth() const;
-	std::size_t getOutputHeight() const;
+	struct FrameSize {
+		std::size_t inputWidth;
+		std::size_t inputHeight;
+		std::size_t outputWidth;
+		std::size_t outputHeight;
+	};
+
+	FrameSize getFrameSize() const;
 
 private:
 	trt::ErrorRecorder m_ErrorRecorder;

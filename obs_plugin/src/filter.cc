@@ -3,6 +3,8 @@
 #include "JoshUpscale/obs/filter.h"
 
 #include <cstdint>
+#include <stdexcept>
+#include <string>
 
 #include "JoshUpscale/core.h"
 
@@ -164,6 +166,11 @@ void JoshUpscaleFilter::getDefaults(
 
 void JoshUpscaleFilter::render(
     [[maybe_unused]] ::gs_effect_t *effect) noexcept {
+	::obs_source_t *target = ::obs_filter_get_target(m_Source);
+	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
+	if (target == nullptr || parent == nullptr) {
+		return;
+	}
 	if (!m_Busy.try_lock()) {
 		::obs_source_skip_video_filter(m_Source);
 		return;
@@ -171,19 +178,9 @@ void JoshUpscaleFilter::render(
 	defer {
 		m_Busy.unlock();
 	};
-	if (m_Runtime == nullptr) {
-		::obs_source_skip_video_filter(m_Source);
-		return;
-	}
-	::obs_source_t *const target = ::obs_filter_get_target(m_Source);
-	::obs_source_t *const parent = ::obs_filter_get_parent(m_Source);
-	if (target == nullptr || parent == nullptr) {
-		::obs_source_skip_video_filter(m_Source);
-		return;
-	}
-	const uint32_t targetWidth = ::obs_source_get_base_width(target);
-	const uint32_t targetHeight = ::obs_source_get_base_height(target);
-	if (targetWidth == 0 || targetHeight == 0) {
+	std::uint32_t targetWidth = ::obs_source_get_base_width(target);
+	std::uint32_t targetHeight = ::obs_source_get_base_height(target);
+	if (m_Runtime == nullptr || targetWidth == 0 || targetHeight == 0) {
 		::obs_source_skip_video_filter(m_Source);
 		return;
 	}
@@ -227,31 +224,27 @@ void JoshUpscaleFilter::videoTick(float seconds) noexcept {
 }
 
 std::uint32_t JoshUpscaleFilter::getWidth() noexcept {
-	const uint32_t targetWidth =
-	    ::obs_source_get_base_width(::obs_filter_get_target(m_Source));
 	if (!m_Busy.try_lock()) {
-		return targetWidth;
+		return ::obs_source_get_base_width(::obs_filter_get_target(m_Source));
 	}
 	defer {
 		m_Busy.unlock();
 	};
 	if (m_Runtime == nullptr) {
-		return targetWidth;
+		return ::obs_source_get_base_width(::obs_filter_get_target(m_Source));
 	}
 	return static_cast<std::uint32_t>(m_Runtime->getOutputWidth());
 }
 
 std::uint32_t JoshUpscaleFilter::getHeight() noexcept {
-	const uint32_t targetHeight =
-	    ::obs_source_get_base_height(::obs_filter_get_target(m_Source));
 	if (!m_Busy.try_lock()) {
-		return targetHeight;
+		return ::obs_source_get_base_height(::obs_filter_get_target(m_Source));
 	}
 	defer {
 		m_Busy.unlock();
 	};
 	if (m_Runtime == nullptr) {
-		return targetHeight;
+		return ::obs_source_get_base_height(::obs_filter_get_target(m_Source));
 	}
 	return static_cast<std::uint32_t>(m_Runtime->getOutputHeight());
 }
@@ -264,6 +257,7 @@ void JoshUpscaleFilter::createInputImage(::gs_texture_t *texture) {
 	    d3d11Texture, core::GraphicsResourceImageType::INPUT));
 #else
 	(void) texture;
+	throw std::logic_error("Not implemented");
 #endif
 }
 
@@ -273,12 +267,17 @@ void JoshUpscaleFilter::createOutputImage() {
 	    ::gs_texture_get_obj(m_OutputTexture));
 	m_OutputImage.reset(core::getD3D11Image(
 	    d3d11Texture, core::GraphicsResourceImageType::OUTPUT));
+#else
+	throw std::logic_error("Not implemented");
 #endif
 }
 
 void JoshUpscaleFilter::initModel(const char *model) noexcept {
 	auto modelFile = OBSPtr(obs_module_file(model));
 	try {
+		if (modelFile == nullptr) {
+			throw std::runtime_error(std::string("Model not found: ") + model);
+		}
 		m_Runtime.reset(core::createRuntime(0, modelFile.get()));
 		::obs_enter_graphics();
 		defer {
@@ -297,15 +296,16 @@ void JoshUpscaleFilter::initModel(const char *model) noexcept {
 		createOutputImage();
 	} catch (...) {
 		::blog(LOG_ERROR, "Exception: %s", core::getExceptionString().c_str());
+		m_Runtime.reset();
 	}
 }
 
 bool JoshUpscaleFilter::processFrame() noexcept {
-	::obs_source_t *const target = ::obs_filter_get_target(m_Source);
-	::obs_source_t *const parent = ::obs_filter_get_parent(m_Source);
-	const uint32_t targetWidth = ::obs_source_get_base_width(target);
-	const uint32_t targetHeight = ::obs_source_get_base_height(target);
-	const uint32_t targetFlags = ::obs_source_get_output_flags(target);
+	::obs_source_t *target = ::obs_filter_get_target(m_Source);
+	::obs_source_t *parent = ::obs_filter_get_parent(m_Source);
+	std::uint32_t targetWidth = ::obs_source_get_base_width(target);
+	std::uint32_t targetHeight = ::obs_source_get_base_height(target);
+	std::uint32_t targetFlags = ::obs_source_get_output_flags(target);
 	bool custom_draw = (targetFlags & OBS_SOURCE_CUSTOM_DRAW) != 0;
 	bool async = (targetFlags & OBS_SOURCE_ASYNC) != 0;
 	{
@@ -375,9 +375,9 @@ bool JoshUpscaleFilter::processFrame() noexcept {
 }
 
 void JoshUpscaleFilter::renderMaskedTarget() noexcept {
-	::obs_source_t *const target = ::obs_filter_get_target(m_Source);
-	const uint32_t targetWidth = ::obs_source_get_base_width(target);
-	const uint32_t targetHeight = ::obs_source_get_base_height(target);
+	::obs_source_t *target = ::obs_filter_get_target(m_Source);
+	std::uint32_t targetWidth = ::obs_source_get_base_width(target);
+	std::uint32_t targetHeight = ::obs_source_get_base_height(target);
 	::gs_texture_t *tex = ::gs_texrender_get_texture(m_RenderTarget);
 	::gs_effect_set_texture(m_BlendImgParam, tex);
 	::gs_effect_set_texture(m_BlendMaskParam, m_MaskImage.texture);

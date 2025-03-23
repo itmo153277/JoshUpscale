@@ -277,21 +277,14 @@ void TensorRTBackend::process(
 	m_BindingsIdx ^= 1;
 }
 
-std::size_t TensorRTBackend::getInputWidth() const {
+TensorRTBackend::FrameSize TensorRTBackend::getFrameSize() const {
 	auto shape = getInputShape(m_Engine);
-	return static_cast<std::size_t>(shape.d[2]);
-}
-std::size_t TensorRTBackend::getInputHeight() const {
-	auto shape = getInputShape(m_Engine);
-	return static_cast<std::size_t>(shape.d[1]);
-}
-std::size_t TensorRTBackend::getOutputWidth() const {
-	auto shape = getInputShape(m_Engine);
-	return static_cast<std::size_t>(shape.d[2] * kScale);
-}
-std::size_t TensorRTBackend::getOutputHeight() const {
-	auto shape = getInputShape(m_Engine);
-	return static_cast<std::size_t>(shape.d[1] * kScale);
+	return {
+	    .inputWidth = static_cast<std::size_t>(shape.d[2]),
+	    .inputHeight = static_cast<std::size_t>(shape.d[1]),
+	    .outputWidth = static_cast<std::size_t>(shape.d[2] * kScale),
+	    .outputHeight = static_cast<std::size_t>(shape.d[1] * kScale),
+	};
 }
 
 }  // namespace core
