@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 
 #include "JoshUpscale/core.h"
 
@@ -43,14 +42,6 @@ namespace obs {
 JoshUpscaleFilter::JoshUpscaleFilter(
     ::obs_data_t *settings, ::obs_source_t *source)
     : m_Source{source} {
-	::obs_video_info ovi = {};
-	if (!::obs_get_video_info(&ovi) || ovi.graphics_module == nullptr) {
-		throw std::runtime_error("Failed to get video info");
-	}
-	if (!std::string_view(ovi.graphics_module).starts_with("libobs-d3d11")) {
-		throw std::runtime_error(
-		    std::string("Unsupported graphics module: ") + ovi.graphics_module);
-	}
 	auto maskFile = OBSPtr(obs_module_file("mask.png"));
 	::gs_image_file_init(&m_MaskImage, maskFile.get());
 	auto blendEffectFile = OBSPtr(obs_module_file("effects/blend.effect"));
@@ -59,6 +50,9 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 		defer {
 			::obs_leave_graphics();
 		};
+		if (::gs_get_device_type() != GS_DEVICE_DIRECT3D_11) {
+			throw std::runtime_error("Unsupported renderer");
+		}
 		m_RenderTarget = ::gs_texrender_create(GS_BGRX, GS_ZS_NONE);
 		m_RenderInput = ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
 		m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BILINEAR_LOWRES);
