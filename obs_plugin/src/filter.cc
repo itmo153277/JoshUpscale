@@ -70,8 +70,6 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 		    ::gs_effect_create_from_file(blendEffectFile.get(), nullptr);
 		m_BlendImgParam = ::gs_effect_get_param_by_name(m_BlendEffect, "image");
 		m_BlendMaskParam = ::gs_effect_get_param_by_name(m_BlendEffect, "mask");
-		m_BlendScaleParam =
-		    ::gs_effect_get_param_by_name(m_BlendEffect, "scale");
 		::gs_image_file_init_texture(&m_MaskImage);
 	}
 	update(settings);
@@ -384,17 +382,9 @@ bool JoshUpscaleFilter::processFrame() noexcept {
 }
 
 void JoshUpscaleFilter::renderMaskedTarget() noexcept {
-	::obs_source_t *target = ::obs_filter_get_target(m_Source);
-	std::uint32_t targetWidth = ::obs_source_get_base_width(target);
-	std::uint32_t targetHeight = ::obs_source_get_base_height(target);
 	::gs_texture_t *tex = ::gs_texrender_get_texture(m_RenderTarget);
 	::gs_effect_set_texture(m_BlendImgParam, tex);
 	::gs_effect_set_texture(m_BlendMaskParam, m_MaskImage.texture);
-	::vec2 scales;
-	::vec2_set(&scales,
-	    static_cast<float>(m_MaskImage.cx) / static_cast<float>(targetWidth),
-	    static_cast<float>(m_MaskImage.cy) / static_cast<float>(targetHeight));
-	::gs_effect_set_vec2(m_BlendScaleParam, &scales);
 	while (::gs_effect_loop(m_BlendEffect, "Draw")) {
 		::gs_draw_sprite(tex, 0,
 		    static_cast<std::uint32_t>(m_Runtime->getOutputWidth()),

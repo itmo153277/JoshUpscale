@@ -163,7 +163,6 @@ private:
 	::gs_effect_t *m_BlendEffect = nullptr;
 	::gs_eparam_t *m_BlendImgParam = nullptr;
 	::gs_eparam_t *m_BlendMaskParam = nullptr;
-	::gs_eparam_t *m_BlendScaleParam = nullptr;
 	::gs_image_file_t m_MaskImage = {};
 	float m_FrameDuration = 0.0F;
 	bool m_FrameProcessed = false;
