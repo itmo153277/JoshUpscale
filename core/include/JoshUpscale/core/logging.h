@@ -1,4 +1,4 @@
-// Copyright 2022 Ivanov Viktor
+// Copyright 2025 Ivanov Viktor
 
 #pragma once
 

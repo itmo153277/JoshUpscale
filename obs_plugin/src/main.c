@@ -1,4 +1,4 @@
-// Copyright 2023 Viktor Ivanov
+// Copyright 2025 Viktor Ivanov
 
 #include <obs-module.h>
 
