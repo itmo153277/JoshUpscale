@@ -11,6 +11,8 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName}
 AppPublisher={#MyAppPublisher}
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCopyright={#MyAppPublisher}
 DefaultDirName={code:GetDefaultInstallDir}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -22,7 +24,11 @@ PrivilegesRequiredOverridesAllowed=dialog
 OutputBaseFilename=obs-joshupscale-installer
 Compression=lzma2/max
 SolidCompression=yes
-WizardStyle=modern
+WizardStyle=classic
+DisableWelcomePage=no
+WizardImageFile=compiler:WizClassicImage.bmp
+WizardSmallImageFile=compiler:WizClassicSmallImage.bmp
+SetupIconFile=compiler:SetupClassicIcon.ico
 DirExistsWarning=no
 
 [Languages]
@@ -41,7 +47,6 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 [Code]
 const
-  UseNvVfx = @USE_NVVFX@;
   MinObsVersion = @MIN_OBS_VERSION@;
 
 function GetNvVfxPath: String;
@@ -54,6 +59,7 @@ end;
 function IsNvVfxInstalled: Boolean;
 var
   NvVfxPath: String;
+  NvVfxVersion: String;
 begin
   Result := False;
   NvVfxPath := GetNvVfxPath;
@@ -61,7 +67,16 @@ begin
     Exit;
   if not FileExists(NvVfxPath + '\nvinfer_10.dll') then
     Exit;
+  if not GetVersionNumbersString(NvVfxPath + '\NVVideoEffects.dll', NvVfxVersion) then
+    Exit;
+  if NvVfxVersion <> '0.7.6.0' then
+    Exit;
   Result := True;
+end;
+
+function IsOldNvVfxInstalled: Boolean;
+begin
+  Result := FileExists(GetNvVfxPath + '\nvinfer.dll');
 end;
 
 function GetOBSPath: String;
@@ -108,7 +123,6 @@ end;
 function CheckOBSVersion: Boolean;
 var
   OBSPath: String;
-  i: Integer;
   MajorVer, MinorVer, RevVer, BuildVer: Word;
 begin
   OBSPath := GetTargetOBSPath;
@@ -127,20 +141,21 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
+#if @USE_NVVFX@
+  if IsOldNvVfxInstalled then
+  begin
+    Result := 'Old NVIDIA Video Effects is installed. Please uninstall it first.';
+    Exit;
+  end;
+  if not IsNvVfxInstalled then
+  begin
+    Result := 'NVIDIA Video Effects is not installed';
+    Exit;
+  end;
+#endif
   if not CheckOBSVersion then
   begin
     Result := 'OBS version mismatch';
     Exit;
   end;
-end;
-
-function InitializeSetup: Boolean;
-begin
-  Result := False;
-  if UseNvVfx and not IsNvVfxInstalled then
-  begin
-    MsgBox('You must install NVIDIA Video Effects SDK first', mbCriticalError, MB_OK);
-    Exit;
-  end;
-  Result := True;
 end;

@@ -57,6 +57,15 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
           "$ENV{ProgramFiles\(x86\)}/Inno Setup 6"
     REQUIRED
   )
+  # 25..27..28..30..
+  set(MIN_OBS_VERSION 25)
+  if(libobs_VERSION_MAJOR GREATER_EQUAL 30)
+    set(MIN_OBS_VERSION ${libobs_VERSION_MAJOR})
+  elseif(libobs_VERSION_MAJOR GREATER_EQUAL 28)
+    set(MIN_OBS_VERSION 28)
+  elseif(libobs_VERSION_MAJOR GREATER_EQUAL 27)
+    set(MIN_OBS_VERSION 27)
+  endif()
   add_custom_command(
     OUTPUT obs-joshupscale-installer.iss
     MAIN_DEPENDENCY install/obs-joshupscale-installer.iss.in
@@ -73,7 +82,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
       -DPLUGIN_PATH=$<TARGET_FILE:obs-joshupscale>
       -DUSE_NVVFX=$<IF:$<BOOL:${USE_NVVFX}>,True,False>
       -DDEPS_PATH=${CMAKE_CURRENT_BINARY_DIR}/dlls
-      -DMIN_OBS_VERSION=${libobs_VERSION_MAJOR}
+      -DMIN_OBS_VERSION=${MIN_OBS_VERSION}
       -P ${PROJECT_SOURCE_DIR}/cmake/GenerateTemplate.cmake
     COMMAND ${CMAKE_COMMAND}
       -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss

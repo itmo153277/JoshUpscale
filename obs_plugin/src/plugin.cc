@@ -43,10 +43,6 @@ namespace {
 	SetDllDirectoryW(dir);
 }
 
-[[maybe_unused]] void setDllDir(const char *dir) {
-	SetDllDirectoryA(dir);
-}
-
 [[maybe_unused]] void setDllDir(const std::filesystem::path &dir) {
 	setDllDir(dir.c_str());
 }
@@ -54,8 +50,6 @@ namespace {
 void preloadLibrariesWindows() {
 #ifdef JOSHUPSCALE_NVVFX
 	setDllDir(findNvVfx());
-	LoadLibraryA("cublas64_12.dll");
-	LoadLibraryA("cublasLt64_12.dll");
 #endif
 	auto mainLibPath =
 	    JoshUpscale::obs::OBSPtr(obs_module_file("JoshUpscale.dll"));
