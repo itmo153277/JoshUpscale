@@ -10,6 +10,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 bool obs_module_load(void) {
 	preloadLibraries();
+	setupLogging();
 	obs_register_source(getJoshUpscaleSourceInfo());
 	return true;
 }

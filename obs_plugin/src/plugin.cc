@@ -2,7 +2,12 @@
 
 #include "JoshUpscale/obs/plugin.h"
 
+#include <JoshUpscale/core.h>
+
+#include <string>
+
 #include "JoshUpscale/obs/filter.h"
+#include "JoshUpscale/obs/logging.h"
 
 const char *PLUGIN_NAME = "obs-joshupscale";
 const char *PLUGIN_VERSION = "2.0.0";
@@ -13,10 +18,11 @@ obs_source_info *getJoshUpscaleSourceInfo() {
 
 #ifdef _WIN32
 #include <Windows.h>
-
+#ifdef ERROR
+#undef ERROR
+#endif
 #include <cstddef>
 #include <filesystem>
-#include <string>
 
 namespace {
 
@@ -69,4 +75,19 @@ void preloadLibraries() {
 #ifdef _WIN32
 	preloadLibrariesWindows();
 #endif
+}
+
+void setupLogging() {
+	struct LogSink : JoshUpscale::core::LogSink {
+		void operator()(const char *tag, JoshUpscale::core::LogLevel logLevel,
+		    const std::string &message) override {
+			if (logLevel == JoshUpscale::core::LogLevel::ERROR ||
+			    logLevel == JoshUpscale::core::LogLevel::WARNING) {
+				JoshUpscale::obs::log(logLevel, "%s: %s", tag, message.c_str());
+			}
+		}
+	};
+
+	static LogSink logSink;
+	JoshUpscale::core::setLogSink(&logSink);
 }

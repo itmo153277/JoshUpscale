@@ -2,11 +2,13 @@
 
 #include "JoshUpscale/obs/filter.h"
 
+#include <cassert>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
 
 #include "JoshUpscale/core.h"
+#include "JoshUpscale/obs/logging.h"
 
 namespace JoshUpscale {
 
@@ -104,7 +106,7 @@ void *JoshUpscaleFilter::create(
 	try {
 		return new JoshUpscaleFilter(settings, source);
 	} catch (...) {
-		::blog(LOG_ERROR, "Exception: %s", core::getExceptionString().c_str());
+		logException();
 		return nullptr;
 	}
 }
@@ -129,6 +131,7 @@ void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
 	    "model_ps2_fast.trt",
 	};
 	int model = static_cast<int>((resolution * 2) + preset);
+	assert(model > 0 && model < 4);
 	if (model != m_Model) {
 		m_FrameProcessed = false;
 		m_Runtime.reset();
@@ -295,8 +298,9 @@ void JoshUpscaleFilter::initModel(const char *model) noexcept {
 		    static_cast<std::uint32_t>(m_Runtime->getOutputHeight()),
 		    GS_BGRX_UNORM, 1, nullptr, 0);
 		createOutputImage();
+		log(core::LogLevel::INFO, "Successfully loaded model: %s", model);
 	} catch (...) {
-		::blog(LOG_ERROR, "Exception: %s", core::getExceptionString().c_str());
+		logException();
 		m_Runtime.reset();
 	}
 }
@@ -369,7 +373,7 @@ bool JoshUpscaleFilter::processFrame() noexcept {
 		m_Runtime->processImage(
 		    m_InputImage->getImage(), m_OutputImage->getImage());
 	} catch (...) {
-		::blog(LOG_ERROR, "Exception: %s", core::getExceptionString().c_str());
+		logException();
 		return false;
 	}
 	return true;
