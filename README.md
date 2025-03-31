@@ -27,7 +27,7 @@ Additionally you will need NVIDIA CUDA Toolkit and NVIDIA TensorRT SDK.
 
 For building installer, you need to install [Inno Setup](https://jrsoftware.org/isinfo.php).
 
-**Please put your models into `data` subfolder.**
+**Please put your models into `obs_plugin/data` subfolder.**
 - model_psp.trt - PSP (quality) model
 - model_psp_fast.trt - PSP (performance) model
 - model_ps2.trt - PS2 (quality) model
@@ -47,7 +47,7 @@ All training scripts are located in [here](./scripts/training). The scripts supp
 
 ### Dataset
 
-You can use either pairs of low resolution and high resolution images (recommended) or only high resolution images only (they will be downscaled for training). For training on TPU you should convert your dataset to tfrecords format.
+You can use either pairs of low resolution and high resolution images (recommended) or just high resolution images (they will be downscaled for training). For training on TPU you should convert your dataset to tfrecords format.
 
 ### Inference
 

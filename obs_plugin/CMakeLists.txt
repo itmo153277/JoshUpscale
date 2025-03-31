@@ -89,6 +89,9 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
   )
   file(GLOB_RECURSE DATA data/*)
   file(GLOB_RECURSE DATA_MODELS data/*.trt)
+  if(NOT DATA_MODELS)
+    message(FATAL_ERROR "No models found. Please put your models into obs_plugin/data folder")
+  endif()
   add_custom_command(
     OUTPUT obs-joshupscale-installer.exe
     COMMAND ${ISCC_COMMAND}

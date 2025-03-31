@@ -48,6 +48,7 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 [Code]
 const
   MinObsVersion = @MIN_OBS_VERSION@;
+  NvVfxTargetVersion = {#PackVersionComponents(0, 7, 6, 0)};
 
 function GetNvVfxPath: String;
 begin
@@ -56,27 +57,26 @@ begin
     Result := ExpandConstant('{commonpf64}\NVIDIA Corporation\NVIDIA Video Effects');
 end;
 
-function IsNvVfxInstalled: Boolean;
+function CheckNvVfx: String;
 var
   NvVfxPath: String;
-  NvVfxVersion: String;
+  NvVfxVersion: Int64;
 begin
-  Result := False;
+  Result := 'NVIDIA Video Effects is not installed';
   NvVfxPath := GetNvVfxPath;
   if not DirExists(NvVfxPath) then
     Exit;
+  if not GetPackedVersion(NvVfxPath + '\NVVideoEffects.dll', NvVfxVersion) then
+    Exit;
+  Result := 'NVIDIA Video Effects is too old. Please update it first';
+  if ComparePackedVersion(NvVfxVersion, NvVfxTargetVersion) < 0 then
+    Exit;
+  Result := 'NVIDIA Video Effects version mismatch';
   if not FileExists(NvVfxPath + '\nvinfer_10.dll') then
     Exit;
-  if not GetVersionNumbersString(NvVfxPath + '\NVVideoEffects.dll', NvVfxVersion) then
+  if not SamePackedVersion(NvVfxVersion, NvVfxTargetVersion) then
     Exit;
-  if NvVfxVersion <> '0.7.6.0' then
-    Exit;
-  Result := True;
-end;
-
-function IsOldNvVfxInstalled: Boolean;
-begin
-  Result := FileExists(GetNvVfxPath + '\nvinfer.dll');
+  Result := '';
 end;
 
 function GetOBSPath: String;
@@ -120,42 +120,30 @@ begin
     Result := GetOBSPath;
 end;
 
-function CheckOBSVersion: Boolean;
+function CheckOBSVersion: String;
 var
   OBSPath: String;
   MajorVer, MinorVer, RevVer, BuildVer: Word;
 begin
   OBSPath := GetTargetOBSPath;
   if not DirExists(OBSPath) then
-  begin
-    Result := True;
     Exit;
-  end;
-  Result := False;
+  Result := 'OBS version mismatch';
   if not GetVersionComponents(OBSPath + '\bin\64bit\obs.dll', MajorVer, MinorVer, RevVer, BuildVer) then
     Exit;
   if MajorVer < MinObsVersion then
     Exit;
-  Result := True;
+  Result := '';
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
 #if @USE_NVVFX@
-  if IsOldNvVfxInstalled then
-  begin
-    Result := 'Old NVIDIA Video Effects is installed. Please uninstall it first.';
+  Result := CheckNvVfx;
+  if Result <> '' then
     Exit;
-  end;
-  if not IsNvVfxInstalled then
-  begin
-    Result := 'NVIDIA Video Effects is not installed';
-    Exit;
-  end;
 #endif
-  if not CheckOBSVersion then
-  begin
-    Result := 'OBS version mismatch';
+  Result := CheckOBSVersion;
+  if Result <> '' then
     Exit;
-  end;
 end;
