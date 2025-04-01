@@ -6,10 +6,7 @@
 #include <graphics/image-file.h>
 #include <obs-module.h>
 
-#include <atomic>
 #include <memory>
-#include <new>
-#include <thread>
 #include <utility>
 
 namespace JoshUpscale {
@@ -65,41 +62,6 @@ auto operator+([[maybe_unused]] DeferOp op, T &&fn) noexcept {
 	    ::JoshUpscale::obs::detail::DeferOp{} + [&]() noexcept -> void
 // NOLINTEND
 
-struct AtomicLockable {
-	void lock() noexcept {
-		while (m_Flag.test_and_set(std::memory_order_acquire)) {
-#ifdef __cpp_lib_atomic_wait
-			m_Flag.wait(true, std::memory_order_relaxed);
-#else
-			threadSleep();
-#endif
-		}
-	}
-
-	bool try_lock() noexcept {
-		return !m_Flag.test_and_set(std::memory_order_acquire);
-	}
-
-	void unlock() noexcept {
-		m_Flag.clear(std::memory_order_release);
-#ifdef __cpp_lib_atomic_wait
-		m_Flag.notify_one();
-#endif
-	}
-
-private:
-#ifdef __cpp_lib_hardware_interference_size
-	static constexpr auto align = std::hardware_destructive_interference_size;
-#else
-	static constexpr auto align = 64;
-#endif
-	alignas(align) std::atomic_flag m_Flag;
-
-	static void threadSleep() noexcept {
-		std::this_thread::yield();
-	}
-};
-
 struct JoshUpscaleFilter {
 	static ::obs_source_info *getSourceInfo();
 
@@ -145,7 +107,6 @@ private:
 	bool processFrame() noexcept;
 	void renderMaskedTarget() noexcept;
 
-	AtomicLockable m_Busy;
 	::obs_source_t *m_Source;
 	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
 	::gs_texrender_t *m_RenderTarget = nullptr;

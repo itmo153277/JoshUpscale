@@ -116,10 +116,6 @@ void JoshUpscaleFilter::destroy() noexcept {
 }
 
 void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
-	m_Busy.lock();
-	defer {
-		m_Busy.unlock();
-	};
 	std::int64_t preset = ::obs_data_get_int(settings, "preset");
 	std::int64_t resolution = ::obs_data_get_int(settings, "resolution");
 	m_RenderMaskedTarget = resolution == 1;
@@ -175,13 +171,6 @@ void JoshUpscaleFilter::render(
 	if (target == nullptr || parent == nullptr) {
 		return;
 	}
-	if (!m_Busy.try_lock()) {
-		::obs_source_skip_video_filter(m_Source);
-		return;
-	}
-	defer {
-		m_Busy.unlock();
-	};
 	std::uint32_t targetWidth = ::obs_source_get_base_width(target);
 	std::uint32_t targetHeight = ::obs_source_get_base_height(target);
 	if (m_Runtime == nullptr || targetWidth == 0 || targetHeight == 0) {
@@ -215,12 +204,6 @@ void JoshUpscaleFilter::render(
 }
 
 void JoshUpscaleFilter::videoTick(float seconds) noexcept {
-	if (!m_Busy.try_lock()) {
-		return;
-	}
-	defer {
-		m_Busy.unlock();
-	};
 	m_FrameDuration += seconds;
 	if (m_FrameDuration > 0.03F || !m_LimitFps) {
 		m_FrameProcessed = false;
@@ -228,12 +211,6 @@ void JoshUpscaleFilter::videoTick(float seconds) noexcept {
 }
 
 std::uint32_t JoshUpscaleFilter::getWidth() noexcept {
-	if (!m_Busy.try_lock()) {
-		return ::obs_source_get_base_width(::obs_filter_get_target(m_Source));
-	}
-	defer {
-		m_Busy.unlock();
-	};
 	if (m_Runtime == nullptr) {
 		return ::obs_source_get_base_width(::obs_filter_get_target(m_Source));
 	}
@@ -241,12 +218,6 @@ std::uint32_t JoshUpscaleFilter::getWidth() noexcept {
 }
 
 std::uint32_t JoshUpscaleFilter::getHeight() noexcept {
-	if (!m_Busy.try_lock()) {
-		return ::obs_source_get_base_height(::obs_filter_get_target(m_Source));
-	}
-	defer {
-		m_Busy.unlock();
-	};
 	if (m_Runtime == nullptr) {
 		return ::obs_source_get_base_height(::obs_filter_get_target(m_Source));
 	}
@@ -282,11 +253,11 @@ void JoshUpscaleFilter::initModel(const char *model) noexcept {
 		if (modelFile == nullptr) {
 			throw std::runtime_error(std::string("Model not found: ") + model);
 		}
-		m_Runtime.reset(core::createRuntime(0, modelFile.get()));
 		::obs_enter_graphics();
 		defer {
 			::obs_leave_graphics();
 		};
+		m_Runtime.reset(core::createRuntime(0, modelFile.get()));
 		m_InputImage.reset();
 		m_OutputImage.reset();
 		m_TargetTexture = ::gs_texture_create(
