@@ -64,15 +64,31 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 		m_RenderTarget = ::gs_texrender_create(GS_BGRX, GS_ZS_NONE);
 		m_RenderInput = ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
 		m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BILINEAR_LOWRES);
-		m_ScaleImgParam = ::gs_effect_get_param_by_name(m_ScaleEffect, "image");
+		if (m_ScaleEffect != nullptr) {
+			m_ScaleImgParam =
+			    ::gs_effect_get_param_by_name(m_ScaleEffect, "image");
+		}
 		m_OutputEffect = ::obs_get_base_effect(OBS_EFFECT_DEFAULT);
-		m_OutputImgParam =
-		    ::gs_effect_get_param_by_name(m_OutputEffect, "image");
+		if (m_OutputEffect != nullptr) {
+			m_OutputImgParam =
+			    ::gs_effect_get_param_by_name(m_OutputEffect, "image");
+		}
 		m_BlendEffect =
 		    ::gs_effect_create_from_file(blendEffectFile.get(), nullptr);
-		m_BlendImgParam = ::gs_effect_get_param_by_name(m_BlendEffect, "image");
-		m_BlendMaskParam = ::gs_effect_get_param_by_name(m_BlendEffect, "mask");
+		if (m_BlendEffect != nullptr) {
+			m_BlendImgParam =
+			    ::gs_effect_get_param_by_name(m_BlendEffect, "image");
+			m_BlendMaskParam =
+			    ::gs_effect_get_param_by_name(m_BlendEffect, "mask");
+		}
 		::gs_image_file_init_texture(&m_MaskImage);
+	}
+	if (m_RenderTarget == nullptr || m_RenderInput == nullptr ||
+	    m_ScaleEffect == nullptr || m_ScaleImgParam == nullptr ||
+	    m_OutputEffect == nullptr || m_OutputImgParam == nullptr ||
+	    m_BlendEffect == nullptr || m_BlendImgParam == nullptr ||
+	    m_BlendMaskParam == nullptr || m_MaskImage.texture == nullptr) {
+		throw std::runtime_error("Initialization failed");
 	}
 	update(settings);
 	success = true;
@@ -246,14 +262,23 @@ void JoshUpscaleFilter::initModel(const char *model) noexcept {
 		m_Runtime.reset(core::createRuntime(0, modelFile.get()));
 		m_InputImage.reset();
 		m_OutputImage.reset();
+		if (m_TargetTexture != nullptr) {
+			::gs_texture_destroy(m_TargetTexture);
+		}
 		m_TargetTexture = ::gs_texture_create(
 		    static_cast<std::uint32_t>(m_Runtime->getInputWidth()),
 		    static_cast<std::uint32_t>(m_Runtime->getInputHeight()),
 		    GS_BGRX_UNORM, 1, nullptr, 0);
+		if (m_OutputTexture != nullptr) {
+			::gs_texture_destroy(m_OutputTexture);
+		}
 		m_OutputTexture = ::gs_texture_create(
 		    static_cast<std::uint32_t>(m_Runtime->getOutputWidth()),
 		    static_cast<std::uint32_t>(m_Runtime->getOutputHeight()),
 		    GS_BGRX_UNORM, 1, nullptr, 0);
+		if (m_TargetTexture == nullptr || m_OutputTexture == nullptr) {
+			throw std::runtime_error("Initialization failed");
+		}
 		createOutputImage();
 		log(core::LogLevel::INFO, "Successfully loaded model: %s", model);
 	} catch (...) {
