@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <exception>
 #include <stdexcept>
 #include <string>
 
@@ -44,9 +45,8 @@ namespace obs {
 JoshUpscaleFilter::JoshUpscaleFilter(
     ::obs_data_t *settings, ::obs_source_t *source)
     : m_Source{source} {
-	bool success = false;
 	defer {
-		if (!success) {
+		if (std::uncaught_exceptions() > 0) {
 			cleanup();
 		}
 	};
@@ -91,7 +91,6 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 		throw std::runtime_error("Initialization failed");
 	}
 	update(settings);
-	success = true;
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
