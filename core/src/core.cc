@@ -5,7 +5,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
-#include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -15,6 +15,7 @@
 #include "JoshUpscale/core/logging.h"
 #include "JoshUpscale/core/tensor.h"
 #include "JoshUpscale/core/tensorrt_backend.h"
+#include "JoshUpscale/core/utils.h"
 
 #ifdef _WIN32
 #include <cuda_d3d11_interop.h>
@@ -72,16 +73,20 @@ namespace {
 struct TensorRTRuntime : Runtime {
 	explicit TensorRTRuntime(
 	    int deviceId, const std::filesystem::path &modelPath) {
+		std::vector<std::byte> engine;
+		{
+			std::ifstream inputFile(modelPath,
+			    std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
+			inputFile.exceptions(
+			    std::ifstream::badbit | std::ifstream::failbit);
+			auto size = static_cast<std::size_t>(inputFile.tellg());
+			engine.resize(size);
+			inputFile.seekg(0);
+			inputFile.read(reinterpret_cast<char *>(engine.data()),
+			    static_cast<std::streamsize>(size));
+		}
 		cuda::DeviceContext cudaCtx(deviceId);
-		std::ifstream inputFile(modelPath,
-		    std::ifstream::in | std::ifstream::binary | std::ifstream::ate);
-		inputFile.exceptions(std::ifstream::badbit | std::ifstream::failbit);
-		auto size = static_cast<std::size_t>(inputFile.tellg());
-		inputFile.seekg(0);
-		std::vector<std::byte> engine{size};
-		inputFile.read(reinterpret_cast<char *>(engine.data()),
-		    static_cast<std::streamsize>(size));
-		m_Backend = std::make_unique<TensorRTBackend>(engine);
+		m_Backend.emplace(engine);
 		auto frameSize = m_Backend->getFrameSize();
 		m_InputWidth = frameSize.inputWidth;
 		m_InputHeight = frameSize.inputHeight;
@@ -97,11 +102,14 @@ struct TensorRTRuntime : Runtime {
 		       outputImage.height == m_OutputHeight);
 		GenericTensor inputTensor{inputImage};
 		GenericTensor outputTensor{outputImage};
+		if (!m_Backend.has_value()) {
+			unreachable();
+		}
 		m_Backend->process(inputTensor, outputTensor);
 	}
 
 private:
-	std::unique_ptr<TensorRTBackend> m_Backend = nullptr;
+	std::optional<TensorRTBackend> m_Backend;
 };
 
 }  // namespace

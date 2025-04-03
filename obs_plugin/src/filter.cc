@@ -113,7 +113,7 @@ void JoshUpscaleFilter::update(::obs_data_t *settings) noexcept {
 	    "model_ps2_fast.trt",
 	};
 	int model = static_cast<int>((resolution * 2) + preset);
-	assert(model > 0 && model < 4);
+	assert(model >= 0 && model < 4);
 	if (model != m_Model) {
 		m_FrameProcessed = false;
 		m_Runtime.reset();
