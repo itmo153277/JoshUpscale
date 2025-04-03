@@ -107,6 +107,8 @@ private:
 	bool processFrame() noexcept;
 	void renderMaskedTarget() noexcept;
 
+	void cleanup() noexcept;
+
 	::obs_source_t *m_Source;
 	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
 	::gs_texrender_t *m_RenderTarget = nullptr;

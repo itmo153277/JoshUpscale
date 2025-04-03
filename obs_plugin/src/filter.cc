@@ -44,6 +44,12 @@ namespace obs {
 JoshUpscaleFilter::JoshUpscaleFilter(
     ::obs_data_t *settings, ::obs_source_t *source)
     : m_Source{source} {
+	bool success = false;
+	defer {
+		if (!success) {
+			cleanup();
+		}
+	};
 	auto maskFile = OBSPtr(obs_module_file("mask.png"));
 	::gs_image_file_init(&m_MaskImage, maskFile.get());
 	auto blendEffectFile = OBSPtr(obs_module_file("effects/blend.effect"));
@@ -69,31 +75,11 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 		::gs_image_file_init_texture(&m_MaskImage);
 	}
 	update(settings);
+	success = true;
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
-	::obs_enter_graphics();
-	defer {
-		::obs_leave_graphics();
-	};
-	m_InputImage.reset();
-	m_OutputImage.reset();
-	if (m_RenderInput != nullptr) {
-		::gs_texrender_destroy(m_RenderInput);
-	}
-	if (m_RenderTarget != nullptr) {
-		::gs_texrender_destroy(m_RenderTarget);
-	}
-	if (m_TargetTexture != nullptr) {
-		::gs_texture_destroy(m_TargetTexture);
-	}
-	if (m_OutputTexture != nullptr) {
-		::gs_texture_destroy(m_OutputTexture);
-	}
-	if (m_BlendEffect != nullptr) {
-		::gs_effect_destroy(m_BlendEffect);
-	}
-	::gs_image_file_free(&m_MaskImage);
+	cleanup();
 }
 
 const char *JoshUpscaleFilter::getName(
@@ -359,6 +345,31 @@ void JoshUpscaleFilter::renderMaskedTarget() noexcept {
 		    static_cast<std::uint32_t>(m_Runtime->getOutputWidth()),
 		    static_cast<std::uint32_t>(m_Runtime->getOutputHeight()));
 	}
+}
+
+void JoshUpscaleFilter::cleanup() noexcept {
+	::obs_enter_graphics();
+	defer {
+		::obs_leave_graphics();
+	};
+	m_InputImage.reset();
+	m_OutputImage.reset();
+	if (m_RenderInput != nullptr) {
+		::gs_texrender_destroy(m_RenderInput);
+	}
+	if (m_RenderTarget != nullptr) {
+		::gs_texrender_destroy(m_RenderTarget);
+	}
+	if (m_TargetTexture != nullptr) {
+		::gs_texture_destroy(m_TargetTexture);
+	}
+	if (m_OutputTexture != nullptr) {
+		::gs_texture_destroy(m_OutputTexture);
+	}
+	if (m_BlendEffect != nullptr) {
+		::gs_effect_destroy(m_BlendEffect);
+	}
+	::gs_image_file_free(&m_MaskImage);
 }
 
 }  // namespace obs

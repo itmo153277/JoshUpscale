@@ -29,7 +29,7 @@ void log(core::LogLevel level, std::string_view format, ...) {
 		break;
 	}
 	std::va_list args;
-	static constexpr std::string_view kTag = "[obs-joshupscale]: ";
+	static constexpr std::string_view kTag = "[obs-joshupscale] ";
 	std::string newFormat;
 	newFormat.reserve(kTag.size() + format.size());
 	newFormat += kTag;
