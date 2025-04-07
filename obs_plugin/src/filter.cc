@@ -4,7 +4,6 @@
 
 #include <cassert>
 #include <cstdint>
-#include <exception>
 #include <stdexcept>
 #include <string>
 
@@ -45,52 +44,52 @@ namespace obs {
 JoshUpscaleFilter::JoshUpscaleFilter(
     ::obs_data_t *settings, ::obs_source_t *source)
     : m_Source{source} {
-	defer {
-		if (std::uncaught_exceptions() > 0) {
-			cleanup();
+	try {
+		auto maskFile = OBSPtr(obs_module_file("mask.png"));
+		::gs_image_file_init(&m_MaskImage, maskFile.get());
+		auto blendEffectFile = OBSPtr(obs_module_file("effects/blend.effect"));
+		{
+			::obs_enter_graphics();
+			defer {
+				::obs_leave_graphics();
+			};
+			if (::gs_get_device_type() != GS_DEVICE_DIRECT3D_11) {
+				throw std::runtime_error("Unsupported renderer");
+			}
+			m_RenderTarget = ::gs_texrender_create(GS_BGRX, GS_ZS_NONE);
+			m_RenderInput = ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
+			m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BILINEAR_LOWRES);
+			if (m_ScaleEffect != nullptr) {
+				m_ScaleImgParam =
+				    ::gs_effect_get_param_by_name(m_ScaleEffect, "image");
+			}
+			m_OutputEffect = ::obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			if (m_OutputEffect != nullptr) {
+				m_OutputImgParam =
+				    ::gs_effect_get_param_by_name(m_OutputEffect, "image");
+			}
+			m_BlendEffect =
+			    ::gs_effect_create_from_file(blendEffectFile.get(), nullptr);
+			if (m_BlendEffect != nullptr) {
+				m_BlendImgParam =
+				    ::gs_effect_get_param_by_name(m_BlendEffect, "image");
+				m_BlendMaskParam =
+				    ::gs_effect_get_param_by_name(m_BlendEffect, "mask");
+			}
+			::gs_image_file_init_texture(&m_MaskImage);
 		}
-	};
-	auto maskFile = OBSPtr(obs_module_file("mask.png"));
-	::gs_image_file_init(&m_MaskImage, maskFile.get());
-	auto blendEffectFile = OBSPtr(obs_module_file("effects/blend.effect"));
-	{
-		::obs_enter_graphics();
-		defer {
-			::obs_leave_graphics();
-		};
-		if (::gs_get_device_type() != GS_DEVICE_DIRECT3D_11) {
-			throw std::runtime_error("Unsupported renderer");
+		if (m_RenderTarget == nullptr || m_RenderInput == nullptr ||
+		    m_ScaleEffect == nullptr || m_ScaleImgParam == nullptr ||
+		    m_OutputEffect == nullptr || m_OutputImgParam == nullptr ||
+		    m_BlendEffect == nullptr || m_BlendImgParam == nullptr ||
+		    m_BlendMaskParam == nullptr || m_MaskImage.texture == nullptr) {
+			throw std::runtime_error("Initialization failed");
 		}
-		m_RenderTarget = ::gs_texrender_create(GS_BGRX, GS_ZS_NONE);
-		m_RenderInput = ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
-		m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BILINEAR_LOWRES);
-		if (m_ScaleEffect != nullptr) {
-			m_ScaleImgParam =
-			    ::gs_effect_get_param_by_name(m_ScaleEffect, "image");
-		}
-		m_OutputEffect = ::obs_get_base_effect(OBS_EFFECT_DEFAULT);
-		if (m_OutputEffect != nullptr) {
-			m_OutputImgParam =
-			    ::gs_effect_get_param_by_name(m_OutputEffect, "image");
-		}
-		m_BlendEffect =
-		    ::gs_effect_create_from_file(blendEffectFile.get(), nullptr);
-		if (m_BlendEffect != nullptr) {
-			m_BlendImgParam =
-			    ::gs_effect_get_param_by_name(m_BlendEffect, "image");
-			m_BlendMaskParam =
-			    ::gs_effect_get_param_by_name(m_BlendEffect, "mask");
-		}
-		::gs_image_file_init_texture(&m_MaskImage);
+		update(settings);
+	} catch (...) {
+		cleanup();
+		throw;
 	}
-	if (m_RenderTarget == nullptr || m_RenderInput == nullptr ||
-	    m_ScaleEffect == nullptr || m_ScaleImgParam == nullptr ||
-	    m_OutputEffect == nullptr || m_OutputImgParam == nullptr ||
-	    m_BlendEffect == nullptr || m_BlendImgParam == nullptr ||
-	    m_BlendMaskParam == nullptr || m_MaskImage.texture == nullptr) {
-		throw std::runtime_error("Initialization failed");
-	}
-	update(settings);
 }
 
 JoshUpscaleFilter::~JoshUpscaleFilter() {
