@@ -2,8 +2,8 @@
 
 ## Usage
 
-<!-- clip JoshUpscale(clip "clip", string "model")  -->
-<code><span style="font-size:1.12em">*clip* **JoshUpscale**(*clip* **"clip"**, *string* **"model_path"**)</span></code>
+<!-- clip JoshUpscale(clip "clip", string "model", int "device" = 0)  -->
+<code><span style="font-size:1.12em">*clip* **JoshUpscale**(*clip* **"clip"**, *string* **"model_path"**, *int* **"device"** = 0)</span></code>
 
 Parameters:
 
@@ -11,6 +11,8 @@ Parameters:
   Input clip. Must be in RGB32 format, 480x270
 - *string* model_path  
   Path to TensorRT model file
+- *int* device = 0
+  Device index
 
 Output:
 - *clip*  

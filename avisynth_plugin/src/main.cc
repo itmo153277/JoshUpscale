@@ -30,8 +30,8 @@ int getDeviceTypes(const PClip &child) {
 
 class JoshUpscaleFilter : public GenericVideoFilter {
 public:
-	JoshUpscaleFilter(
-	    PClip _child, IScriptEnvironment *env, const char *modelPath);
+	JoshUpscaleFilter(PClip _child, IScriptEnvironment *env,
+	    const char *modelPath, int device);
 	~JoshUpscaleFilter();
 	PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment *env) override;
 	int __stdcall SetCacheHints(int cacheHints, int frameRange) override;
@@ -48,13 +48,13 @@ private:
 };
 
 JoshUpscaleFilter::JoshUpscaleFilter(PClip _child,  // NOLINT
-    IScriptEnvironment *env, const char *modelPath)
+    IScriptEnvironment *env, const char *modelPath, int device)
     : GenericVideoFilter(_child) {
 	if (!vi.IsRGB32()) {
 		env->ThrowError("JoshUpscale: only RGB32 format is supported");
 	}
 	try {
-		m_Runtime.reset(core::createRuntime(0, modelPath));
+		m_Runtime.reset(core::createRuntime(device, modelPath));
 	} catch (...) {
 		auto exception = core::getExceptionString();
 		env->ThrowError("JoshUpscale: %s", exception.c_str());
@@ -184,7 +184,11 @@ AVSValue __cdecl CreateFilter(AVSValue args,  // NOLINT
     [[maybe_unused]] void *user_data, IScriptEnvironment *env) {
 	PClip clip = args[0].AsClip();
 	const char *model = args[1].AsString();
-	return new JoshUpscaleFilter(clip, env, model);
+	int device = 0;
+	if (args[2].Defined()) {
+		device = args[2].AsInt();
+	}
+	return new JoshUpscaleFilter(clip, env, model, device);
 }
 
 }  // namespace
@@ -198,7 +202,7 @@ const AVS_Linkage *AVS_linkage = nullptr;
 extern "C" __declspec(dllexport) const char *__stdcall AvisynthPluginInit3(
     IScriptEnvironment *env, const AVS_Linkage *const vectors) {
 	AVS_linkage = vectors;
-	env->AddFunction("JoshUpscale", "[clip]c[model_path]s",
+	env->AddFunction("JoshUpscale", "c[model_path]s[device]i",
 	    &JoshUpscale::avisynth::CreateFilter, nullptr);
 	return "JoshUpscale plugin";
 }

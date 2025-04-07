@@ -56,6 +56,13 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 			if (::gs_get_device_type() != GS_DEVICE_DIRECT3D_11) {
 				throw std::runtime_error("Unsupported renderer");
 			}
+#ifdef _WIN32
+			m_Device = core::getD3D11DeviceIndex(
+			    reinterpret_cast<ID3D11Device *>(::gs_get_device_obj()));
+#endif
+			if (m_Device < 0) {
+				throw std::runtime_error("Unsupported render device");
+			}
 			m_RenderTarget = ::gs_texrender_create(GS_BGRX, GS_ZS_NONE);
 			m_RenderInput = ::gs_texrender_create(GS_BGRX_UNORM, GS_ZS_NONE);
 			m_ScaleEffect = ::obs_get_base_effect(OBS_EFFECT_BILINEAR_LOWRES);
@@ -257,7 +264,7 @@ void JoshUpscaleFilter::initModel(const char *model) noexcept {
 		defer {
 			::obs_leave_graphics();
 		};
-		m_Runtime.reset(core::createRuntime(0, modelFile.get()));
+		m_Runtime.reset(core::createRuntime(m_Device, modelFile.get()));
 		m_InputImage.reset();
 		m_OutputImage.reset();
 		if (m_TargetTexture != nullptr) {

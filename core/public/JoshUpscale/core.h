@@ -11,6 +11,7 @@
 
 #ifdef _WIN32
 struct ID3D11Texture2D;
+struct ID3D11Device;
 #endif
 
 namespace JoshUpscale {
@@ -51,6 +52,7 @@ protected:
 };
 
 #ifdef _WIN32
+JOSHUPSCALE_EXPORT int getD3D11DeviceIndex(ID3D11Device *d3d11Device);
 JOSHUPSCALE_EXPORT GraphicsResourceImage *getD3D11Image(
     ID3D11Texture2D *d3d11Texture, GraphicsResourceImageType type);
 #endif

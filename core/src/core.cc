@@ -20,6 +20,10 @@
 #ifdef _WIN32
 #include <cuda_d3d11_interop.h>
 #include <d3d11.h>
+#include <dxgi.h>
+#include <wrl/client.h>
+
+#include <system_error>
 #endif
 
 namespace JoshUpscale {
@@ -61,6 +65,25 @@ struct D3D11ResourceImage : GraphicsResourceImage {
 };
 
 }  // namespace
+
+JOSHUPSCALE_EXPORT int getD3D11DeviceIndex(ID3D11Device *d3d11Device) {
+	using Microsoft::WRL::ComPtr;
+	int device = -1;
+	ComPtr<IDXGIDevice> dxgiDevice;
+	HRESULT hr = d3d11Device->QueryInterface(dxgiDevice.GetAddressOf());
+	if (FAILED(hr)) {
+		throw std::system_error(
+		    hr, std::system_category(), "IDXGIDevice query failed");
+	}
+	ComPtr<IDXGIAdapter> dxgiAdapter;
+	hr = dxgiDevice->GetAdapter(dxgiAdapter.GetAddressOf());
+	if (FAILED(hr)) {
+		throw std::system_error(
+		    hr, std::system_category(), "IDXGIAdapter query failed");
+	}
+	cuda::cudaCheck(::cudaD3D11GetDevice(&device, dxgiAdapter.Get()));
+	return device;
+}
 
 GraphicsResourceImage *getD3D11Image(ID3D11Texture2D *d3d11Texture,
     [[maybe_unused]] GraphicsResourceImageType type) {

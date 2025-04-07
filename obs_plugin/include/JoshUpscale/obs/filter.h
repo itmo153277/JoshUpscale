@@ -110,6 +110,7 @@ private:
 	void cleanup() noexcept;
 
 	::obs_source_t *m_Source;
+	int m_Device = -1;
 	std::unique_ptr<core::Runtime> m_Runtime = nullptr;
 	::gs_texrender_t *m_RenderTarget = nullptr;
 	::gs_texrender_t *m_RenderInput = nullptr;
