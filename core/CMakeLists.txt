@@ -48,7 +48,6 @@ if(WIN32)
       COMMAND ${CMAKE_COMMAND}
         -DOUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/JoshUpscale.manifest
         -DDLLS=$<TARGET_RUNTIME_DLLS:JoshUpscale>
-        -DLOAD_PATH=${USE_DLL_LOAD_PATH}
         -P ${PROJECT_SOURCE_DIR}/cmake/GenerateManifest.cmake
       COMMAND mt.exe
         -manifest ${CMAKE_CURRENT_BINARY_DIR}/JoshUpscale.manifest
