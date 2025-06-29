@@ -1,0 +1,8 @@
+file(WRITE ${OUT_PATH} "<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\" manifestVersion=\"1.0\">")
+foreach(dll IN LISTS DLLS)
+  get_filename_component(dll_name ${dll} NAME)
+  string(REPLACE "/" "\\" dll_path "${LOAD_PATH}/${dll_name}")
+  string(REPLACE "\\" "\\\\" dll_path "${dll_path}")
+  file(APPEND ${OUT_PATH} "<file name=\"${dll_path}\"></file>")
+endforeach()
+file(APPEND ${OUT_PATH} "</assembly>")

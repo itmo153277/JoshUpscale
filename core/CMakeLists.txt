@@ -40,3 +40,20 @@ target_link_libraries(JoshUpscale PRIVATE
   CUDA::$<IF:$<BOOL:${USE_STATIC_CUDA}>,cudart_static,cudart>
   TensorRT::${NVINFER_LIB}
 )
+if(WIN32)
+  option(USE_DLL_LOAD_PATH "DLL loading path" OFF)
+  if(USE_DLL_LOAD_PATH)
+    add_custom_command(TARGET JoshUpscale POST_BUILD
+      BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/JoshUpscale.manifest
+      COMMAND ${CMAKE_COMMAND}
+        -DOUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/JoshUpscale.manifest
+        -DDLLS=$<TARGET_RUNTIME_DLLS:JoshUpscale>
+        -DLOAD_PATH=${USE_DLL_LOAD_PATH}
+        -P ${PROJECT_SOURCE_DIR}/cmake/GenerateManifest.cmake
+      COMMAND mt.exe
+        -manifest ${CMAKE_CURRENT_BINARY_DIR}/JoshUpscale.manifest
+        "-inputresource:$<TARGET_FILE:JoshUpscale>;#2"
+        "-outputresource:$<TARGET_FILE:JoshUpscale>;#2"
+    )
+  endif()
+endif()

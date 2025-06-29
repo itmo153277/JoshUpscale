@@ -67,8 +67,10 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     OUTPUT obs-joshupscale-installer.iss
     MAIN_DEPENDENCY install/obs-joshupscale-installer.iss.in
     DEPENDS JoshUpscale obs-joshupscale
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_CURRENT_BINARY_DIR}/dlls
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/dlls
-    COMMAND ${CMAKE_COMMAND} -E copy -t ${CMAKE_CURRENT_BINARY_DIR}/dlls $<TARGET_RUNTIME_DLLS:JoshUpscale>
+    COMMAND ${CMAKE_COMMAND} -E $<IF:$<BOOL:${USE_NVVFX}>,true,copy>
+      -t ${CMAKE_CURRENT_BINARY_DIR}/dlls $<TARGET_RUNTIME_DLLS:JoshUpscale>
     COMMAND ${CMAKE_COMMAND}
       -DTEMPLATE_IN=${CMAKE_CURRENT_SOURCE_DIR}/install/obs-joshupscale-installer.iss.in
       -DTEMPLATE_OUT=${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
