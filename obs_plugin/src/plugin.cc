@@ -4,6 +4,7 @@
 
 #include <JoshUpscale/core.h>
 
+#include <exception>
 #include <string>
 
 #include "JoshUpscale/obs/filter.h"
@@ -21,8 +22,9 @@ obs_source_info *getJoshUpscaleSourceInfo() {
 #ifdef ERROR
 #undef ERROR
 #endif
-#include <cstddef>
 #include <filesystem>
+#include <stdexcept>
+#include <system_error>
 
 namespace {
 
@@ -41,40 +43,48 @@ namespace {
 	       "NVIDIA Video Effects";
 }
 
-[[maybe_unused]] void setDllDir(std::nullptr_t) {
-	SetDllDirectoryW(NULL);
-}
-
-[[maybe_unused]] void setDllDir(const wchar_t *dir) {
-	SetDllDirectoryW(dir);
-}
-
-[[maybe_unused]] void setDllDir(const std::filesystem::path &dir) {
-	setDllDir(dir.c_str());
-}
-
 void preloadLibrariesWindows() {
 #ifdef JOSHUPSCALE_NVVFX
-	setDllDir(findNvVfx());
+	DLL_DIRECTORY_COOKIE nvVfxPtr =
+	    AddDllDirectory(std::filesystem::absolute(findNvVfx()).c_str());
+	if (nvVfxPtr == NULL) {
+		throw std::system_error(
+		    GetLastError(), std::system_category(), "Failed to set NVVFX path");
+	}
 #endif
-	auto mainLibPath =
+	auto mainLibObsPath =
 	    JoshUpscale::obs::OBSPtr(obs_module_file("JoshUpscale.dll"));
-	std::filesystem::path mainLib = mainLibPath.get();
-	DLL_DIRECTORY_COOKIE ptr = AddDllDirectory(
-	    std::filesystem::absolute(mainLib.parent_path()).c_str());
-	LoadLibraryExA("JoshUpscale.dll", NULL, LOAD_LIBRARY_SEARCH_USER_DIRS);
-	RemoveDllDirectory(ptr);
-	setDllDir(nullptr);
+	if (!mainLibObsPath) {
+		throw std::runtime_error("Failed to find main library");
+	}
+	std::filesystem::path mainLibPath =
+	    std::filesystem::absolute(mainLibObsPath.get()).concat(".");
+	HMODULE handle = LoadLibraryExW(mainLibPath.c_str(), NULL,
+	    LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+	if (handle == NULL) {
+		throw std::system_error(GetLastError(), std::system_category(),
+		    "Failed to load main library");
+	}
+#ifdef JOSHUPSCALE_NVVFX
+	RemoveDllDirectory(nvVfxPtr);
+#endif
 }
 
 }  // namespace
 
 #endif
 
-void preloadLibraries() {
+bool preloadLibraries() {
+	try {
 #ifdef _WIN32
-	preloadLibrariesWindows();
+		preloadLibrariesWindows();
 #endif
+		return true;
+	} catch (std::exception &e) {
+		JoshUpscale::obs::log(
+		    JoshUpscale::core::LogLevel::ERROR, "Failed to load: %s", e.what());
+		return false;
+	}
 }
 
 void setupLogging() {

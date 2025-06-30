@@ -12,7 +12,7 @@ extern const char *PLUGIN_NAME;
 extern const char *PLUGIN_VERSION;
 
 struct obs_source_info *getJoshUpscaleSourceInfo();
-void preloadLibraries();
+bool preloadLibraries();
 void setupLogging();
 
 #ifdef __cplusplus
