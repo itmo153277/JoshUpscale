@@ -9,6 +9,7 @@
 
 #include "JoshUpscale/core.h"
 #include "JoshUpscale/obs/logging.h"
+#include "JoshUpscale/obs/utils.h"
 
 namespace JoshUpscale {
 

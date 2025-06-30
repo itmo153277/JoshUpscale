@@ -22,9 +22,12 @@ obs_source_info *getJoshUpscaleSourceInfo() {
 #ifdef ERROR
 #undef ERROR
 #endif
+
 #include <filesystem>
 #include <stdexcept>
 #include <system_error>
+
+#include "JoshUpscale/obs/utils.h"
 
 namespace {
 
@@ -48,9 +51,12 @@ void preloadLibrariesWindows() {
 	DLL_DIRECTORY_COOKIE nvVfxPtr =
 	    AddDllDirectory(std::filesystem::absolute(findNvVfx()).c_str());
 	if (nvVfxPtr == NULL) {
-		throw std::system_error(
-		    GetLastError(), std::system_category(), "Failed to set NVVFX path");
+		throw std::system_error(static_cast<int>(GetLastError()),
+		    std::system_category(), "Failed to set NVVFX path");
 	}
+	defer {
+		RemoveDllDirectory(nvVfxPtr);
+	};
 #endif
 	auto mainLibObsPath =
 	    JoshUpscale::obs::OBSPtr(obs_module_file("JoshUpscale.dll"));
@@ -62,12 +68,9 @@ void preloadLibrariesWindows() {
 	HMODULE handle = LoadLibraryExW(mainLibPath.c_str(), NULL,
 	    LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
 	if (handle == NULL) {
-		throw std::system_error(GetLastError(), std::system_category(),
-		    "Failed to load main library");
+		throw std::system_error(static_cast<int>(GetLastError()),
+		    std::system_category(), "Failed to load main library");
 	}
-#ifdef JOSHUPSCALE_NVVFX
-	RemoveDllDirectory(nvVfxPtr);
-#endif
 }
 
 }  // namespace
