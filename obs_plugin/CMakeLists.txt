@@ -25,7 +25,7 @@ target_include_directories(obs-joshupscale SYSTEM PRIVATE
 if(WIN32)
   option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
   if(USE_NVVFX)
-    if(USE_STATIC_CUDA OR USE_LEAN_RT OR USE_DLL_LOAD_PATH)
+    if(USE_STATIC_CUDA OR USE_LEAN_RT OR USE_PRIVATE_DLLS)
       message(FATAL_ERROR "Invalid config")
     endif()
     find_package(CUDAToolkit 12 QUIET REQUIRED)

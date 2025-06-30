@@ -41,8 +41,8 @@ target_link_libraries(JoshUpscale PRIVATE
   TensorRT::${NVINFER_LIB}
 )
 if(WIN32)
-  option(USE_DLL_LOAD_PATH "DLL loading path" OFF)
-  if(USE_DLL_LOAD_PATH)
+  option(USE_PRIVATE_DLLS "Private core dependencies" OFF)
+  if(USE_PRIVATE_DLLS)
     add_custom_command(TARGET JoshUpscale POST_BUILD
       BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/JoshUpscale.manifest
       COMMAND ${CMAKE_COMMAND}
