@@ -54,13 +54,20 @@ JoshUpscaleFilter::JoshUpscaleFilter(
 			defer {
 				::obs_leave_graphics();
 			};
-			if (::gs_get_device_type() != GS_DEVICE_DIRECT3D_11) {
+			auto deviceType = ::gs_get_device_type();
+			if (deviceType != GS_DEVICE_DIRECT3D_11 &&
+			    deviceType != GS_DEVICE_OPENGL) {
 				throw std::runtime_error("Unsupported renderer");
 			}
 #ifdef _WIN32
-			m_Device = core::getD3D11DeviceIndex(
-			    reinterpret_cast<ID3D11Device *>(::gs_get_device_obj()));
+			if (deviceType == GS_DEVICE_DIRECT3D_11) {
+				m_Device = core::getD3D11DeviceIndex(
+				    reinterpret_cast<ID3D11Device *>(::gs_get_device_obj()));
+			}
 #endif
+			if (deviceType == GS_DEVICE_OPENGL) {
+				m_Device = core::getGLDeviceIndex();
+			}
 			if (m_Device < 0) {
 				throw std::runtime_error("Unsupported render device");
 			}
@@ -233,26 +240,42 @@ std::uint32_t JoshUpscaleFilter::getHeight() noexcept {
 }
 
 void JoshUpscaleFilter::createInputImage(::gs_texture_t *texture) {
+	auto deviceType = ::gs_get_device_type();
+	if (deviceType == GS_DEVICE_OPENGL) {
+		auto glTexture =
+		    *reinterpret_cast<std::uint32_t *>(::gs_texture_get_obj(texture));
+		m_InputImage.reset(core::getGLImage(
+		    glTexture, core::GraphicsResourceImageType::INPUT));
+	}
 #ifdef _WIN32
-	struct ID3D11Texture2D *d3d11Texture =
-	    reinterpret_cast<ID3D11Texture2D *>(::gs_texture_get_obj(texture));
-	m_InputImage.reset(core::getD3D11Image(
-	    d3d11Texture, core::GraphicsResourceImageType::INPUT));
-#else
-	(void) texture;
-	throw std::logic_error("Not implemented");
+	if (deviceType == GS_DEVICE_DIRECT3D_11) {
+		struct ID3D11Texture2D *d3d11Texture =
+		    reinterpret_cast<ID3D11Texture2D *>(::gs_texture_get_obj(texture));
+		m_InputImage.reset(core::getD3D11Image(
+		    d3d11Texture, core::GraphicsResourceImageType::INPUT));
+	}
 #endif
+	assert(m_InputImage);
 }
 
 void JoshUpscaleFilter::createOutputImage() {
+	auto deviceType = ::gs_get_device_type();
+	if (deviceType == GS_DEVICE_OPENGL) {
+		auto glTexture = *reinterpret_cast<std::uint32_t *>(
+		    ::gs_texture_get_obj(m_OutputTexture));
+		m_OutputImage.reset(core::getGLImage(
+		    glTexture, core::GraphicsResourceImageType::OUTPUT));
+	}
 #ifdef _WIN32
-	struct ID3D11Texture2D *d3d11Texture = reinterpret_cast<ID3D11Texture2D *>(
-	    ::gs_texture_get_obj(m_OutputTexture));
-	m_OutputImage.reset(core::getD3D11Image(
-	    d3d11Texture, core::GraphicsResourceImageType::OUTPUT));
-#else
-	throw std::logic_error("Not implemented");
+	if (deviceType == GS_DEVICE_DIRECT3D_11) {
+		struct ID3D11Texture2D *d3d11Texture =
+		    reinterpret_cast<ID3D11Texture2D *>(
+		        ::gs_texture_get_obj(m_OutputTexture));
+		m_OutputImage.reset(core::getD3D11Image(
+		    d3d11Texture, core::GraphicsResourceImageType::OUTPUT));
+	}
 #endif
+	assert(m_OutputImage);
 }
 
 void JoshUpscaleFilter::initModel(const char *model) noexcept {

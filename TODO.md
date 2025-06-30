@@ -8,8 +8,8 @@
 ## Core
 
 - [ ] Implement TVM backend (LLVM + OpenCL).
-- [ ] OpenGL texture support for input/output.
+- [x] OpenGL texture support for input/output.
 
 ## OBS
 
-- [ ] OpenGL renderer support.
+- [x] OpenGL renderer support.

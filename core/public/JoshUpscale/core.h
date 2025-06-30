@@ -57,6 +57,10 @@ JOSHUPSCALE_EXPORT GraphicsResourceImage *getD3D11Image(
     ID3D11Texture2D *d3d11Texture, GraphicsResourceImageType type);
 #endif
 
+JOSHUPSCALE_EXPORT int getGLDeviceIndex();
+JOSHUPSCALE_EXPORT GraphicsResourceImage *getGLImage(
+    std::uint32_t image, GraphicsResourceImageType type);
+
 struct Runtime {
 	virtual ~Runtime() {
 	}

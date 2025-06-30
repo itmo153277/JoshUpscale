@@ -2,11 +2,22 @@
 
 #include "JoshUpscale/core.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#ifdef ERROR
+#undef ERROR
+#endif
+#endif
+#include <GL/gl.h>
+#include <cuda_gl_interop.h>
+
 #include <cassert>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -66,7 +77,7 @@ struct D3D11ResourceImage : GraphicsResourceImage {
 
 }  // namespace
 
-JOSHUPSCALE_EXPORT int getD3D11DeviceIndex(ID3D11Device *d3d11Device) {
+int getD3D11DeviceIndex(ID3D11Device *d3d11Device) {
 	using Microsoft::WRL::ComPtr;
 	int device = -1;
 	ComPtr<IDXGIDevice> dxgiDevice;
@@ -90,6 +101,81 @@ GraphicsResourceImage *getD3D11Image(ID3D11Texture2D *d3d11Texture,
 	return new D3D11ResourceImage(d3d11Texture);
 }
 #endif
+
+namespace {
+
+struct GLResourceImage : GraphicsResourceImage {
+	GLResourceImage(GLuint image, GraphicsResourceImageType type) {
+		::cudaGraphicsResource_t resource;
+		unsigned int flags = 0;
+		switch (type) {
+		case GraphicsResourceImageType::INPUT:
+			flags = ::cudaGLMapFlagsReadOnly;
+			break;
+		case GraphicsResourceImageType::OUTPUT:
+			flags = ::cudaGLMapFlagsWriteDiscard;
+			break;
+		default:
+			unreachable();
+		}
+		::glBindTexture(GL_TEXTURE_2D, image);
+		auto error = ::glGetError();
+		if (error != GL_NO_ERROR) {
+			throw std::runtime_error(
+			    "Failed to bind texture: " + std::to_string(error));
+		}
+#ifndef NDEBUG
+		GLint format = 0;
+		GLint bitDepth[3] = {};
+		::glGetTexLevelParameteriv(
+		    GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &format);
+		::glGetTexLevelParameteriv(
+		    GL_TEXTURE_2D, 0, GL_TEXTURE_RED_SIZE, &bitDepth[0]);
+		::glGetTexLevelParameteriv(
+		    GL_TEXTURE_2D, 0, GL_TEXTURE_GREEN_SIZE, &bitDepth[1]);
+		::glGetTexLevelParameteriv(
+		    GL_TEXTURE_2D, 0, GL_TEXTURE_BLUE_SIZE, &bitDepth[2]);
+		assert(bitDepth[0] == 8 && bitDepth[1] == 8 && bitDepth[2] == 8 &&
+		       (format == GL_RGBA || format == GL_RGB));
+#endif
+		GLint width = 0;
+		GLint height = 0;
+		::glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+		::glGetTexLevelParameteriv(
+		    GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+		assert(width > 0 && height > 0);
+		::glBindTexture(GL_TEXTURE_2D, 0);
+		cuda::cudaCheck(::cudaGraphicsGLRegisterImage(
+		    &resource, image, GL_TEXTURE_2D, flags));
+		m_Image.location = DataLocation::GRAPHICS_RESOURCE;
+		m_Image.ptr = resource;
+		m_Image.width = static_cast<std::size_t>(width);
+		m_Image.height = static_cast<std::size_t>(height);
+	}
+	~GLResourceImage() {
+		::cudaGraphicsResource_t resource =
+		    reinterpret_cast<::cudaGraphicsResource_t>(m_Image.ptr);
+		::cudaGraphicsUnregisterResource(resource);
+	}
+};
+
+}  // namespace
+
+GraphicsResourceImage *getGLImage(
+    std::uint32_t image, GraphicsResourceImageType type) {
+	return new GLResourceImage(image, type);
+}
+
+int getGLDeviceIndex() {
+	int device = -1;
+	unsigned int deviceCount = 0;
+	cuda::cudaCheck(
+	    ::cudaGLGetDevices(&deviceCount, &device, 1, ::cudaGLDeviceListAll));
+	if (deviceCount != 1) {
+		throw std::runtime_error("Failed to determine CUDA device");
+	}
+	return device;
+}
 
 namespace {
 

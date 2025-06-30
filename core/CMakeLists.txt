@@ -13,6 +13,7 @@ endif()
 
 find_package(CUDAToolkit 11 REQUIRED)
 find_package(TensorRT 8.5 REQUIRED COMPONENTS ${NVINFER_LIB})
+find_package(OpenGL REQUIRED)
 
 include(GenerateExportHeader)
 
@@ -39,6 +40,7 @@ target_include_directories(JoshUpscale PUBLIC
 target_link_libraries(JoshUpscale PRIVATE
   CUDA::$<IF:$<BOOL:${USE_STATIC_CUDA}>,cudart_static,cudart>
   TensorRT::${NVINFER_LIB}
+  OpenGL::GL
 )
 if(WIN32)
   option(USE_PRIVATE_DLLS "Private core dependencies" OFF)
@@ -50,6 +52,7 @@ if(WIN32)
         -DDLLS=$<TARGET_RUNTIME_DLLS:JoshUpscale>
         -P ${PROJECT_SOURCE_DIR}/cmake/GenerateManifest.cmake
       COMMAND mt.exe
+        -nologo
         -manifest ${CMAKE_CURRENT_BINARY_DIR}/JoshUpscale.manifest
         "-inputresource:$<TARGET_FILE:JoshUpscale>;#2"
         "-outputresource:$<TARGET_FILE:JoshUpscale>;#2"
