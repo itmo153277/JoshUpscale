@@ -7,6 +7,8 @@
 #ifdef ERROR
 #undef ERROR
 #endif
+#include <cuda_d3d11_interop.h>
+#include <d3d11.h>
 #endif
 #include <GL/gl.h>
 #include <cuda_gl_interop.h>
@@ -27,15 +29,6 @@
 #include "JoshUpscale/core/tensor.h"
 #include "JoshUpscale/core/tensorrt_backend.h"
 #include "JoshUpscale/core/utils.h"
-
-#ifdef _WIN32
-#include <cuda_d3d11_interop.h>
-#include <d3d11.h>
-#include <dxgi.h>
-#include <wrl/client.h>
-
-#include <system_error>
-#endif
 
 namespace JoshUpscale {
 
@@ -78,21 +71,13 @@ struct D3D11ResourceImage : GraphicsResourceImage {
 }  // namespace
 
 int getD3D11DeviceIndex(ID3D11Device *d3d11Device) {
-	using Microsoft::WRL::ComPtr;
 	int device = -1;
-	ComPtr<IDXGIDevice> dxgiDevice;
-	HRESULT hr = d3d11Device->QueryInterface(dxgiDevice.GetAddressOf());
-	if (FAILED(hr)) {
-		throw std::system_error(
-		    hr, std::system_category(), "IDXGIDevice query failed");
+	unsigned int deviceCount = 0;
+	cuda::cudaCheck(::cudaD3D11GetDevices(
+	    &deviceCount, &device, 1, d3d11Device, ::cudaD3D11DeviceListAll));
+	if (deviceCount != 1) {
+		throw std::runtime_error("Failed to determine CUDA device");
 	}
-	ComPtr<IDXGIAdapter> dxgiAdapter;
-	hr = dxgiDevice->GetAdapter(dxgiAdapter.GetAddressOf());
-	if (FAILED(hr)) {
-		throw std::system_error(
-		    hr, std::system_category(), "IDXGIAdapter query failed");
-	}
-	cuda::cudaCheck(::cudaD3D11GetDevice(&device, dxgiAdapter.Get()));
 	return device;
 }
 
@@ -124,20 +109,6 @@ struct GLResourceImage : GraphicsResourceImage {
 			throw std::runtime_error(
 			    "Failed to bind texture: " + std::to_string(error));
 		}
-#ifndef NDEBUG
-		GLint format = 0;
-		GLint bitDepth[3] = {};
-		::glGetTexLevelParameteriv(
-		    GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &format);
-		::glGetTexLevelParameteriv(
-		    GL_TEXTURE_2D, 0, GL_TEXTURE_RED_SIZE, &bitDepth[0]);
-		::glGetTexLevelParameteriv(
-		    GL_TEXTURE_2D, 0, GL_TEXTURE_GREEN_SIZE, &bitDepth[1]);
-		::glGetTexLevelParameteriv(
-		    GL_TEXTURE_2D, 0, GL_TEXTURE_BLUE_SIZE, &bitDepth[2]);
-		assert(bitDepth[0] == 8 && bitDepth[1] == 8 && bitDepth[2] == 8 &&
-		       (format == GL_RGBA || format == GL_RGB));
-#endif
 		GLint width = 0;
 		GLint height = 0;
 		::glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);

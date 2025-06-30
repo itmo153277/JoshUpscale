@@ -382,8 +382,12 @@ void cudaCopy(const GraphicsResource &from, const CudaBuffer<T> &to,
     const CudaStream &stream) {
 	auto *array = from.getArray();
 	::cudaExtent extent;
-	cudaCheck(::cudaArrayGetInfo(nullptr, &extent, nullptr, array));
-	assert(to.getByteSize() == extent.width * extent.height * 4);
+	::cudaChannelFormatDesc channelFormat;
+	cudaCheck(::cudaArrayGetInfo(&channelFormat, &extent, nullptr, array));
+	assert(to.getByteSize() == extent.width * extent.height * 4 &&
+	       channelFormat.f == ::cudaChannelFormatKindUnsigned &&
+	       channelFormat.x == 8 && channelFormat.y == 8 &&
+	       channelFormat.z == 8 && channelFormat.w == 8);
 	std::size_t lineLength = extent.width * 4 * sizeof(std::byte);
 	if constexpr (std::is_same_v<T, DynamicType>) {
 		assert(to.getDataType() == DataType::UINT8);
@@ -417,9 +421,13 @@ void cudaCopy(const CudaBuffer<T> &from, const GraphicsResource &to,
     const CudaStream &stream) {
 	auto *array = to.getArray();
 	::cudaExtent extent;
-	cudaCheck(::cudaArrayGetInfo(nullptr, &extent, nullptr, array));
+	::cudaChannelFormatDesc channelFormat;
+	cudaCheck(::cudaArrayGetInfo(&channelFormat, &extent, nullptr, array));
+	assert(from.getByteSize() == extent.width * extent.height * 4 &&
+	       channelFormat.f == ::cudaChannelFormatKindUnsigned &&
+	       channelFormat.x == 8 && channelFormat.y == 8 &&
+	       channelFormat.z == 8 && channelFormat.w == 8);
 	std::size_t lineLength = extent.width * 4 * sizeof(std::byte);
-	assert(from.getByteSize() == extent.width * extent.height * 4);
 	if constexpr (std::is_same_v<T, DynamicType>) {
 		assert(from.getDataType() == DataType::UINT8);
 	}
