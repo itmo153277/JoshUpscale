@@ -11,17 +11,25 @@
 # sets:
 # - TensorRT_FOUND
 # - TensorRT_nvinfer_FOUND
+# - TensorRT_nvinfer_static_FOUND
 # - TensorRT_nvinfer_lean_FOUND
+# - TensorRT_nvinfer_lean_static_FOUND
 # - TensorRT_nvinfer_dispatch_FOUND
+# - TensorRT_nvinfer_dispatch_static_FOUND
 # - TensorRT_nvonnxparser_FOUND
+# - TensorRT_nvonnxparser_static_FOUND
 # - TensorRT_ROOT (set if absent)
 # - TensorRT_INCLUDE_DIR (cached)
 # - TensorRT_LIBRARY_DIR (set if absent)
 # - TensorRT_BIN_DIR (windows only, cached)
 # - TensorRT_nvinfer_LIBRARY (cached)
+# - TensorRT_nvinfer_static_LIBRARY (cached)
 # - TensorRT_nvinfer_lean_LIBRARY (cached)
+# - TensorRT_nvinfer_lean_static_LIBRARY (cached)
 # - TensorRT_nvinfer_dispatch_LIBRARY (cached)
+# - TensorRT_nvinfer_dispatch_static_LIBRARY (cached)
 # - TensorRT_nvonnxparser_LIBRARY (cached)
+# - TensorRT_nvonnxparser_static_LIBRARY (cached)
 # - TensorRT_LIBRARIES
 # - TensorRT_VERSION
 # - TensorRT_VERSION_MAJOR
@@ -30,7 +38,9 @@
 #
 # targets:
 # - TensorRT::nvinfer
+# - TensorRT::nvinfer_static
 # - TensorRT::nvinfer_lean
+# - TensorRT::nvinfer_lean_static
 # - TensorRT::nvinfer_dispatch
 # - TensorRT::nvonnxparser
 
@@ -93,26 +103,50 @@ if(WIN32 AND NOT TensorRT_BIN_DIR)
     CACHE PATH "TensorRT bin directory")
 endif()
 
+find_library(TensorRT_nvinfer_static_LIBRARY
+  nvinfer_static${TensorRT_SUFFIX}
+  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
 find_library(TensorRT_nvinfer_lean_LIBRARY
   nvinfer_lean${TensorRT_SUFFIX}
+  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
+find_library(TensorRT_nvinfer_lean_static_LIBRARY
+  nvinfer_lean_static${TensorRT_SUFFIX}
   PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
 find_library(TensorRT_nvinfer_dispatch_LIBRARY
   nvinfer_dispatch${TensorRT_SUFFIX}
   PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
+find_library(TensorRT_nvinfer_dispatch_static_LIBRARY
+  nvinfer_dispatch_static${TensorRT_SUFFIX}
+  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
 find_library(TensorRT_nvonnxparser_LIBRARY
   nvonnxparser${TensorRT_SUFFIX}
+  PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
+find_library(TensorRT_nvonnxparser_static_LIBRARY
+  nvonnxparser_static${TensorRT_SUFFIX}
   PATHS ${TensorRT_LIBRARY_DIR} NO_DEFAULT_PATH)
 
 if(TensorRT_nvinfer_LIBRARY)
   set(TensorRT_nvinfer_FOUND 1)
+  if(TensorRT_nvinfer_static_LIBRARY)
+    set(TensorRT_nvinfer_static_FOUND 1)
+  endif()
   if(TensorRT_nvinfer_lean_LIBRARY)
     set(TensorRT_nvinfer_lean_FOUND 1)
+  endif()
+  if(TensorRT_nvinfer_lean_static_LIBRARY)
+    set(TensorRT_nvinfer_lean_static_FOUND 1)
   endif()
   if(TensorRT_nvinfer_dispatch_LIBRARY)
     set(TensorRT_nvinfer_dispatch_FOUND 1)
   endif()
+  if(TensorRT_nvinfer_dispatch_static_LIBRARY)
+    set(TensorRT_nvinfer_dispatch_static_FOUND 1)
+  endif()
   if(TensorRT_nvonnxparser_LIBRARY)
     set(TensorRT_nvonnxparser_FOUND 1)
+  endif()
+  if(TensorRT_nvonnxparser_static_LIBRARY)
+    set(TensorRT_nvonnxparser_static_FOUND 1)
   endif()
 endif()
 
@@ -132,13 +166,17 @@ find_package_handle_standard_args(
 mark_as_advanced(
   TensorRT_INCLUDE_DIR
   TensorRT_nvinfer_LIBRARY
+  TensorRT_nvinfer_static_LIBRARY
   TensorRT_nvinfer_lean_LIBRARY
+  TensorRT_nvinfer_lean_static_LIBRARY
   TensorRT_nvinfer_dispatch_LIBRARY
+  TensorRT_nvinfer_dispatch_static_LIBRARY
   TensorRT_nvonnxparser_LIBRARY
+  TensorRT_nvonnxparser_static_LIBRARY
 )
 
-function(add_tensorrt_lib LIB_NAME)
-  add_library(TensorRT::${LIB_NAME} SHARED IMPORTED)
+function(add_tensorrt_lib LIB_NAME LIB_TYPE)
+  add_library(TensorRT::${LIB_NAME} ${LIB_TYPE} IMPORTED)
   set_property(TARGET TensorRT::${LIB_NAME}
     PROPERTY INTERFACE_INCLUDE_DIRECTORIES
     "${TensorRT_INCLUDE_DIR}")
@@ -166,7 +204,12 @@ set(TensorRT_LIBRARIES "")
 if(TensorRT_FOUND)
   foreach(LIB_NAME nvinfer nvinfer_lean nvinfer_dispatch nvonnxparser)
     if(TensorRT_${LIB_NAME}_FOUND)
-      add_tensorrt_lib(${LIB_NAME})
+      add_tensorrt_lib(${LIB_NAME} SHARED)
+    endif()
+  endforeach()
+  foreach(LIB_NAME nvinfer_static nvinfer_lean_static nvinfer_dispatch_static nvonnxparser_static)
+    if(TensorRT_${LIB_NAME}_FOUND)
+      add_tensorrt_lib(${LIB_NAME} STATIC)
     endif()
   endforeach()
 endif()
