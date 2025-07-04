@@ -34,8 +34,9 @@ generate_export_header(JoshUpscale
 target_compile_features(JoshUpscale PUBLIC cxx_std_20 cuda_std_20)
 target_include_directories(JoshUpscale PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(JoshUpscale PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/public
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/include
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/public>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated/include>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_link_libraries(JoshUpscale PRIVATE
   CUDA::$<IF:$<BOOL:${USE_STATIC_CUDA}>,cudart_static,cudart>
@@ -59,3 +60,23 @@ if(WIN32)
     )
   endif()
 endif()
+
+install(
+  TARGETS JoshUpscale
+  EXPORT JoshUpscaleTargets
+  RUNTIME
+    COMPONENT Runtime
+  LIBRARY
+    COMPONENT Runtime
+    NAMELINK_COMPONENT Development
+  ARCHIVE
+    COMPONENT Development
+)
+
+install(
+  DIRECTORY
+    ${CMAKE_CURRENT_SOURCE_DIR}/public/
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/include/
+  TYPE INCLUDE
+  COMPONENT Development
+)

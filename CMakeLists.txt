@@ -17,10 +17,26 @@ endif()
 
 project(JoshUpscale VERSION 2.0 LANGUAGES C CXX CUDA)
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/JoshUpscaleConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/JoshUpscaleConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JoshUpscale
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/cmake/JoshUpscaleConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
 
 if(MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
@@ -60,3 +76,24 @@ endif()
 if(BUILD_OBS_PLUGIN)
   add_subdirectory(obs_plugin)
 endif()
+
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/JoshUpscaleConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/cmake/JoshUpscaleConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JoshUpscale
+  COMPONENT Development
+)
+
+export(
+  EXPORT JoshUpscaleTargets
+  FILE ${CMAKE_CURRENT_BINARY_DIR}/cmake/JoshUpscaleTargets.cmake
+  NAMESPACE JoshUpscale::
+)
+
+install(
+  EXPORT JoshUpscaleTargets
+  NAMESPACE JoshUpscale::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JoshUpscale
+  COMPONENT Development
+)

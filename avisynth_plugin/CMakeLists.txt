@@ -6,3 +6,12 @@ target_link_libraries(JoshUpscaleAvisynth PRIVATE
   AviSynth
   JoshUpscale
 )
+
+install(
+  TARGETS JoshUpscaleAvisynth
+  RUNTIME
+    COMPONENT Runtime
+  LIBRARY
+    COMPONENT Runtime
+    NAMELINK_SKIP
+)

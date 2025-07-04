@@ -7,10 +7,20 @@ endif()
 
 file(GLOB_RECURSE SRC src/*.c src/*.cc)
 file(GLOB_RECURSE HEADERS include/*.h)
-add_library(obs-joshupscale SHARED ${SRC} ${HEADERS})
+file(GLOB_RECURSE DATA data/*)
+file(GLOB_RECURSE DATA_MODELS data/*.trt)
+if(NOT DATA_MODELS)
+  message(FATAL_ERROR "No models found. Please put your models into obs_plugin/data folder")
+endif()
+foreach(F IN LISTS DATA_MODELS)
+  list(REMOVE_ITEM DATA ${F})
+endforeach()
+add_library(obs-joshupscale SHARED ${SRC} ${HEADERS} ${DATA})
+source_group(Resources FILES ${DATA})
 set_target_properties(obs-joshupscale PROPERTIES
   C_VISIBILITY_PRESET hidden
   CXX_VISIBILITY_PRESET hidden
+  INSTALL_RPATH "$ORIGIN/.."
 )
 if(NOT MSVC)
   target_link_options(obs-joshupscale PRIVATE -Wl,--exclude-libs,ALL)
@@ -18,9 +28,6 @@ endif()
 target_compile_features(obs-joshupscale PUBLIC cxx_std_20)
 target_include_directories(obs-joshupscale PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-target_include_directories(obs-joshupscale SYSTEM PRIVATE
-  ${FFMPEG_INCLUDE_DIRS}
 )
 if(WIN32)
   option(USE_NVVFX "Use NVIDIA Video Effects for OBS plugin" ON)
@@ -39,7 +46,6 @@ if(WIN32)
     target_compile_definitions(obs-joshupscale PRIVATE JOSHUPSCALE_NVVFX)
   endif()
 endif()
-target_link_directories(obs-joshupscale PRIVATE ${FFMPEG_LIBRARY_DIRS})
 target_link_libraries(obs-joshupscale PRIVATE
   JoshUpscale
   OBS::libobs
@@ -86,24 +92,38 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     COMMAND ${CMAKE_COMMAND}
       -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss
   )
-  file(GLOB_RECURSE DATA data/*)
-  file(GLOB_RECURSE DATA_MODELS data/*.trt)
-  if(NOT DATA_MODELS)
-    message(FATAL_ERROR "No models found. Please put your models into obs_plugin/data folder")
-  endif()
   add_custom_command(
     OUTPUT obs-joshupscale-installer.exe
     COMMAND ${ISCC_COMMAND}
       /Q "/O${CMAKE_CURRENT_BINARY_DIR}"
       "${CMAKE_CURRENT_BINARY_DIR}/obs-joshupscale-installer.iss"
     COMMENT "Building installer"
-    DEPENDS obs-joshupscale-installer.iss JoshUpscale obs-joshupscale ${DATA}
+    DEPENDS
+      obs-joshupscale-installer.iss
+      JoshUpscale
+      obs-joshupscale
+      ${DATA}
+      ${DATA_MODELS}
   )
-  foreach(F IN LISTS DATA_MODELS)
-    list(REMOVE_ITEM DATA ${F})
-  endforeach()
   add_custom_target(obs-joshupscale-installer-target ALL
     DEPENDS obs-joshupscale-installer.exe
-    SOURCES install/obs-joshupscale-installer.iss.in ${DATA}
+    SOURCES install/obs-joshupscale-installer.iss.in
   )
 endif()
+
+install(
+  TARGETS obs-joshupscale
+  RUNTIME
+    COMPONENT Runtime
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins
+  LIBRARY
+    COMPONENT Runtime
+    NAMELINK_SKIP
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins
+)
+
+install(
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/obs/obs-plugins/obs-joshupscale
+  COMPONENT Runtime
+)
