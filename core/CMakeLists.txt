@@ -66,6 +66,7 @@ if(WIN32)
     )
   endif()
 endif()
+set_target_properties(JoshUpscale PROPERTIES VERSION ${PROJECT_VERSION})
 
 install(
   TARGETS JoshUpscale

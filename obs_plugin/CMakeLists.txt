@@ -110,6 +110,7 @@ if(BUILD_OBS_PLUGIN_INSTALLER)
     SOURCES install/obs-joshupscale-installer.iss.in
   )
 endif()
+set_target_properties(obs-joshupscale PROPERTIES NO_SONAME ON)
 
 install(
   TARGETS obs-joshupscale
