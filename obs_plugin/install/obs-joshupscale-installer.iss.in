@@ -19,8 +19,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile=@LICENSE_PATH@
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequired=admin
 OutputBaseFilename=obs-joshupscale-installer
 Compression=lzma2/max
 SolidCompression=yes
@@ -35,11 +34,11 @@ DirExistsWarning=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "@PLUGIN_PATH@"; DestDir: "{code:GetBinaryPath}"; Flags: ignoreversion
-Source: "@CORE_PATH@"; DestDir: "{code:GetDataPath}"; Flags: ignoreversion
-Source: "@DATA_PATH@\*"; DestDir: "{code:GetDataPath}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "@PLUGIN_PATH@"; DestDir: "{app}\obs-plugins\64bit"; Flags: ignoreversion
+Source: "@CORE_PATH@"; DestDir: "{app}\data\obs-plugins\obs-joshupscale"; Flags: ignoreversion
+Source: "@DATA_PATH@\*"; DestDir: "{app}\data\obs-plugins\obs-joshupscale"; Flags: ignoreversion recursesubdirs createallsubdirs
 #if ! @USE_NVVFX@
-Source: "@DEPS_PATH@\*"; DestDir: "{code:GetDataPath}"; Flags: ignoreversion
+Source: "@DEPS_PATH@\*"; DestDir: "{app}\data\obs-plugins\obs-joshupscale"; Flags: ignoreversion
 #endif
 
 [Icons]
@@ -49,6 +48,7 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 const
   MinObsVersion = @MIN_OBS_VERSION@;
   NvVfxTargetVersion = {#PackVersionComponents(0, 7, 6, 0)};
+  UserUninstallerKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppId")}_is1';
 
 function GetNvVfxPath: String;
 begin
@@ -79,7 +79,7 @@ begin
   Result := '';
 end;
 
-function GetOBSPath: String;
+function GetDefaultInstallDir(Value: String): String;
 var InstallPath: String;
 begin
   if RegQueryStringValue(HKLM, 'SOFTWARE\OBS Studio', '', InstallPath) then
@@ -88,44 +88,12 @@ begin
     Result := ExpandConstant('{commonpf64}\obs-studio')
 end;
 
-function GetDefaultInstallDir(Value: String): String;
-begin
-  if IsAdminInstallMode then
-    Result := GetOBSPath
-  else
-    Result := ExpandConstant('{usercf}\obs-studio\plugins\obs-joshupscale')
-end;
-
-function GetBinaryPath(Value: String): String;
-begin
-  if IsAdminInstallMode then
-    Result := ExpandConstant('{app}\obs-plugins\64bit')
-  else
-    Result := ExpandConstant('{app}\bin')
-end;
-
-function GetDataPath(Value: String): String;
-begin
-  if IsAdminInstallMode then
-    Result := ExpandConstant('{app}\data\obs-plugins\obs-joshupscale')
-  else
-    Result := ExpandConstant('{app}\data\obs-joshupscale')
-end;
-
-function GetTargetOBSPath: String;
-begin
-  if IsAdminInstallMode then
-    Result := ExpandConstant('{app}')
-  else
-    Result := GetOBSPath;
-end;
-
 function CheckOBSVersion: String;
 var
   OBSPath: String;
   MajorVer, MinorVer, RevVer, BuildVer: Word;
 begin
-  OBSPath := GetTargetOBSPath;
+  OBSPath := ExpandConstant('{app}');
   if not DirExists(OBSPath) then
     Exit;
   Result := 'OBS version mismatch';
@@ -133,6 +101,29 @@ begin
     Exit;
   if MajorVer < MinObsVersion then
     Exit;
+  Result := '';
+end;
+
+function GetUserUninstaller: String;
+begin
+  RegQueryStringValue(HKCU, ExpandConstant(UserUninstallerKey), 'UninstallString', Result);
+  Result := RemoveQuotes(Result);
+end;
+
+function CheckPreviousVersion: String;
+var
+  UserUninstaller: String;
+  UninstallerResult: Integer;
+begin
+  UserUninstaller := GetUserUninstaller;
+  if UserUninstaller <> '' then
+  begin
+    Result := 'Please uninstall old version first';
+    if not Exec(UserUninstaller, '/silent', '', SW_HIDE, ewWaitUntilTerminated, UninstallerResult) then
+      Exit;
+    if UninstallerResult <> 0 then
+      Exit;
+  end;
   Result := '';
 end;
 
@@ -144,6 +135,9 @@ begin
     Exit;
 #endif
   Result := CheckOBSVersion;
+  if Result <> '' then
+    Exit;
+  Result := CheckPreviousVersion;
   if Result <> '' then
     Exit;
 end;
